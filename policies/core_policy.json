@@ -1,0 +1,374 @@
+{
+  "schema_version": "1.0",
+  "metadata": {
+    "name": "Core Ethical Policy",
+    "version": "0.1.0",
+    "description": "Baseline symbolic policy for the rule-based + constraint guardrail (roadmap item #1). Constraints are the hard safety floor (constraint-based reasoning); rules are deontic statements tied to ethical principles. Patterns cover English and Brazilian Portuguese.",
+    "language": "en, pt-BR",
+    "created": "2026-06-10",
+    "principles_reference": "RQ1 principle mapping (non_maleficence, privacy, autonomy, fairness, transparency, accountability, security)"
+  },
+  "constraints": [
+    {
+      "id": "C-HARM-001",
+      "principle": "non_maleficence",
+      "deontic": "prohibition",
+      "severity": "critical",
+      "scopes": ["input", "output"],
+      "description": "Instructions for building weapons, explosives or chemical/biological agents.",
+      "rationale": "Mass-harm enablement can never pass, regardless of context.",
+      "references": ["Roadmap #4: constraint-based minimum safety baseline"],
+      "condition": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "regex",
+            "pattern": "\\b(make|build|construct|manufacture|synthesi[sz]e|fabricar|construir|fazer|montar)\\w*\\b[^.?!]{0,60}\\b(bomb|explosive device|explosives?|nerve agent|chemical weapon|bioweapon|bomba|explosivos?|arma qu[ií]mica|arma biol[óo]gica)\\b",
+            "flags": "i"
+          },
+          {
+            "type": "regex",
+            "pattern": "\\b(steps|instructions|recipe|instru[çc][õo]es|passo a passo|receita)\\b[^.?!]{0,60}\\b(bomb|explosives?|nerve agent|chemical weapon|bomba|explosivos?|arma qu[ií]mica)\\b",
+            "flags": "i"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-CSAM-001",
+      "principle": "non_maleficence",
+      "deontic": "prohibition",
+      "severity": "critical",
+      "scopes": ["input", "output"],
+      "description": "Sexual content involving minors.",
+      "rationale": "Absolute prohibition; no exception is conceivable.",
+      "condition": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "regex",
+            "pattern": "\\b(child(ren)?|minors?|underage|crian[çc]as?|menor(es)? de idade)\\b[^.?!]{0,80}\\b(sexual\\w*|porn\\w*|nude\\w*|er[óo]tic\\w*)",
+            "flags": "i"
+          },
+          {
+            "type": "regex",
+            "pattern": "\\b(sexual\\w*|porn\\w*|nude\\w*|er[óo]tic\\w*)\\b[^.?!]{0,80}\\b(child(ren)?|minors?|underage|crian[çc]as?|menor(es)? de idade)\\b",
+            "flags": "i"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-MAL-001",
+      "principle": "security",
+      "deontic": "prohibition",
+      "severity": "critical",
+      "scopes": ["input", "output"],
+      "description": "Creation of malicious software (malware, ransomware, keyloggers, botnets).",
+      "rationale": "Malware authoring enables direct harm to third parties.",
+      "condition": {
+        "type": "regex",
+        "pattern": "\\b(write|create|build|develop|make|code|generate|criar|desenvolver|escrever?|fa[çc]a|gerar?)\\w*\\b[^.?!]{0,60}\\b(malware|ransomware|keylogger|spyware|botnet|rootkit|computer virus|v[íi]rus de computador)\\b",
+        "flags": "i"
+      }
+    }
+  ],
+  "rules": [
+    {
+      "id": "R-INJ-001",
+      "principle": "security",
+      "deontic": "prohibition",
+      "severity": "high",
+      "scopes": ["input"],
+      "effect": "DENY",
+      "description": "Prompt-injection and policy-bypass attempts.",
+      "rationale": "Attempts to override the system's instructions compromise every other guarantee.",
+      "references": ["OWASP LLM01: Prompt Injection"],
+      "condition": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "regex",
+            "pattern": "\\b(ignore|disregard|forget|esque[çc]a|desconsidere)\\b[^.?!]{0,40}\\b(instructions?|rules|guidelines|system prompt|instru[çc][õo]es|regras)\\b",
+            "flags": "i"
+          },
+          {
+            "type": "regex",
+            "pattern": "\\bn[ãa]o (precisa|precisas|tem que) seguir\\b[^.?!]{0,40}\\b(regras|instru[çc][õo]es)\\b",
+            "flags": "i"
+          },
+          { "type": "keyword", "value": "developer mode" },
+          { "type": "keyword", "value": "jailbreak" },
+          { "type": "keyword", "value": "act as system" },
+          { "type": "keyword", "value": "bypass rules" },
+          { "type": "keyword", "value": "bypass your rules" },
+          { "type": "keyword", "value": "you are now dan" },
+          { "type": "keyword", "value": "reveal your system prompt" }
+        ]
+      }
+    },
+    {
+      "id": "R-PRIV-001",
+      "principle": "privacy",
+      "deontic": "prohibition",
+      "severity": "high",
+      "scopes": ["input"],
+      "effect": "DENY",
+      "description": "Requests for personal information about identifiable individuals.",
+      "rationale": "Disclosing personal data of third parties violates privacy and data-protection norms (LGPD/GDPR).",
+      "references": ["LGPD art. 7", "GDPR art. 6"],
+      "condition": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "regex",
+            "pattern": "(?i:\\b(personal (information|data|details)|home address|phone number|social security number|informa[çc][õo]es pessoais|dados pessoais|endere[çc]o residencial|telefone|cpf)\\b[^.?!]{0,40}\\b(of|about|d[eoa]s?)\\b\\s+)[A-ZÀ-Ý][a-zà-ÿ]+"
+          },
+          {
+            "type": "regex",
+            "pattern": "\\b(find out|discover|descobrir) (where|onde)\\b[^.?!]{0,30}\\b(lives?|mora)\\b",
+            "flags": "i"
+          },
+          { "type": "keyword", "value": "someone's address" },
+          { "type": "keyword", "value": "someone's phone" },
+          { "type": "keyword", "value": "doxx" }
+        ]
+      }
+    },
+    {
+      "id": "R-PRIV-002",
+      "principle": "privacy",
+      "deontic": "prohibition",
+      "severity": "medium",
+      "scopes": ["output"],
+      "effect": "REWRITE",
+      "redact": true,
+      "description": "PII leaking into generated output (emails, CPF, SSN, card and phone numbers) is redacted.",
+      "rationale": "Outputs must not expose personal identifiers even when generation was otherwise legitimate.",
+      "condition": {
+        "type": "any",
+        "conditions": [
+          { "type": "regex", "pattern": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}" },
+          { "type": "regex", "pattern": "\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b" },
+          { "type": "regex", "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b" },
+          { "type": "regex", "pattern": "\\b\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}\\b" },
+          { "type": "regex", "pattern": "\\(\\d{2}\\)\\s?9?\\d{4}-\\d{4}" }
+        ]
+      }
+    },
+    {
+      "id": "R-SEC-001",
+      "principle": "security",
+      "deontic": "prohibition",
+      "severity": "medium",
+      "scopes": ["input"],
+      "effect": "REWRITE",
+      "rewrite_template": "The user asked about an offensive-security topic in an educational context. Explain the concepts from a defensive-security perspective only: how such attacks work conceptually, how to detect them, and best practices to protect systems. Do not include step-by-step offensive instructions.",
+      "description": "Offensive-security questions framed as educational are sanitised into defensive framing.",
+      "rationale": "Educational intent is legitimate, but the request must be steered to defensive content.",
+      "condition": {
+        "type": "all",
+        "conditions": [
+          {
+            "type": "any",
+            "conditions": [
+              { "type": "keyword", "value": "hack" },
+              { "type": "keyword", "value": "hackear" },
+              { "type": "keyword", "value": "invadir" },
+              { "type": "keyword", "value": "invasão" },
+              { "type": "keyword", "value": "intrusion" },
+              { "type": "keyword", "value": "break into" },
+              { "type": "keyword", "value": "penetration" }
+            ]
+          },
+          {
+            "type": "any",
+            "conditions": [
+              { "type": "keyword", "value": "educational" },
+              { "type": "keyword", "value": "educacional" },
+              { "type": "keyword", "value": "educacionais" },
+              { "type": "keyword", "value": "learn" },
+              { "type": "keyword", "value": "aprender" },
+              { "type": "keyword", "value": "course" },
+              { "type": "keyword", "value": "curso", "whole_word": true },
+              { "type": "keyword", "value": "teach" },
+              { "type": "keyword", "value": "ensinar" },
+              { "type": "keyword", "value": "study" },
+              { "type": "keyword", "value": "estudar" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "R-SEC-002",
+      "principle": "security",
+      "deontic": "prohibition",
+      "severity": "high",
+      "scopes": ["input"],
+      "effect": "DENY",
+      "description": "Requests for offensive hacking techniques (account intrusion, credential theft).",
+      "rationale": "Unauthorized access instructions enable direct harm; denied unless an educational/defensive context applies (handled by R-SEC-001).",
+      "condition": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "regex",
+            "pattern": "\\b(how to|como|maneiras de|ways to)\\b[^.?!]{0,30}\\b(hack(ear)?|invadir|break into)\\b",
+            "flags": "i"
+          },
+          { "type": "keyword", "value": "técnicas de invasão" },
+          { "type": "keyword", "value": "steal credentials" },
+          { "type": "keyword", "value": "roubar senha" },
+          { "type": "keyword", "value": "crack password" },
+          { "type": "keyword", "value": "crack a password" }
+        ]
+      },
+      "exceptions": {
+        "type": "any",
+        "conditions": [
+          { "type": "keyword", "value": "educational" },
+          { "type": "keyword", "value": "educacional" },
+          { "type": "keyword", "value": "educacionais" },
+          { "type": "keyword", "value": "learn" },
+          { "type": "keyword", "value": "aprender" },
+          { "type": "keyword", "value": "course" },
+          { "type": "keyword", "value": "curso", "whole_word": true },
+          { "type": "keyword", "value": "defensive" },
+          { "type": "keyword", "value": "defensivo" },
+          { "type": "keyword", "value": "defensiva" },
+          { "type": "keyword", "value": "protect" },
+          { "type": "keyword", "value": "proteger" }
+        ]
+      }
+    },
+    {
+      "id": "R-FAIR-001",
+      "principle": "fairness",
+      "deontic": "prohibition",
+      "severity": "high",
+      "scopes": ["input"],
+      "effect": "DENY",
+      "description": "Requests to generate discriminatory or demeaning content about protected groups.",
+      "rationale": "Generating discriminatory content violates fairness and human dignity.",
+      "condition": {
+        "type": "any",
+        "conditions": [
+          {
+            "type": "regex",
+            "pattern": "\\b(write|make|tell|create|compose|escreva|fa[çc]a|conte|crie)\\b[^.?!]{0,40}\\b(racist|sexist|homophobic|xenophobic|racista|machista|sexista|homof[óo]bic\\w*|xenof[óo]bic\\w*)\\b[^.?!]{0,40}\\b(jokes?|essay|song|story|piadas?|texto|m[úu]sica|hist[óo]ria)\\b",
+            "flags": "i"
+          },
+          {
+            "type": "regex",
+            "pattern": "\\b(write|make|tell|create|compose|escreva|fa[çc]a|conte|crie)\\b[^.?!]{0,40}\\b(jokes?|essay|song|story|piadas?|texto|m[úu]sica|hist[óo]ria)\\b[^.?!]{0,30}\\b(racist|sexist|homophobic|xenophobic|racista|machista|sexista|homof[óo]bic\\w*|xenof[óo]bic\\w*)\\b",
+            "flags": "i"
+          },
+          {
+            "type": "regex",
+            "pattern": "\\bwhy (are|is)\\b[^.?!]{0,50}\\b(inferior|less intelligent|less capable|naturally criminal)\\b",
+            "flags": "i"
+          },
+          { "type": "keyword", "value": "racial slur" }
+        ]
+      }
+    },
+    {
+      "id": "R-HARM-002",
+      "principle": "non_maleficence",
+      "deontic": "obligation",
+      "severity": "critical",
+      "scopes": ["input"],
+      "effect": "ESCALATE",
+      "description": "Self-harm or suicide signals are withheld from automatic handling and escalated to human review, with support resources shown to the user.",
+      "rationale": "Self-harm contexts require human judgment; the system's obligation is to escalate and offer help, never to improvise.",
+      "user_message": "If you are going through a difficult moment, you are not alone and help is available. Brazil: CVV - call 188 (24h, free) or chat at cvv.org.br. US/Canada: call or text 988. Other countries: findahelpline.com.",
+      "condition": {
+        "type": "any",
+        "conditions": [
+          { "type": "keyword", "value": "kill myself" },
+          { "type": "keyword", "value": "end my life" },
+          { "type": "keyword", "value": "suicide" },
+          { "type": "keyword", "value": "suicidal" },
+          { "type": "keyword", "value": "hurt myself" },
+          { "type": "keyword", "value": "self-harm" },
+          { "type": "keyword", "value": "me matar" },
+          { "type": "keyword", "value": "tirar minha vida" },
+          { "type": "keyword", "value": "me machucar" },
+          { "type": "keyword", "value": "acabar com minha vida" },
+          { "type": "keyword", "value": "não aguento mais viver" }
+        ]
+      }
+    },
+    {
+      "id": "R-TRANS-001",
+      "principle": "transparency",
+      "deontic": "obligation",
+      "severity": "low",
+      "scopes": ["output"],
+      "effect": "REWRITE",
+      "rewrite_template": "{content}\n\n---\nNotice: this information is educational and does not replace professional medical advice. / Aviso: estas informações são educativas e não substituem aconselhamento médico profissional.",
+      "description": "Medical guidance in outputs must carry a professional-advice disclaimer (obligation: appended when missing).",
+      "rationale": "Transparency requires the system to disclose the limits of its competence in high-stakes domains.",
+      "condition": {
+        "type": "all",
+        "conditions": [
+          {
+            "type": "any",
+            "conditions": [
+              { "type": "keyword", "value": "diagnosis" },
+              { "type": "keyword", "value": "diagnóstico" },
+              { "type": "keyword", "value": "dosage" },
+              { "type": "keyword", "value": "dosagem" },
+              { "type": "keyword", "value": "medication" },
+              { "type": "keyword", "value": "medicamento" },
+              { "type": "keyword", "value": "prescription" },
+              { "type": "keyword", "value": "posologia" },
+              { "type": "keyword", "value": "you should take" }
+            ]
+          },
+          {
+            "type": "not",
+            "condition": {
+              "type": "any",
+              "conditions": [
+                { "type": "keyword", "value": "not a substitute for professional" },
+                { "type": "keyword", "value": "não substitui" },
+                { "type": "keyword", "value": "consult a doctor" },
+                { "type": "keyword", "value": "consulte um médico" },
+                { "type": "keyword", "value": "procure um médico" },
+                { "type": "keyword", "value": "seek professional" }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "R-MANIP-001",
+      "principle": "autonomy",
+      "deontic": "prohibition",
+      "severity": "medium",
+      "scopes": ["input"],
+      "effect": "DENY",
+      "description": "Requests for manipulation, social engineering or scam material.",
+      "rationale": "Deceptive content undermines the autonomy of the people targeted by it.",
+      "condition": {
+        "type": "any",
+        "conditions": [
+          { "type": "keyword", "value": "phishing email" },
+          { "type": "keyword", "value": "phishing message" },
+          { "type": "keyword", "value": "phishing sms" },
+          { "type": "keyword", "value": "mensagem de phishing" },
+          { "type": "keyword", "value": "e-mail de phishing" },
+          { "type": "keyword", "value": "manipulate someone into" },
+          { "type": "keyword", "value": "manipular alguém" },
+          { "type": "keyword", "value": "gaslight" },
+          { "type": "keyword", "value": "scam script" },
+          { "type": "keyword", "value": "script de golpe" },
+          { "type": "keyword", "value": "golpe do pix" }
+        ]
+      }
+    }
+  ]
+}
