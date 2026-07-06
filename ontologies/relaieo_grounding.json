@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "name": "RelAIEO text-to-concept grounding lexicon",
+    "version": "0.1.0",
+    "description": "OUR maintained mapping from surface text (en/pt-BR) to a subset of RelAIEO concept IDs. RelAIEO itself has no lexicalizations (it is a formal, reflective auditing ontology); this layer is how the guardrail activates ontology concepts from a prompt/response. It references only concept IDs that exist in relaieo.ttl. Keeping it separate leaves the upstream ontology pristine.",
+    "created": "2026-07-01",
+    "grounds_concept_ids_from": "ontologies/relaieo.ttl"
+  },
+  "grounding": {
+    "design": [
+      { "term": "\\b(build|create|deploy|develop|design|launch|train|implement|program|roll out|ship)\\b", "regex": true },
+      { "term": "\\bour (app|platform|system|model|tool|bot|product|service|algorithm|chatbot|agent)\\b", "regex": true },
+      { "term": "\\b(construir|criar|desenvolver|projetar|implementar|lan[çc]ar|treinar)\\b", "regex": true },
+      { "term": "\\bnoss[ao] (app|plataforma|sistema|modelo|ferramenta|bot|produto|servi[çc]o|algoritmo|agente)\\b", "regex": true }
+    ],
+    "surveillance": [
+      { "term": "\\b(surveil\\w*|monitor\\w*|track\\w*|spy\\w*|stalk\\w*|wiretap\\w*)\\b", "regex": true },
+      { "term": "keep tabs on" },
+      { "term": "\\b(monitorar|monitoramento|rastrear|rastreamento|vigiar|vigil[âa]ncia|espionar)\\b", "regex": true }
+    ],
+    "threat_to_privacy": [
+      { "term": "\\b(harvest|scrape|collect|mine|sell|leak|expose)\\w*\\b[^.?!]{0,25}\\b(data|personal|information|records)\\b", "regex": true },
+      { "term": "personal data" },
+      { "term": "dataveillance" },
+      { "term": "\\b(coletar|raspar|vender|vazar|expor)\\w*\\b[^.?!]{0,25}\\b(dados|informa[çc][õo]es)\\b", "regex": true },
+      { "term": "dados pessoais" }
+    ],
+    "information_disorder": [
+      { "term": "\\b(misinformation|disinformation|fake news|propaganda|deep ?fakes?|fake reviews?|astroturf\\w*)\\b", "regex": true },
+      { "term": "\\b(desinforma[çc][ãa]o|not[íi]cias falsas|propaganda enganosa|deep ?fakes?)\\b", "regex": true }
+    ],
+    "deskilling": [
+      { "term": "\\bde-?skill\\w*\\b", "regex": true },
+      { "term": "\\breplace\\b[^.?!]{0,30}\\b(workers?|teachers?|educators?|employees?|staff|humans?|jobs?|tutors?)\\b", "regex": true },
+      { "term": "automate away" },
+      { "term": "\\bmake\\b[^.?!]{0,20}\\bredundant\\b", "regex": true },
+      { "term": "\\bsubstituir\\b[^.?!]{0,30}\\b(trabalhadores|professores|funcion[áa]rios|empregos|humanos|tutores)\\b", "regex": true }
+    ],
+    "bias": [
+      { "term": "\\bbias(ed|es)?\\b", "regex": true },
+      { "term": "\\bdiscriminat\\w*\\b", "regex": true },
+      { "term": "\\b(vi[ée]s|viesad\\w*|enviesad\\w*|discrimina[çc]\\w*|preconceito)\\b", "regex": true }
+    ],
+    "hate_speech": [
+      { "term": "\\bhate speech\\b", "regex": true },
+      { "term": "\\b(discurso de [óo]dio|fala de [óo]dio)\\b", "regex": true }
+    ],
+    "ethic_washing": [
+      { "term": "\\bethics?[- ]washing\\b", "regex": true },
+      { "term": "\\b(look|appear|seem) ethical\\b", "regex": true },
+      { "term": "\\bethics? as (a )?(marketing|pr|branding)\\b", "regex": true }
+    ]
+  }
+}

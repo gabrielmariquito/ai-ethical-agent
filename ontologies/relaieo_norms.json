@@ -1,0 +1,83 @@
+{
+  "metadata": {
+    "name": "RelAIEO verification norms",
+    "version": "0.1.0",
+    "description": "OUR verification layer (RQ3) expressed in RelAIEO's own vocabulary: each norm references RelAIEO concept IDs. Because RelAIEO is a reflective, open-world auditing ontology (not a punitive rule set), an activated harm-risk combined with a build/deploy intent (the 'design' concept) is ESCALATED for human review rather than hard-denied, and the RelAIEO rdfs:provocation of the triggering concept is surfaced as the review prompt. Hard blocks stay in the rule-based layer (policies/core_policy.json).",
+    "created": "2026-07-01",
+    "references_concept_ids_from": "ontologies/relaieo.ttl"
+  },
+  "norms": [
+    {
+      "id": "N-REL-001",
+      "principle": "privacy",
+      "deontic": "prohibition",
+      "severity": "high",
+      "effect": "ESCALATE",
+      "scopes": ["input", "output"],
+      "when": ["surveillance", "design"],
+      "description": "Designing/deploying a system that performs surveillance or tracking of people.",
+      "rationale": "RelAIEO frames surveillance as an identified harm risk of AI systems; building one warrants reflective human audit.",
+      "references": ["RelAIEO:surveillance", "RelAIEO:design"]
+    },
+    {
+      "id": "N-REL-002",
+      "principle": "privacy",
+      "deontic": "prohibition",
+      "severity": "high",
+      "effect": "ESCALATE",
+      "scopes": ["input", "output"],
+      "when": ["threat_to_privacy", "design"],
+      "description": "Designing/deploying a system that harvests or exposes personal data.",
+      "rationale": "RelAIEO frames threats to privacy as an identified harm risk; building a system around personal-data extraction warrants reflective audit.",
+      "references": ["RelAIEO:threat_to_privacy", "RelAIEO:design"]
+    },
+    {
+      "id": "N-REL-003",
+      "principle": "non_maleficence",
+      "deontic": "prohibition",
+      "severity": "high",
+      "effect": "ESCALATE",
+      "scopes": ["input", "output"],
+      "when": ["information_disorder", "design"],
+      "description": "Designing/deploying a system that produces or spreads information disorder (mis/disinformation, deepfakes, propaganda).",
+      "rationale": "RelAIEO frames information disorder as an identified harm risk; building such a system warrants reflective audit.",
+      "references": ["RelAIEO:information_disorder", "RelAIEO:design"]
+    },
+    {
+      "id": "N-REL-004",
+      "principle": "autonomy",
+      "deontic": "prohibition",
+      "severity": "medium",
+      "effect": "ESCALATE",
+      "scopes": ["input", "output"],
+      "when": ["deskilling", "design"],
+      "description": "Designing/deploying a system intended to deskill or replace human workers.",
+      "rationale": "RelAIEO frames deskilling as an identified harm risk; the socio-technical impact warrants reflective audit rather than an automatic yes/no.",
+      "references": ["RelAIEO:deskilling", "RelAIEO:design"]
+    },
+    {
+      "id": "N-REL-005",
+      "principle": "fairness",
+      "deontic": "prohibition",
+      "severity": "high",
+      "effect": "ESCALATE",
+      "scopes": ["input", "output"],
+      "when": ["bias", "design"],
+      "description": "Designing/deploying a system that encodes or reproduces bias/discrimination.",
+      "rationale": "RelAIEO frames bias as an identified harm risk rooted in structural inequality; building such a system warrants reflective audit.",
+      "references": ["RelAIEO:bias", "RelAIEO:design"]
+    },
+    {
+      "id": "N-REL-006",
+      "principle": "transparency",
+      "deontic": "obligation",
+      "severity": "low",
+      "effect": "FLAG",
+      "scopes": ["input", "output"],
+      "when": ["ethic_washing"],
+      "description": "Signals of ethics washing (presenting a system as ethical for marketing/PR).",
+      "rationale": "RelAIEO models ethics washing as a form of ethics manipulation; flag for accountability review.",
+      "references": ["RelAIEO:ethic_washing"]
+    }
+  ]
+}
