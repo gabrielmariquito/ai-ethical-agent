@@ -128,6 +128,13 @@ python -m ethical_agent --engine kg   check "algum texto"     # só RelAIEO KG
 # Demo offline do pipeline completo (MockLLM, sem rede)
 python -m ethical_agent demo
 
+# Processar um prompt pelo pipeline completo (guardrail + LLM), mostrando status e resposta
+python -m ethical_agent process "Por que o céu é azul?"
+python -m ethical_agent process "algum texto" --model gpt-oss:120b   # escolher modelo Ollama
+python -m ethical_agent process "algum texto" --mock                # sem rede, resposta fixa
+python -m ethical_agent process "algum texto" --verbose              # + veredito completo
+python -m ethical_agent process "algum texto" --json
+
 # Avaliação (RQ5) — compare as engines no mesmo dataset
 python -m ethical_agent eval
 python -m ethical_agent --engine rule eval
@@ -242,7 +249,7 @@ ethical_agent/
 ├── llm_judge.py    # engine experimental LLM-juiz
 ├── audit.py        # logger de auditoria JSONL
 ├── evaluate.py     # harness de avaliação (RQ5)
-└── __main__.py     # CLI: check | demo | eval (--engine rule|kg|hybrid)
+└── __main__.py     # CLI: check | demo | process | eval (--engine rule|kg|hybrid)
 policies/core_policy.json        # política auditável (camada #1)
 ontologies/
 ├── relaieo.ttl                  # ontologia RelAIEO real, vendorizada intacta (RQ2)

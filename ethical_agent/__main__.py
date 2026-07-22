@@ -8,7 +8,7 @@ from .agent import GuardedAgent
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
 from .evaluate import evaluate_engine, format_report, load_dataset
 from .kg_engine import KnowledgeGraphEngine
-from .llm import MockLLM
+from .llm import LLMClient, MockLLM, OllamaClient
 from .ontology import register_concept_condition
 from .policy import Policy, default_policy_path
 from .relaieo import (
@@ -56,6 +56,59 @@ def cmd_eval(args: argparse.Namespace) -> int:
     else:
         print(format_report(results))
     return 0 if not results["mismatches"] else 1
+
+
+def _build_llm(args: argparse.Namespace) -> LLMClient:
+    if args.mock:
+        return MockLLM(default="[mock response: no model available]")
+    try:
+        llm = OllamaClient(model=args.model)
+        llm.chat([{"role": "user", "content": "ping"}])
+        return llm
+    except Exception as exc:
+        print(
+            f"[Ollama unavailable ({exc.__class__.__name__}: {exc}); "
+            "using MockLLM]",
+            file=sys.stderr,
+        )
+        return MockLLM(default="[mock response: no model available]")
+
+
+def cmd_process(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    llm = _build_llm(args)
+    agent = GuardedAgent(engine=engine, llm=llm)
+    result = agent.process(args.text)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "status": result.status,
+                    "message": result.message,
+                    "response": result.response,
+                    "input_verdict": result.input_verdict.to_dict(),
+                    "output_verdict": (
+                        result.output_verdict.to_dict()
+                        if result.output_verdict is not None
+                        else None
+                    ),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    else:
+        print(result.message)
+        if args.verbose:
+            print("-" * 72)
+            print("Input verdict:")
+            print(_indent(result.input_verdict.explain()))
+            if result.output_verdict is not None:
+                print("Output verdict:")
+                print(_indent(result.output_verdict.explain()))
+
+    return 0 if result.status == "ok" else 2
 
 
 def cmd_demo(args: argparse.Namespace) -> int:
@@ -156,6 +209,24 @@ def main(argv=None) -> int:
 
     p_demo = sub.add_parser("demo", help="offline demo of the guarded pipeline")
     p_demo.set_defaults(func=cmd_demo)
+
+    p_process = sub.add_parser(
+        "process", help="run one prompt through the full guarded pipeline (LLM included)"
+    )
+    p_process.add_argument("text")
+    p_process.add_argument(
+        "--model", default="gpt-oss:120b", help="Ollama model to use (default: gpt-oss:120b)"
+    )
+    p_process.add_argument(
+        "--mock",
+        action="store_true",
+        help="skip Ollama entirely and use a fixed MockLLM response",
+    )
+    p_process.add_argument(
+        "--verbose", action="store_true", help="also print the full verdict explanation"
+    )
+    p_process.add_argument("--json", action="store_true")
+    p_process.set_defaults(func=cmd_process)
 
     args = parser.parse_args(argv)
     return args.func(args)
