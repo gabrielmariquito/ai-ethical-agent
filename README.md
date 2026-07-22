@@ -143,6 +143,42 @@ python -m ethical_agent --engine rule eval
 pip install pytest && python -m pytest
 ```
 
+### Configurando o `.env` para usar o Ollama de verdade (comando `process`)
+
+O comando `process` chama um LLM de verdade via `OllamaClient` (com fallback
+automático para `MockLLM` se o Ollama não responder). Para isso:
+
+```bash
+pip install ollama python-dotenv
+```
+
+Crie um arquivo `.env` na raiz do projeto
+
+**Opção A — Ollama Cloud** (não precisa instalar/rodar nada localmente):
+```bash
+# .env
+OLLAMA_API_KEY=sua_chave_aqui
+```
+A chave é gerada em https://ollama.com/settings/keys. Quando `OLLAMA_API_KEY`
+está definida, o `OllamaClient` aponta automaticamente para
+`https://ollama.com` e usa o modelo passado em `--model` (default
+`gpt-oss:120b`) — confira antes em `ollama list` se sua conta tem acesso a
+ele; alguns modelos cloud exigem assinatura paga.
+
+**Opção B — Ollama local** (instalado via https://ollama.com/download):
+```bash
+ollama serve                # sobe o servidor local
+ollama pull gpt-oss:120b    # baixa o modelo escolhido
+```
+Sem `OLLAMA_API_KEY` no `.env`, o `OllamaClient` usa
+`http://localhost:11434` por padrão — nenhuma outra configuração é
+necessária. Para apontar para um host diferente em qualquer um dos dois
+casos, defina `OLLAMA_HOST` no `.env`.
+
+```bash
+python -m ethical_agent process "Por que o céu é azul?"
+```
+
 Uso programático com a ontologia real:
 
 ```python
