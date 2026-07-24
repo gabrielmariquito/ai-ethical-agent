@@ -5,12 +5,11 @@
 Este repositório implementa os itens **#1 e #2 do roadmap da pesquisa**:
 
 1. **Guardrail simbólico rule-based + constraint** — o baseline transparente e auditável.
-2. **Knowledge Graph / Ontologia** usando a ontologia **real** do Audit4SG — a **RelAIEO (Relational AI Ethics Ontology)**, de Cheshta Arora & Debarun Sarkar (https://ontology.audit4sg.org/) — carregada diretamente do arquivo Turtle. Uma engine ancora conceitos éticos no texto, propaga ativação pela hierarquia `is_a` e dispara **normas** sobre combinações de conceitos.
+2. **Knowledge Graph / Ontologia** usando a ontologia **real** do Audit4SG — a **RelAIEO (Relational AI Ethics Ontology)**, de Cheshta Arora & Debarun Sarkar (https://ontology.audit4sg.org/), carregada do arquivo Turtle. Uma engine ancora conceitos éticos no texto, propaga ativação pela hierarquia `is_a` e dispara **normas** sobre combinações de conceitos.
 
 Por padrão as duas engines operam em conjunto (**engine híbrida**, padrão
-multimodel guardrails): cada uma vota e a decisão mais restritiva vence. O
-guardrail continua **puramente simbólico**: nenhum LLM é necessário para
-decidir — o LLM é o componente *protegido*, não o juiz.
+multimodel guardrails), cada uma vota e a decisão mais restritiva vence. O
+guardrail é puramente simbólico, mantendo a LLM protegida e separada do veredito. 
 
 ```
 entrada ──► [ híbrida: rule-based + RelAIEO knowledge-graph ] ──► FM (LLM) ──► [ híbrida ] ──► resposta
@@ -41,7 +40,7 @@ Condições formam uma AST simbólica (`keyword`, `regex`, `any`, `all`, `not`,
 
 **Fail-closed vale para erro de execução**: se uma engine levanta exceção, ela
 devolve DENY e a decisão mais restritiva barra a requisição. Não se aplica a
-lacuna de cobertura — conteúdo que não casa com nenhuma regra é liberado.
+lacuna de cobertura. Nesse caso, conteúdo que não casa com nenhuma regra é liberado.
 
 ## Camada #2 — a ontologia real do Audit4SG (RelAIEO)
 
@@ -61,7 +60,7 @@ carrega o arquivo e o mapeia para o modelo de ontologia interno:
 
 O carregamento resulta em 154 conceitos e 161 relações: 134 arestas `is_a`,
 que propagam ativação, e 27 arestas documentais vindas de 21 das 25 object
-properties — as demais não têm domínio e imagem entre as classes declaradas.
+properties. As demais não têm domínio e imagem entre as classes declaradas.
 
 
 ### Por que a RelAIEO precisa de duas camadas nossas por cima
