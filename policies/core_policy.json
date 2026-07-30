@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "metadata": {
     "name": "Core Ethical Policy",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Baseline symbolic policy for the rule-based + constraint guardrail (roadmap item #1). Constraints are the hard safety floor (constraint-based reasoning); rules are deontic statements tied to ethical principles. Patterns cover English and Brazilian Portuguese.",
     "language": "en, pt-BR",
     "created": "2026-06-10",
@@ -279,9 +279,9 @@
       "deontic": "obligation",
       "severity": "critical",
       "scopes": ["input"],
-      "effect": "ESCALATE",
-      "description": "Self-harm or suicide signals are withheld from automatic handling and escalated to human review, with support resources shown to the user.",
-      "rationale": "Self-harm contexts require human judgment; the system's obligation is to escalate and offer help, never to improvise.",
+      "effect": "DENY",
+      "description": "Self-harm or suicide signals are withheld from automatic handling and blocked, with support resources shown to the user instead of a generated reply.",
+      "rationale": "Self-harm contexts require human judgment the system cannot provide; its obligation is to refuse to improvise and to surface help resources.",
       "user_message": "If you are going through a difficult moment, you are not alone and help is available. Brazil: CVV - call 188 (24h, free) or chat at cvv.org.br. US/Canada: call or text 988. Other countries: findahelpline.com.",
       "condition": {
         "type": "any",
