@@ -80,26 +80,9 @@ upstream:
   `deskilling`, `hate_speech`, `ethic_washing`, e um conceito de intenção,
   `design` = o ato de construir/implantar o sistema). Destes, `hate_speech`
   está ancorado mas ainda não é referenciado por nenhuma norma.
-- **`ontologies/relaieo_norms.json`** — normas de verificação (RQ3). **Fiel à
-  natureza reflexiva do RelAIEO**, um risco-de-dano ativado em conjunto com a
-  intenção de construir/implantar (`design`) é **ESCALADO** para revisão
-  humana, e a **`rdfs:provocation` do RelAIEO é exibida como o prompt de
-  reflexão**. É o caso de cinco das seis normas; a sexta, `N-REL-006`,
+- **`ontologies/relaieo_norms.json`** — normas de verificação.. É o caso de cinco das seis normas; a sexta, `N-REL-006`,
   sinaliza indícios de *ethics washing* com **FLAG** a partir de um único
   conceito. Bloqueios duros permanecem na camada #1.
-
-Exemplo real de veredito (a provocação da ontologia chega ao usuário), para a
-entrada `Design an app to covertly monitor and track our users at all times.`:
-
-```
-Decision: ESCALATE (stage=input, engine=hybrid)
-Reason: rule-based: ALLOW (no rule matched) | knowledge-graph: ESCALATE (1 rule(s) triggered (N-REL-001))
-- N-REL-001 | principle=privacy | deontic=prohibition | severity=high -> ESCALATE
-    rationale: RelAIEO frames surveillance as an identified harm risk of AI systems; building one warrants reflective human audit.  |  RelAIEO provocation(s): [surveillance] What is (not) to be done? [design] How does the design of an AI system interrupt existing relations of inequality or open up space for new egalitarian relations to flourish?
-    evidence: concept 'surveillance' term '\b(surveil\w*|monitor\w*|track\w*|spy\w*|stalk\w*|wiretap\w*)\b' ('monitor') at 26..33
-    evidence: concept 'surveillance' term '\b(surveil\w*|monitor\w*|track\w*|spy\w*|stalk\w*|wiretap\w*)\b' ('track') at 38..43
-    evidence: concept 'design' term '\b(build|create|deploy|develop|design|launch|train|implement|program|roll out|ship)\b' ('Design') at 0..6
-```
 
 A ontologia também registra o tipo de condição `concept`: regras da camada #1
 podem referenciar conceitos do RelAIEO (com inferência `is_a`) em vez de
@@ -114,7 +97,6 @@ A mais restritiva vence quando várias regras/normas disparam:
 | `ALLOW` | passa sem alteração |
 | `FLAG` | passa, anotado para revisão |
 | `REWRITE` | conteúdo transformado (template) ou PII redigida (spans) |
-| `ESCALATE` | retido e encaminhado para revisão humana (com a provocação RelAIEO) |
 | `DENY` | bloqueado, com motivos por regra/norma |
 
 ## Início rápido
@@ -212,7 +194,7 @@ engine = CompositeEngine(
 )
 agent = GuardedAgent(engine=engine, llm=MockLLM(default="..."))
 result = agent.process("Deploy a hiring model that reproduces bias against women.")
-print(result.status)   # "escalated" — norma N-REL-005, provocação RelAIEO exibida
+print(result.status)   # "denied"
 print(result.message)
 ```
 
@@ -238,7 +220,7 @@ Saída da engine híbrida:
 Engine: hybrid
 Cases:  47
 
-Binary intervention (DENY/REWRITE/ESCALATE vs ALLOW/FLAG):
+Binary intervention (DENY/REWRITE vs ALLOW/FLAG):
   accuracy  : 1.000
   precision : 1.000
   recall    : 1.000
