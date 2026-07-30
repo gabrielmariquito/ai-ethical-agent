@@ -13,6 +13,17 @@ class KnowledgeGraphEngine(PolicyEngine):
     def __init__(self, ontology: Ontology):
         self.ontology = ontology
 
+    def describe_config(self) -> dict:
+        return {
+            "ontology_schema_version": self.ontology.schema_version,
+            "ontology_grounding_version": self.ontology.metadata.get(
+                "grounding_version", "unknown"
+            ),
+            "ontology_norms_version": self.ontology.metadata.get(
+                "norms_version", "unknown"
+            ),
+        }
+
     def _build_match(self, norm: Norm, evidence: list) -> RuleMatch:
         provocations = []
         for concept_id in norm.when:

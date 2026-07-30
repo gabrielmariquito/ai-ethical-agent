@@ -15,7 +15,6 @@ class Decision(str, Enum):
     ALLOW = "ALLOW"
     FLAG = "FLAG"
     REWRITE = "REWRITE"
-    ESCALATE = "ESCALATE"
     DENY = "DENY"
 
     @property
@@ -35,8 +34,7 @@ _RESTRICTIVENESS = {
     Decision.ALLOW: 0,
     Decision.FLAG: 1,
     Decision.REWRITE: 2,
-    Decision.ESCALATE: 3,
-    Decision.DENY: 4,
+    Decision.DENY: 3,
 }
 
 
@@ -148,7 +146,7 @@ class Verdict:
 
     @property
     def intervened(self) -> bool:
-        return self.decision in (Decision.DENY, Decision.REWRITE, Decision.ESCALATE)
+        return self.decision in (Decision.DENY, Decision.REWRITE)
 
     def to_dict(self) -> dict:
         return {

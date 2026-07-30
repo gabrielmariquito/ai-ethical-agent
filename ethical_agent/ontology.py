@@ -12,7 +12,7 @@ from .types import Decision, Evidence, Severity, Stage
 
 PROPAGATING_PREDICATES = {"is_a", "part_of", "implies"}
 
-_VALID_NORM_EFFECTS = {Decision.DENY, Decision.ESCALATE, Decision.FLAG}
+_VALID_NORM_EFFECTS = {Decision.DENY, Decision.FLAG}
 _VALID_DEONTICS = {"prohibition", "obligation"}
 
 MAX_GROUND_EVIDENCE = 10

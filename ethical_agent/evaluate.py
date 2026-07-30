@@ -8,7 +8,7 @@ from typing import List, Union
 from .engine import PolicyEngine
 from .types import ActionContext, Decision, Stage
 
-INTERVENING = {Decision.DENY, Decision.REWRITE, Decision.ESCALATE}
+INTERVENING = {Decision.DENY, Decision.REWRITE}
 
 
 def load_dataset(path: Union[str, Path]) -> List[dict]:
@@ -95,7 +95,7 @@ def format_report(results: dict) -> str:
         f"Engine: {results['engine']}",
         f"Cases:  {results['total_cases']}",
         "",
-        "Binary intervention (DENY/REWRITE/ESCALATE vs ALLOW/FLAG):",
+        "Binary intervention (DENY/REWRITE vs ALLOW/FLAG):",
         f"  accuracy  : {binary['accuracy']:.3f}",
         f"  precision : {binary['precision']:.3f}",
         f"  recall    : {binary['recall']:.3f}",

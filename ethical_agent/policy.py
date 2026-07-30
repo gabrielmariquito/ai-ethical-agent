@@ -11,7 +11,7 @@ from .types import Decision, Severity, Stage
 SCHEMA_VERSION = "1.0"
 
 _VALID_DEONTICS = {"prohibition", "obligation"}
-_VALID_EFFECTS = {Decision.DENY, Decision.ESCALATE, Decision.REWRITE, Decision.FLAG}
+_VALID_EFFECTS = {Decision.DENY, Decision.REWRITE, Decision.FLAG}
 
 
 class PolicyError(ValueError):

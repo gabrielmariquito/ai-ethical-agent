@@ -21,12 +21,26 @@ class PolicyEngine(ABC):
     def evaluate(self, action: ActionContext) -> Verdict:
         ...
 
+    def describe_config(self) -> dict:
+        """Identify the configuration version(s) behind this engine's verdicts.
+
+        Used to tag audit records (which store sensitive inputs/outputs) with
+        exactly which policy/ontology version produced them.
+        """
+        return {}
+
 
 class RuleBasedEngine(PolicyEngine):
     name = "rule-based"
 
     def __init__(self, policy: Policy):
         self.policy = policy
+
+    def describe_config(self) -> dict:
+        return {
+            "policy_schema_version": self.policy.schema_version,
+            "policy_version": self.policy.metadata.get("version", "unknown"),
+        }
 
     def evaluate(self, action: ActionContext) -> Verdict:
         fired: List[Tuple[Rule, List[Evidence]]] = []
@@ -149,6 +163,9 @@ class CompositeEngine(PolicyEngine):
         self.engines = list(engines)
         if name:
             self.name = name
+
+    def describe_config(self) -> dict:
+        return {engine.name: engine.describe_config() for engine in self.engines}
 
     def evaluate(self, action: ActionContext) -> Verdict:
         verdicts: List[Verdict] = []

@@ -331,11 +331,17 @@ def load_relaieo(
         with Path(grounding_path).open(encoding="utf-8") as handle:
             grounding_doc = json.load(handle)
         _apply_grounding(data, grounding_doc.get("grounding", grounding_doc))
+        data["metadata"]["grounding_version"] = grounding_doc.get("metadata", {}).get(
+            "version", "unknown"
+        )
 
     if norms_path is not None:
         with Path(norms_path).open(encoding="utf-8") as handle:
             norms_doc = json.load(handle)
         data["norms"] = norms_doc.get("norms", norms_doc)
+        data["metadata"]["norms_version"] = norms_doc.get("metadata", {}).get(
+            "version", "unknown"
+        )
 
     return Ontology.from_dict(data)
 
