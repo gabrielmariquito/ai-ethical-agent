@@ -32,10 +32,21 @@ reference its concept IDs:
 - `relaieo_grounding.json` — maps en/pt-BR surface text to a subset of RelAIEO
   concept IDs, so the guardrail can activate concepts from a prompt/response.
 - `relaieo_norms.json` — verification norms (RQ3) that fire on combinations of
-  activated concepts. Faithful to RelAIEO's reflective nature, an activated
-  harm risk combined with a build/deploy intent is **ESCALATED** for human
-  review and the concept's RelAIEO provocation is surfaced as the review
-  prompt. Hard blocks remain in `policies/core_policy.json` (layer #1).
+  activated concepts. An activated harm risk combined with a build/deploy
+  intent is **DENIED**, and the concept's RelAIEO provocation is surfaced in
+  the refusal message. Hard blocks otherwise remain in
+  `policies/core_policy.json` (layer #1).
+
+  **Deliberate departure from RelAIEO's own stance:** RelAIEO was designed
+  for reflective *human* auditing, not automated allow/deny decisions (see
+  above). An earlier version of this norms layer honored that by using an
+  `ESCALATE` effect (withhold + route to human review) instead of a hard
+  block. That effect was removed from the system in favor of a simpler
+  ALLOW/FLAG/REWRITE/DENY lattice, so these norms now act unilaterally
+  (`DENY`) instead of deferring to a human reviewer. This is documented here
+  as an explicit, known trade-off, not as fidelity to RelAIEO's reflective
+  philosophy — the `rdfs:provocation` still reaches the end user, but as
+  refusal text, not as a review prompt for an auditor.
 
 Keeping these separate means the professor's ontology stays authoritative and
 re-syncable, while our text-grounding and enforcement decisions evolve
