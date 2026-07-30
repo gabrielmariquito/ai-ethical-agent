@@ -33,7 +33,7 @@ def _check(engine, text, stage=Stage.INPUT):
 
 def test_norm_fires_on_concept_combination(mini_engine):
     verdict = _check(mini_engine, "we collect facial recognition data")
-    assert verdict.decision is Decision.ESCALATE
+    assert verdict.decision is Decision.DENY
     assert verdict.matches[0].rule_id == "N-1"
 
 
@@ -66,7 +66,7 @@ def test_hybrid_catches_case_rules_miss(core_hybrid):
     )
     assert rule_only.decision is Decision.ALLOW
     verdict = _check(core_hybrid, text)
-    assert verdict.decision is Decision.ESCALATE
+    assert verdict.decision is Decision.DENY
     assert any(m.rule_id == "N-REL-001" for m in verdict.matches)
 
 
@@ -81,7 +81,7 @@ def test_relaieo_provocation_is_surfaced(core_hybrid):
     verdict = _check(
         core_hybrid, "Deploy a hiring model that we know reproduces bias against women."
     )
-    assert verdict.decision is Decision.ESCALATE
+    assert verdict.decision is Decision.DENY
     match = next(m for m in verdict.matches if m.rule_id == "N-REL-005")
     assert "provocation" in match.rationale.lower()
     assert match.user_message and "RelAIEO" in match.user_message

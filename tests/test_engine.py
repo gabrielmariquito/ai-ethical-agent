@@ -56,11 +56,11 @@ POLICY = {
             "condition": {"type": "keyword", "value": "medical"},
         },
         {
-            "id": "R-ESC",
+            "id": "R-SELFHARM",
             "principle": "non_maleficence",
             "severity": "critical",
             "scopes": ["input"],
-            "effect": "ESCALATE",
+            "effect": "DENY",
             "condition": {"type": "keyword", "value": "hurt myself"},
             "user_message": "Support is available: call 188 (CVV).",
         },
@@ -129,9 +129,9 @@ def test_flag_does_not_intervene(engine):
     assert not verdict.intervened
 
 
-def test_escalate_beats_rewrite(engine):
+def test_deny_beats_rewrite(engine):
     verdict = _check(engine, "hacking makes me want to hurt myself")
-    assert verdict.decision is Decision.ESCALATE
+    assert verdict.decision is Decision.DENY
 
 
 def test_scope_is_respected(engine):

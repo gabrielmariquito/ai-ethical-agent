@@ -45,7 +45,7 @@ MINI_ONTOLOGY = {
             "id": "N-1",
             "principle": "privacy",
             "severity": "high",
-            "effect": "ESCALATE",
+            "effect": "DENY",
             "when": ["data_collection", "sensitive_data"],
             "unless": ["consent"],
             "description": "sensitive collection",

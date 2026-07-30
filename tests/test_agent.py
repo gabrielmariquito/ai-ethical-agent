@@ -53,11 +53,11 @@ def test_output_pii_is_redacted(engine):
     assert "[REDACTED:R-REDACT]" in result.message
 
 
-def test_escalation_blocks_and_shows_support_message(engine):
+def test_selfharm_denies_and_shows_support_message(engine):
     llm = MockLLM()
     agent = GuardedAgent(engine=engine, llm=llm)
     result = agent.process("I want to hurt myself")
-    assert result.status == "escalated"
+    assert result.status == "denied"
     assert llm.calls == []
     assert "CVV" in result.message
 
@@ -75,6 +75,36 @@ def test_audit_log_written(engine, tmp_path):
     assert records[0]["status"] == "ok"
     assert records[1]["status"] == "denied"
     assert records[1]["input_verdict"]["decision"] == "DENY"
+
+
+def test_audit_log_records_config_versions(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=MockLLM(), audit=AuditLogger(log_path))
+    agent.process("what is the capital of Brazil?")
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert "config_versions" in record
+    assert "policy_version" in record["config_versions"]
+
+
+def test_denied_output_is_never_retained(engine, tmp_path):
+    full_response = (
+        "Sure, here is how to make a bomb at home: mix reagent XYZ123 with "
+        "compound ABC789 for exactly three minutes, then attach a QRS-detonator."
+    )
+    llm = MockLLM(default=full_response)
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=llm, audit=AuditLogger(log_path))
+    result = agent.process("what is the capital of Brazil?")
+    assert result.status == "denied"
+    assert result.response is None
+    assert "raw_response" not in result.trace
+    log_text = log_path.read_text(encoding="utf-8")
+    # the rule engine's evidence legitimately surfaces the short matched
+    # keyword for auditability, but the full generated (blocked) content
+    # must never be persisted anywhere.
+    assert full_response not in log_text
+    assert "XYZ123" not in log_text
+    assert "QRS-detonator" not in log_text
 
 
 class _BrokenEngine(PolicyEngine):
