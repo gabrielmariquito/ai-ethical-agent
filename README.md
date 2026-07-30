@@ -1,16 +1,15 @@
 # ai-ethical-agent
 
-**Guardrails éticos neurossimbólicos para agentes baseados em Foundation Models (FMs).**
+**Verificação Simbólica e Auditável de Princípios Éticos em Agentes Baseados em Foundation Models**
 
 Este repositório implementa os itens **#1 e #2 do roadmap da pesquisa**:
 
-1. **Guardrail simbólico rule-based + constraint** (estilo ShieldAgent/GuardAgent) — o baseline determinístico, transparente e auditável.
-2. **Knowledge Graph / Ontologia** usando a ontologia **real** do Audit4SG — a **RelAIEO (Relational AI Ethics Ontology)**, de Cheshta Arora & Debarun Sarkar (https://ontology.audit4sg.org/) — carregada diretamente do arquivo Turtle. Uma engine ancora conceitos éticos no texto, propaga ativação pela hierarquia `is_a` e dispara **normas** sobre combinações de conceitos.
+1. **Guardrail simbólico rule-based + constraint** — o baseline transparente e auditável.
+2. **Knowledge Graph / Ontologia** usando a ontologia **real** do Audit4SG — a **RelAIEO (Relational AI Ethics Ontology)**, de Cheshta Arora & Debarun Sarkar (https://ontology.audit4sg.org/), carregada do arquivo Turtle. Uma engine ancora conceitos éticos no texto, propaga ativação pela hierarquia `is_a` e dispara **normas** sobre combinações de conceitos.
 
 Por padrão as duas engines operam em conjunto (**engine híbrida**, padrão
-multimodel guardrails): cada uma vota e a decisão mais restritiva vence. O
-guardrail continua **puramente simbólico**: nenhum LLM é necessário para
-decidir — o LLM é o componente *protegido*, não o juiz.
+multimodel guardrails), cada uma vota e a decisão mais restritiva vence. O
+guardrail é puramente simbólico, mantendo a LLM protegida e separada do veredito. 
 
 ```
 entrada ──► [ híbrida: rule-based + RelAIEO knowledge-graph ] ──► FM (LLM) ──► [ híbrida ] ──► resposta
@@ -40,13 +39,17 @@ mapeia as questões de pesquisa da seguinte forma:
 
 1. **Constraints** — o piso rígido de segurança (constraint-based reasoning,
    item #4 do roadmap). Sempre resultam em DENY, **não admitem exceções** e
-   são avaliadas primeiro. Fail-closed: se uma engine falhar, nega-se.
+   são avaliadas primeiro.
 2. **Rules** — enunciados deônticos (proibição/obrigação) por princípio, com
    efeitos graduados e **exceções** opcionais (p.ex., segurança ofensiva em
    contexto educacional é *reescrita* para enquadramento defensivo).
 
 Condições formam uma AST simbólica (`keyword`, `regex`, `any`, `all`, `not`,
 `concept`). Regras `REWRITE` usam `rewrite_template` e/ou `redact: true`.
+
+**Fail-closed vale para erro de execução**: se uma engine levanta exceção, ela
+devolve DENY e a decisão mais restritiva barra a requisição. Não se aplica a
+lacuna de cobertura. Nesse caso, conteúdo que não casa com nenhuma regra é liberado.
 
 ## Camada #2 — a ontologia real do Audit4SG (RelAIEO)
 
@@ -61,8 +64,13 @@ carrega o arquivo e o mapeia para o modelo de ontologia interno:
   `rdfs:provocation` (a pergunta reflexiva) e `rdfs:references`;
 - cada `rdfs:subClassOf` → uma relação `is_a` que **propaga ativação**
   (`bias` → `identified_harm_risk`);
-- cada object property (`CanCause`, `CriticalOf`, `Manipulate`…) → uma aresta
-  documental da teia conceitual.
+- cada object property com domínio e imagem conhecidos (`CanCause`,
+  `CriticalOf`, `Manipulate`…) → uma aresta documental da teia conceitual.
+
+O carregamento resulta em 154 conceitos e 161 relações: 134 arestas `is_a`,
+que propagam ativação, e 27 arestas documentais vindas de 21 das 25 object
+properties. As demais não têm domínio e imagem entre as classes declaradas.
+
 
 ### Por que a RelAIEO precisa de duas camadas nossas por cima
 
@@ -70,6 +78,7 @@ A RelAIEO é uma ontologia **relacional, reflexiva e open-world**, feita para
 *humanos auditarem e refletirem* sobre a ética de um sistema de IA — **não**
 para bloquear prompts automaticamente. Por isso ela **não tem termos de
 superfície** (para casar com texto) nem **normas com efeito** (ex.: `DENY`).
+Carregada sozinha, produz 154 conceitos, nenhum termo e nenhuma norma.
 Duas camadas finas e versionadas, que **nós mantemos** e que referenciam
 apenas IDs de conceito do RelAIEO, preenchem essa lacuna sem tocar no arquivo
 upstream:
@@ -79,11 +88,14 @@ upstream:
   (`surveillance`, `threat_to_privacy`, `bias`, `information_disorder`,
   `deskilling`, `hate_speech`, `ethic_washing`, e um conceito de intenção,
   `design` = o ato de construir/implantar o sistema).
-- **`ontologies/relaieo_norms.json`** — normas de verificação (RQ3): um
-  risco-de-dano ativado em conjunto com a intenção de construir/implantar
-  (`design`) é **bloqueado (DENY)**, e a **`rdfs:provocation` do RelAIEO é
-  exibida na própria mensagem de recusa** como o prompt de reflexão. Bloqueios
-  duros continuam também na camada #1.
+- **`ontologies/relaieo_norms.json`** — normas de verificação (RQ3): em cinco
+  das seis normas (`N-REL-001` a `N-REL-005`), um risco-de-dano ativado em
+  conjunto com a intenção de construir/implantar (`design`) é **bloqueado
+  (DENY)**, e a **`rdfs:provocation` do RelAIEO é exibida na própria
+  mensagem de recusa** como o prompt de reflexão. A sexta, `N-REL-006`,
+  sinaliza indícios de *ethics washing* com **FLAG** a partir de um único
+  conceito, sem exigir `design`. Bloqueios duros continuam também na
+  camada #1.
 
   > **Nota de design (trade-off assumido):** a RelAIEO é uma ontologia
   > **reflexiva e não-punitiva** — feita para *auditoria humana*, não para
@@ -230,20 +242,24 @@ pip install -e ".[dev]" && python -m pytest
 
 ### Configurando o `.env` para usar o Ollama de verdade (comando `process`)
 
-O comando `process` chama um LLM de verdade via `OllamaClient` (com fallback
-automático para `MockLLM` se o Ollama não responder). Para isso:
+O comando `process` chama um LLM de verdade via `OllamaClient`, com fallback
+automático para `MockLLM` se o Ollama não responder — nesse caso um aviso
+`[Ollama unavailable ...]` é impresso no **stderr** e a execução segue com
+respostas simuladas. Para usar um modelo real:
 
 ```bash
 pip install ollama python-dotenv
 ```
 
-Crie um arquivo `.env` na raiz do projeto
+Crie um arquivo `.env` na raiz do projeto.
 
 **Opção A — Ollama Cloud** (não precisa instalar/rodar nada localmente):
+
 ```bash
 # .env
 OLLAMA_API_KEY=sua_chave_aqui
 ```
+
 A chave é gerada em https://ollama.com/settings/keys. Quando `OLLAMA_API_KEY`
 está definida, o `OllamaClient` aponta automaticamente para
 `https://ollama.com` e usa o modelo passado em `--model` (default
@@ -251,10 +267,12 @@ está definida, o `OllamaClient` aponta automaticamente para
 ele; alguns modelos cloud exigem assinatura paga.
 
 **Opção B — Ollama local** (instalado via https://ollama.com/download):
+
 ```bash
 ollama serve                # sobe o servidor local
 ollama pull gpt-oss:120b    # baixa o modelo escolhido
 ```
+
 Sem `OLLAMA_API_KEY` no `.env`, o `OllamaClient` usa
 `http://localhost:11434` por padrão — nenhuma outra configuração é
 necessária. Para apontar para um host diferente em qualquer um dos dois
@@ -262,6 +280,14 @@ casos, defina `OLLAMA_HOST` no `.env`.
 
 ```bash
 python -m ethical_agent process "Por que o céu é azul?"
+```
+
+**Opção C — sem modelo algum.** A flag `--mock` dispensa o Ollama e usa uma
+resposta fixa, permitindo demonstrar o pipeline completo (verificação de
+entrada, geração, verificação de saída) em qualquer máquina:
+
+```bash
+python -m ethical_agent process "criar um sistema para monitorar os funcionários" --mock
 ```
 
 Uso programático com a ontologia real:
@@ -372,7 +398,10 @@ falsos negativos, zero falsos positivos) são exatamente os que dependem do
 RelAIEO: construir um sistema de vigilância, extrair dados pessoais,
 espalhar desinformação, deskilling de trabalhadores e reproduzir viés —
 reconhecidos como *identified harm risks* na ontologia e bloqueados
-(`DENY`), com a `rdfs:provocation` do RelAIEO exibida na recusa. Resultado de
+(`DENY`), com a `rdfs:provocation` do RelAIEO exibida na recusa. Os 15 casos
+benignos do dataset continuam passando sem intervenção, o que mostra que o
+ganho de recall vem de bloquear o que a camada de regras sozinha não
+alcança, não de bloquear mais coisas em geral. Resultado de
 *mundo fechado* (dataset, política e camadas RelAIEO co-desenvolvidos) — daí
 a importância de ler esse resultado junto com "Escopo e generalização dos
 dados" acima; `tests/test_eval.py` trava regressões (≥ 0.9 na híbrida em
@@ -453,12 +482,13 @@ registro de tipos de condição, e os schemas de `Rule`/`Norm`:
 | 1 | Rule-based + constraint (ShieldAgent/GuardAgent) | **Implementado** — `RuleBasedEngine` |
 | 2 | Knowledge graph / ontologia (Audit4SG/RelAIEO) | **Implementado** — `KnowledgeGraphEngine` sobre a RelAIEO real; próximo passo: ampliar o grounding e as normas conforme a ontologia evoluir upstream |
 | 3 | Arquitetura modular estilo GRACE (Moral/Decision/Guard) | O `GuardedAgent` já separa julgamento normativo (engines) da geração (LLM); o campo `deontic` está pronto para lógica deôntica |
-| 4 | Lógica probabilística / MLN (R²-Guard) | Nova engine com vereditos ponderados; combinada via `CompositeEngine` |
+| 4 | Lógica probabilística / MLN (R²-Guard) | Nova engine com vereditos ponderados, mais uma política de composição que honre os pesos — a atual resolve por decisão mais restritiva |
 | 5 | ILP aprendendo regras dos casos do SMS | Regras induzidas emitidas nos schemas JSON existentes (Rule/Norm) e executadas pelas engines atuais |
 
-O protótipo original de LLM-como-juiz permanece como `LLMJudgeEngine`
-(experimental): um voto soft, para compor com — nunca substituir — as engines
-simbólicas.
+O protótipo original de LLM-como-juiz permanece como LLMJudgeEngine
+(experimental). Sob a composição atual, por resolver-se pela decisão mais
+restritiva, ela pode determinar sozinha o veredito — por isso fica fora da
+configuração padrão, e não como voto auxiliar
 
 ## Estrutura do repositório
 
@@ -479,6 +509,7 @@ ethical_agent/
 ├── audit.py        # logger de auditoria JSONL (versionado por config_versions)
 ├── evaluate.py     # harness de avaliação (RQ5)
 └── __main__.py     # CLI: check | demo | process | eval (--engine rule|kg|hybrid)
+
 policies/core_policy.json        # política auditável (camada #1)
 ontologies/
 ├── relaieo.ttl                  # ontologia RelAIEO real, vendorizada intacta (RQ2)
@@ -533,11 +564,15 @@ Ver `tests/test_agent.py::test_denied_output_is_never_retained`.
   normas KG em `DENY` direto (ver nota de design na seção da camada #2) em
   vez de rotear para revisão humana — uma escolha de produto explícita, não
   uma decorrência da ontologia.
-- O grounding cobre um subconjunto dos 154 conceitos; ampliá-lo é a via de
+- O grounding cobre 8 dos 154 conceitos da ontologia; ampliá-lo é a via de
   evolução direta. O conceito `hate_speech`, por exemplo, tem termos no
   léxico mas nenhuma norma o referencia em `relaieo_norms.json` — ativá-lo
   hoje não tem efeito algum (achado do dataset held-out, caso HO-021).
 - O campo `deontic` é metadado, não uma lógica ainda (item #3/GRACE).
+- **Trilha de auditoria opt-in**: o `AuditLogger` só grava se for passado ao
+  `GuardedAgent`, e a CLI não instancia nenhum. Hoje o registro em JSONL
+  exige usar a biblioteca em código; instrumentar `process` e `demo` é uma
+  correção pendente.
 
 ## Referências
 
