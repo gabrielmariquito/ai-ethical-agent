@@ -75,7 +75,11 @@ class RuleBasedEngine(PolicyEngine):
                 severity=rule.severity,
                 effect=rule.effect,
                 rationale=rule.rationale,
-                evidence=evidence,
+                evidence=(
+                    [e.without_matched_text() for e in evidence]
+                    if rule.redact
+                    else evidence
+                ),
                 hard=rule.hard,
                 user_message=rule.user_message,
             )
@@ -179,6 +183,7 @@ class CompositeEngine(PolicyEngine):
                         stage=action.stage,
                         engine=engine.name,
                         reason=f"engine error (fail closed): {exc}",
+                        system_error=True,
                     )
                 )
 
@@ -206,4 +211,5 @@ class CompositeEngine(PolicyEngine):
             suppressed=suppressed,
             rewritten_content=rewritten,
             reason=reason,
+            system_error=any(v.system_error for v in verdicts),
         )

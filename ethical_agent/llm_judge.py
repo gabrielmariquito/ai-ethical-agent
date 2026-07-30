@@ -59,10 +59,14 @@ class LLMJudgeEngine(PolicyEngine):
             raw = self.llm.chat([{"role": "user", "content": prompt}])
             parsed = self._parse(raw)
         except Exception as exc:
-            return self._deny(action, f"judge failure (fail closed): {exc}")
+            return self._deny(
+                action, f"judge failure (fail closed): {exc}", system_error=True
+            )
 
         if parsed is None:
-            return self._deny(action, "unparseable judge response (fail closed)")
+            return self._deny(
+                action, "unparseable judge response (fail closed)", system_error=True
+            )
 
         decision_raw = str(parsed.get("decision", "DENY")).upper()
         reason = str(parsed.get("reason", ""))
@@ -110,10 +114,13 @@ class LLMJudgeEngine(PolicyEngine):
             return None
         return data if isinstance(data, dict) else None
 
-    def _deny(self, action: ActionContext, reason: str) -> Verdict:
+    def _deny(
+        self, action: ActionContext, reason: str, system_error: bool = False
+    ) -> Verdict:
         return Verdict(
             decision=Decision.DENY,
             stage=action.stage,
             engine=self.name,
             reason=reason,
+            system_error=system_error,
         )

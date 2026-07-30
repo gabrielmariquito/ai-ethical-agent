@@ -53,6 +53,23 @@ def test_output_pii_is_redacted(engine):
     assert "[REDACTED:R-REDACT]" in result.message
 
 
+def test_redacted_output_pii_not_retained_in_evidence(engine, tmp_path):
+    llm = MockLLM(default="contact bob@example.com for help")
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=llm, audit=AuditLogger(log_path))
+    result = agent.process("how do I get support?")
+    assert result.status == "ok"
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    redact_match = next(
+        m for m in record["output_verdict"]["matches"] if m["rule_id"] == "R-REDACT"
+    )
+    # a redact rule's whole purpose is removing the matched value; the
+    # verdict's own evidence must not smuggle it back in.
+    matched_texts = [e["matched_text"] for e in redact_match["evidence"]]
+    assert "bob@example.com" not in matched_texts
+    assert all(text is None for text in matched_texts)
+
+
 def test_selfharm_denies_and_shows_support_message(engine):
     llm = MockLLM()
     agent = GuardedAgent(engine=engine, llm=llm)
@@ -118,7 +135,19 @@ def test_check_fails_closed():
     agent = GuardedAgent(engine=_BrokenEngine())
     verdict = agent.check("anything", Stage.INPUT)
     assert verdict.decision is Decision.DENY
+    assert verdict.system_error is True
+    # the raw exception detail is kept for operators/audit ...
+    assert "boom" in verdict.reason
     assert "fail closed" in verdict.reason
+
+
+def test_engine_failure_does_not_leak_exception_to_user(engine):
+    agent = GuardedAgent(engine=_BrokenEngine(), llm=MockLLM())
+    result = agent.process("anything")
+    assert result.status == "denied"
+    # ... but never shown verbatim to the end user in the refusal message.
+    assert "boom" not in result.message
+    assert "fail closed" not in result.message
 
 
 def test_process_requires_llm(engine):

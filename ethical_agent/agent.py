@@ -22,6 +22,11 @@ DEFAULT_OUTPUT_REFUSAL = (
     "policy.\n{reasons}"
 )
 
+GENERIC_SYSTEM_ERROR_REASON = (
+    "the request was denied as a precaution because it could not be safely "
+    "evaluated (internal error); see the audit log for details"
+)
+
 
 @dataclass
 class AgentResult:
@@ -65,6 +70,7 @@ class GuardedAgent:
                 stage=stage,
                 engine=self.engine.name,
                 reason=f"engine error (fail closed): {exc}",
+                system_error=True,
             )
 
     def process(self, user_input: str, metadata: Optional[dict] = None) -> AgentResult:
@@ -143,8 +149,11 @@ class GuardedAgent:
                 f"- [{match.rule_id}] {match.principle}: "
                 f"{match.rationale or match.effect.value}"
             )
-        if not reasons and verdict.reason:
-            reasons.append(f"- {verdict.reason}")
+        if not reasons:
+            if verdict.system_error:
+                reasons.append(f"- {GENERIC_SYSTEM_ERROR_REASON}")
+            elif verdict.reason:
+                reasons.append(f"- {verdict.reason}")
         text = template.replace("{reasons}", "\n".join(reasons))
         notices = [m.user_message for m in verdict.matches if m.user_message]
         if notices:

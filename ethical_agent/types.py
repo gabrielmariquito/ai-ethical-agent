@@ -84,6 +84,15 @@ class Evidence:
             "span": list(self.span) if self.span else None,
         }
 
+    def without_matched_text(self) -> "Evidence":
+        """Drop the literal matched substring, keeping only where it was found.
+
+        Used for rules that redact their own match (e.g. PII rewrite rules):
+        the point of redaction is defeated if the raw value survives in the
+        verdict/audit trail via evidence.
+        """
+        return Evidence(description=self.description, span=self.span)
+
 
 @dataclass
 class RuleMatch:
@@ -140,6 +149,7 @@ class Verdict:
     suppressed: list = field(default_factory=list)
     rewritten_content: Optional[str] = None
     reason: str = ""
+    system_error: bool = False
     created_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -154,6 +164,7 @@ class Verdict:
             "stage": self.stage.value,
             "engine": self.engine,
             "reason": self.reason,
+            "system_error": self.system_error,
             "matches": [m.to_dict() for m in self.matches],
             "suppressed": [s.to_dict() for s in self.suppressed],
             "rewritten_content": self.rewritten_content,
