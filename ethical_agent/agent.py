@@ -17,11 +17,6 @@ DEFAULT_REFUSAL = (
     "Request denied by the ethical guardrail.\n{reasons}"
 )
 
-DEFAULT_ESCALATION = (
-    "This request was withheld and flagged for human review by the ethical "
-    "guardrail.\n{reasons}"
-)
-
 DEFAULT_OUTPUT_REFUSAL = (
     "The generated response was withheld because it violated the ethical "
     "policy.\n{reasons}"
@@ -46,7 +41,6 @@ class GuardedAgent:
         audit: Optional[AuditLogger] = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         refusal_template: str = DEFAULT_REFUSAL,
-        escalation_template: str = DEFAULT_ESCALATION,
         output_refusal_template: str = DEFAULT_OUTPUT_REFUSAL,
     ):
         self.engine = engine
@@ -54,7 +48,6 @@ class GuardedAgent:
         self.audit = audit
         self.system_prompt = system_prompt
         self.refusal_template = refusal_template
-        self.escalation_template = escalation_template
         self.output_refusal_template = output_refusal_template
 
     def check(
@@ -96,16 +89,6 @@ class GuardedAgent:
             )
             return self._finish(result)
 
-        if input_verdict.decision is Decision.ESCALATE:
-            result = AgentResult(
-                status="escalated",
-                message=self._render(self.escalation_template, input_verdict),
-                response=None,
-                input_verdict=input_verdict,
-                trace=trace,
-            )
-            return self._finish(result)
-
         safe_input = user_input
         if input_verdict.decision is Decision.REWRITE and input_verdict.rewritten_content:
             safe_input = input_verdict.rewritten_content
@@ -117,21 +100,25 @@ class GuardedAgent:
                 {"role": "user", "content": safe_input},
             ]
         )
-        trace["raw_response"] = response
 
         output_verdict = self.check(response, Stage.OUTPUT, metadata)
         trace["output_verdict"] = output_verdict.to_dict()
 
-        if output_verdict.decision in (Decision.DENY, Decision.ESCALATE):
+        if output_verdict.decision is Decision.DENY:
+            # The generated content is exactly what the policy blocked: it must
+            # never be retained in the result or the audit trail, in memory or
+            # in code, beyond this point.
             result = AgentResult(
                 status="denied",
                 message=self._render(self.output_refusal_template, output_verdict),
-                response=response,
+                response=None,
                 input_verdict=input_verdict,
                 output_verdict=output_verdict,
                 trace=trace,
             )
             return self._finish(result)
+
+        trace["raw_response"] = response
 
         final = response
         if output_verdict.decision is Decision.REWRITE and output_verdict.rewritten_content:
@@ -170,6 +157,7 @@ class GuardedAgent:
                 {
                     "status": result.status,
                     "engine": self.engine.name,
+                    "config_versions": self.engine.describe_config(),
                     **result.trace,
                 }
             )
