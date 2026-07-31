@@ -9,7 +9,7 @@ Este repositório implementa os itens **#1 e #2 do roadmap da pesquisa**:
 
 Por padrão as duas engines operam em conjunto (**engine híbrida**, padrão
 multimodel guardrails), cada uma vota e a decisão mais restritiva vence. O
-guardrail é puramente simbólico, mantendo a LLM protegida e separada do veredito. 
+guardrail é puramente simbólico, mantendo a LLM protegida e separada do veredito.
 
 ```
 entrada ──► [ híbrida: rule-based + RelAIEO knowledge-graph ] ──► FM (LLM) ──► [ híbrida ] ──► resposta
@@ -27,13 +27,13 @@ Parte de um projeto de mestrado sobre como embutir princípios éticos em
 agentes baseados em FM (vision paper alvo: SE4AS 2026). A implementação
 mapeia as questões de pesquisa da seguinte forma:
 
-| RQ | Onde está implementada |
-|----|------------------------|
-| RQ1 – Princípios | Campo `principle` em regras, conceitos e normas (`non_maleficence`, `privacy`, `autonomy`, `fairness`, `transparency`, `accountability`, `security`) |
-| RQ2 – Representação formal | `policies/core_policy.json` (regras deônticas) + **`ontologies/relaieo.ttl` (a ontologia RelAIEO real, vendorizada intacta)** |
-| RQ3 – Verificação | `RuleBasedEngine` e `KnowledgeGraphEngine` — avaliação simbólica determinística com evidências e caminhos de inferência; as normas KG referenciam IDs de conceito do RelAIEO |
-| RQ4 – Design pattern | Interface `PolicyEngine` + pipeline `GuardedAgent` + `CompositeEngine` (multimodel guardrails, Liu et al. 2025) |
-| RQ5 – Avaliação | `eval/dataset.json` (in-distribution) + `eval/dataset_huggingface_injections.json` + `eval/dataset_beavertails.json` (generalização, externos) + `ethical_agent/evaluate.py` — mesma interface para comparar engines nos três datasets |
+| Onde está implementada |
+|----------------------------|
+| Princípios | Campo `principle` em regras, conceitos e normas (`non_maleficence`, `privacy`, `autonomy`, `fairness`, `transparency`, `accountability`, `security`) |
+| Representação formal | `policies/core_policy.json` (regras deônticas) + **`ontologies/relaieo.ttl` (a ontologia RelAIEO real, vendorizada intacta)** |
+| Verificação | `RuleBasedEngine` e `KnowledgeGraphEngine` — avaliação simbólica determinística com evidências e caminhos de inferência; as normas KG referenciam IDs de conceito do RelAIEO |
+| Design pattern | Interface `PolicyEngine` + pipeline `GuardedAgent` + `CompositeEngine` (multimodel guardrails, Liu et al. 2025) |
+| Avaliação | `eval/dataset.json` (in-distribution) + `eval/dataset_huggingface_injections.json` + `eval/dataset_beavertails.json` (generalização, externos) + `ethical_agent/evaluate.py` — mesma interface para comparar engines nos dois datasets |
 
 ## Camada #1 — regras e constraints simbólicas
 
@@ -88,7 +88,7 @@ upstream:
   (`surveillance`, `threat_to_privacy`, `bias`, `information_disorder`,
   `deskilling`, `hate_speech`, `ethic_washing`, e um conceito de intenção,
   `design` = o ato de construir/implantar o sistema).
-- **`ontologies/relaieo_norms.json`** — normas de verificação (RQ3): em cinco
+- **`ontologies/relaieo_norms.json`** — normas de verificação: em cinco
   das seis normas (`N-REL-001` a `N-REL-005`), um risco-de-dano ativado em
   conjunto com a intenção de construir/implantar (`design`) é **bloqueado
   (DENY)**, e a **`rdfs:provocation` do RelAIEO é exibida na própria
@@ -230,8 +230,8 @@ python -m ethical_agent process "algum texto" --mock                # sem rede, 
 python -m ethical_agent process "algum texto" --verbose              # + veredito completo
 python -m ethical_agent process "algum texto" --json
 
-# Avaliação (RQ5) — dataset principal (in-distribution) e externo do
-# Hugging Face (ver "Escopo e generalização dos dados" abaixo)
+# Avaliação — dataset principal (in-distribution) e held-out (ver
+# "Escopo e generalização dos dados" abaixo)
 python -m ethical_agent eval
 python -m ethical_agent eval --dataset eval/dataset_huggingface_injections.json
 python -m ethical_agent eval --dataset eval/dataset_beavertails.json
@@ -361,7 +361,7 @@ regex, e conteúdo ofuscado. E, ao contrário do que os dois primeiros
 datasets sugeririam, a precisão **não** é sempre 1.000 fora de distribuição —
 o BeaverTails encontrou falsos positivos reais (ver abaixo).
 
-## Resultados da avaliação (RQ5)
+## Resultados da avaliação
 
 `python -m ethical_agent eval [--dataset ...]`, execução real em 2026-07-30
 (política v0.2.0, RelAIEO com grounding v0.1.0 / normas v0.2.0):
