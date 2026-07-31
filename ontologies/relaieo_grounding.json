@@ -1,22 +1,23 @@
 {
   "metadata": {
     "name": "RelAIEO text-to-concept grounding lexicon",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "OUR maintained mapping from surface text (en/pt-BR) to a subset of RelAIEO concept IDs. RelAIEO itself has no lexicalizations (it is a formal, reflective auditing ontology); this layer is how the guardrail activates ontology concepts from a prompt/response. It references only concept IDs that exist in relaieo.ttl. Keeping it separate leaves the upstream ontology pristine.",
     "created": "2026-07-01",
     "grounds_concept_ids_from": "ontologies/relaieo.ttl"
   },
   "grounding": {
     "design": [
-      { "term": "\\b(build|create|deploy|develop|design|launch|train|implement|program|roll out|ship)\\b", "regex": true },
+      { "term": "\\b(build\\w*|creat\\w*|deploy\\w*|develop\\w*|design\\w*|launch\\w*|train\\w*|implement\\w*|program\\w*|roll(?:ing)?\\s+out|ship\\w*)\\b", "regex": true },
       { "term": "\\bour (app|platform|system|model|tool|bot|product|service|algorithm|chatbot|agent)\\b", "regex": true },
-      { "term": "\\b(construir|criar|desenvolver|projetar|implementar|lan[çc]ar|treinar)\\b", "regex": true },
+      { "term": "\\b(constru\\w*|cri(?:ar|o|a|amos|am|ando|ou|ei|e|em)|desenvolv\\w*|projet\\w*|implement\\w*|lan[çc]\\w*|trein\\w*)\\b", "regex": true },
       { "term": "\\bnoss[ao] (app|plataforma|sistema|modelo|ferramenta|bot|produto|servi[çc]o|algoritmo|agente)\\b", "regex": true }
     ],
     "surveillance": [
       { "term": "\\b(surveil\\w*|monitor\\w*|track\\w*|spy\\w*|stalk\\w*|wiretap\\w*)\\b", "regex": true },
-      { "term": "keep tabs on" },
-      { "term": "\\b(monitorar|monitoramento|rastrear|rastreamento|vigiar|vigil[âa]ncia|espionar)\\b", "regex": true }
+      { "term": "\\bkeep\\w*\\s+(?:an?\\s+)?(?:close\\s+)?(?:eye|tabs)\\s+on\\b", "regex": true },
+      { "term": "\\b(monitorar|monitoramento|rastrear|rastreamento|vigiar|vigil[âa]ncia|espionar)\\b", "regex": true },
+      { "term": "\\bde\\s+olho\\s+em\\b", "regex": true }
     ],
     "threat_to_privacy": [
       { "term": "\\b(harvest|scrape|collect|mine|sell|leak|expose)\\w*\\b[^.?!]{0,25}\\b(data|personal|information|records)\\b", "regex": true },

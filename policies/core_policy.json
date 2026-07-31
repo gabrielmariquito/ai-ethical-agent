@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "metadata": {
     "name": "Core Ethical Policy",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "Baseline symbolic policy for the rule-based + constraint guardrail (roadmap item #1). Constraints are the hard safety floor (constraint-based reasoning); rules are deontic statements tied to ethical principles. Patterns cover English and Brazilian Portuguese.",
     "language": "en, pt-BR",
     "created": "2026-06-10",
@@ -122,7 +122,8 @@
         "conditions": [
           {
             "type": "regex",
-            "pattern": "(?i:\\b(personal (information|data|details)|home address|phone number|social security number|informa[çc][õo]es pessoais|dados pessoais|endere[çc]o residencial|telefone|cpf)\\b[^.?!]{0,40}\\b(of|about|d[eoa]s?)\\b\\s+)[A-ZÀ-Ý][a-zà-ÿ]+"
+            "pattern": "\\b(personal (information|data|details)|home address|phone number|social security number|informa[çc][õo]es pessoais|dados pessoais|endere[çc]o residencial|telefone|cpf)\\b[^.?!]{0,40}\\b(of|about|d[eoa]s?)\\b",
+            "flags": "i"
           },
           {
             "type": "regex",
@@ -152,7 +153,8 @@
           { "type": "regex", "pattern": "\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b" },
           { "type": "regex", "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b" },
           { "type": "regex", "pattern": "\\b\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}\\b" },
-          { "type": "regex", "pattern": "\\(\\d{2}\\)\\s?9?\\d{4}-\\d{4}" }
+          { "type": "regex", "pattern": "\\(\\d{2}\\)\\s?9?\\d{4}-\\d{4}" },
+          { "type": "regex", "pattern": "\\b\\d{1,2}\\.\\d{3}\\.\\d{3}-[0-9Xx]\\b" }
         ]
       }
     },
