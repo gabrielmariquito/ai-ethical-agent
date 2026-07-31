@@ -54,13 +54,3 @@ highlighted in amber so it isn't confused with an ordinary DENY.
 Long-running work (building the engine/ontology, evaluating a dataset,
 calling a real Ollama model) runs on a background thread so the window never
 freezes; each tab shows a progress bar while its job is running.
-
-## Files touched by this change
-
-New files only:
-- `gui_app.py`
-- `GUI_README.md` (this file)
-
-Existing files were **read for reference** (to replicate exact CLI semantics)
-but never modified: `ethical_agent/__main__.py`, `ethical_agent/__init__.py`,
-`ethical_agent/types.py`, `ethical_agent/agent.py`, `wizard_gui.py`.
