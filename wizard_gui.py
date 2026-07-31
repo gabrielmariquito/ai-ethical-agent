@@ -12,6 +12,8 @@ Uso:
 """
 from __future__ import annotations
 
+import argparse
+import os
 import queue
 import subprocess
 import sys
@@ -23,6 +25,16 @@ from tkinter import ttk
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
+GUI_APP = ROOT / "gui_app.py"
+
+# Escape hatch: skip auto-launching the interface after install, via either
+# `wizard_gui.py --no-launch` or this environment variable.
+ENV_NO_LAUNCH = "ETHICAL_AGENT_NO_LAUNCH"
+
+# CI/automation markers -- if any of these are set we assume there is no
+# human at the keyboard to hand a GUI window to, even if a display happens
+# to be technically present (e.g. an Xvfb-backed CI run of this installer).
+_CI_ENV_VARS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL", "TF_BUILD", "TEAMCITY_VERSION")
 
 WELCOME_TEXT = (
     "Este assistente instala o ai-ethical-agent: um guardrail ético "
@@ -42,7 +54,10 @@ FINISH_TEXT = (
     '    ethical-agent check "algum texto"\n'
     '    ethical-agent process "..." --mock\n'
     "    ethical-agent eval\n\n"
-    "Veja o README.md para a documentação completa."
+    "Ao clicar em Concluir, a interface gráfica (gui_app.py) abre "
+    "automaticamente em uma janela separada (a menos que este instalador "
+    "tenha sido iniciado com --no-launch). Veja o README.md e o "
+    "GUI_README.md para a documentação completa."
 )
 
 # Os mesmos casos mostrados na seção "Casos onde funciona bem / onde falha"
@@ -98,8 +113,43 @@ def _pip_cmd(venv_dir: Path) -> list[str]:
     return [str(venv_dir / bin_dir / exe)]
 
 
+def _venv_python(venv_dir: Path) -> Path:
+    bin_dir = "Scripts" if sys.platform == "win32" else "bin"
+    exe = "python.exe" if sys.platform == "win32" else "python"
+    return venv_dir / bin_dir / exe
+
+
+def _manual_launch_instructions() -> str:
+    py = _venv_python(VENV_DIR)
+    return (
+        "Para abrir a interface gráfica manualmente mais tarde:\n\n"
+        f"    {py} {GUI_APP}\n"
+    )
+
+
+def _no_launch_env_requested() -> bool:
+    return os.environ.get(ENV_NO_LAUNCH, "").strip().lower() in ("1", "true", "yes")
+
+
+def _is_headless() -> bool:
+    """Best-effort detection of "no human at the keyboard" environments.
+
+    wizard_gui.py itself is a Tkinter app, so a genuinely headless machine
+    (no display at all) would already fail to even open the wizard window --
+    this check exists for the in-between case of a display that is technically
+    present (e.g. Xvfb in CI) but where auto-launching a second GUI window is
+    still not something anyone will see.
+    """
+    if any(os.environ.get(v) for v in _CI_ENV_VARS):
+        return True
+    if sys.platform not in ("win32", "darwin"):
+        if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            return True
+    return False
+
+
 class WizardApp(tk.Tk):
-    def __init__(self) -> None:
+    def __init__(self, auto_launch: bool = True) -> None:
         super().__init__()
         self.title("ai-ethical-agent -- instalador")
         self.geometry("640x460")
@@ -107,6 +157,7 @@ class WizardApp(tk.Tk):
 
         self.want_llm = tk.BooleanVar(value=False)
         self.install_ok = False
+        self.auto_launch = auto_launch
 
         header = tk.Frame(self, bg="#1f2937", height=56)
         header.pack(fill="x")
@@ -164,7 +215,72 @@ class WizardApp(tk.Tk):
         if self.page_index + 1 < len(self.pages):
             self._show_page(self.page_index + 1)
         else:
+            if self.install_ok and self.auto_launch:
+                self._launch_interface()
+            elif self.install_ok:
+                print(_manual_launch_instructions())
             self.destroy()
+
+    def _launch_interface(self) -> None:
+        """Best-effort auto-launch of the GUI once install finishes.
+
+        Never treated as an install failure: any problem here is caught and
+        printed as a warning, with manual-launch instructions as a fallback,
+        and the wizard still exits with success.
+        """
+        if _is_headless():
+            print(
+                "Nenhuma sessão gráfica interativa detectada -- pulando a "
+                "abertura automática da interface."
+            )
+            print(_manual_launch_instructions())
+            return
+        try:
+            python_exe = _venv_python(VENV_DIR)
+            cmd = [str(python_exe), str(GUI_APP)]
+            popen_kwargs: dict = dict(
+                cwd=ROOT,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
+            if sys.platform == "win32":
+                # CREATE_BREAKAWAY_FROM_JOB lets the interface survive even if
+                # this installer itself is running under a job object (e.g. a
+                # CI runner or process supervisor); some job policies forbid
+                # breakaway, so fall back to plain CREATE_NEW_PROCESS_GROUP.
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        creationflags=(
+                            subprocess.CREATE_NEW_PROCESS_GROUP
+                            | subprocess.CREATE_BREAKAWAY_FROM_JOB
+                        ),
+                        **popen_kwargs,
+                    )
+                except OSError:
+                    proc = subprocess.Popen(
+                        cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP, **popen_kwargs
+                    )
+            else:
+                proc = subprocess.Popen(cmd, start_new_session=True, **popen_kwargs)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"Aviso: não foi possível abrir a interface automaticamente "
+                f"({type(exc).__name__}: {exc})."
+            )
+            print(_manual_launch_instructions())
+            return
+
+        stop_cmd = (
+            f"taskkill /PID {proc.pid} /F" if sys.platform == "win32" else f"kill {proc.pid}"
+        )
+        print(
+            f"Interface gráfica aberta em uma janela separada (PID {proc.pid}), "
+            "rodando em segundo plano, independente deste instalador.\n"
+            f"Para encerrá-la: feche a janela, ou rode `{stop_cmd}`.\n"
+        )
+        print(_manual_launch_instructions())
 
     def _go_back(self) -> None:
         if self.page_index > 0:
@@ -436,8 +552,23 @@ class FinishPage(_Page):
             )
 
 
-def main() -> int:
-    app = WizardApp()
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="wizard_gui.py",
+        description="Instalador gráfico do ai-ethical-agent.",
+    )
+    parser.add_argument(
+        "--no-launch",
+        action="store_true",
+        help=(
+            "não abrir a interface gráfica (gui_app.py) automaticamente ao "
+            f"final da instalação (o mesmo efeito de definir {ENV_NO_LAUNCH}=1)"
+        ),
+    )
+    args = parser.parse_args(argv)
+    auto_launch = not args.no_launch and not _no_launch_env_requested()
+
+    app = WizardApp(auto_launch=auto_launch)
     app.mainloop()
     return 0
 

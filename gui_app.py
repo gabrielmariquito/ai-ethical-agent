@@ -218,8 +218,6 @@ class ResultPane(ttk.Frame):
         super().__init__(parent)
         bar = ttk.Frame(self)
         bar.pack(fill="x")
-        self.progress = ttk.Progressbar(bar, mode="indeterminate")
-        self.progress.pack(side="left", fill="x", expand=True, padx=(0, 8))
         ttk.Button(bar, text="Copy result", command=self._copy).pack(side="right")
 
         self.text = tk.Text(self, height=18, wrap="none", state="disabled", font=("Consolas", 10))
@@ -229,13 +227,12 @@ class ResultPane(ttk.Frame):
         self.text.tag_config("banner", foreground="#1d4ed8")
 
     def start(self):
-        self.progress.start(12)
+        pass
 
     def stop(self):
-        self.progress.stop()
+        pass
 
     def show(self, text: str, tag: str | None = None):
-        self.stop()
         self.text.config(state="normal")
         self.text.delete("1.0", "end")
         self.text.insert("end", text, tag or "")
