@@ -76,6 +76,86 @@ def test_not_inverts():
     assert not cond.evaluate("a disclaimer is present")
 
 
+def test_keyword_evaluate_default_still_capped_at_fifty():
+    cond = condition_from_dict({"type": "keyword", "value": "x"})
+    text = " ".join("x" for _ in range(80))
+    assert len(cond.evaluate(text)) == 50
+
+
+def test_keyword_evaluate_unbounded_with_limit_none():
+    cond = condition_from_dict({"type": "keyword", "value": "x"})
+    text = " ".join("x" for _ in range(80))
+    assert len(cond.evaluate(text, limit=None)) == 80
+
+
+def test_regex_evaluate_default_still_capped_at_fifty():
+    cond = condition_from_dict({"type": "regex", "pattern": r"\d+"})
+    text = " ".join(str(i) for i in range(80))
+    assert len(cond.evaluate(text)) == 50
+
+
+def test_regex_evaluate_unbounded_with_limit_none():
+    cond = condition_from_dict({"type": "regex", "pattern": r"\d+"})
+    text = " ".join(str(i) for i in range(80))
+    assert len(cond.evaluate(text, limit=None)) == 80
+
+
+def test_any_evaluate_default_still_capped_at_fifty():
+    cond = condition_from_dict(
+        {
+            "type": "any",
+            "conditions": [
+                {"type": "keyword", "value": "aa"},
+                {"type": "keyword", "value": "bb"},
+            ],
+        }
+    )
+    text = " ".join(["aa"] * 40 + ["bb"] * 40)
+    assert len(cond.evaluate(text)) == 50
+
+
+def test_any_evaluate_unbounded_propagates_to_subconditions():
+    cond = condition_from_dict(
+        {
+            "type": "any",
+            "conditions": [
+                {"type": "keyword", "value": "aa"},
+                {"type": "keyword", "value": "bb"},
+            ],
+        }
+    )
+    text = " ".join(["aa"] * 40 + ["bb"] * 40)
+    assert len(cond.evaluate(text, limit=None)) == 80
+
+
+def test_all_evaluate_default_still_capped_at_fifty():
+    cond = condition_from_dict(
+        {
+            "type": "all",
+            "conditions": [
+                {"type": "keyword", "value": "aa"},
+                {"type": "regex", "pattern": r"\d+"},
+            ],
+        }
+    )
+    text = " ".join(["aa"] * 80) + " " + " ".join(str(i) for i in range(80))
+    assert len(cond.evaluate(text)) == 50
+
+
+def test_all_evaluate_unbounded_propagates_to_subconditions():
+    cond = condition_from_dict(
+        {
+            "type": "all",
+            "conditions": [
+                {"type": "keyword", "value": "aa"},
+                {"type": "regex", "pattern": r"\d+"},
+            ],
+        }
+    )
+    text = " ".join(["aa"] * 80) + " " + " ".join(str(i) for i in range(80))
+    assert len(cond.evaluate(text, limit=None)) == 160
+
+
 def test_unknown_type_raises():
     with pytest.raises(ConditionError):
         condition_from_dict({"type": "concept", "value": "privacy"})

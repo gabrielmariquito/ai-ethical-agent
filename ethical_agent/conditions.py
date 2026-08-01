@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from .types import Evidence
 
@@ -17,7 +17,15 @@ class Condition(ABC):
     type_name: str = "abstract"
 
     @abstractmethod
-    def evaluate(self, text: str) -> List[Evidence]:
+    def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
+        """Evaluate this condition against `text`.
+
+        `limit` bounds how many Evidence items are collected/returned; pass
+        `limit=None` for a complete, unbounded scan (needed only when
+        redacting -- see RuleBasedEngine._apply_rewrites -- since a rule
+        firing/reporting decision never depends on match count beyond the
+        cap, but redaction completeness does).
+        """
         ...
 
     @abstractmethod
@@ -41,7 +49,7 @@ class KeywordCondition(Condition):
             pattern = rf"\b{pattern}\b"
         self._regex = re.compile(pattern, re.IGNORECASE)
 
-    def evaluate(self, text: str) -> List[Evidence]:
+    def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
         evidence = []
         for match in self._regex.finditer(text):
             evidence.append(
@@ -51,7 +59,7 @@ class KeywordCondition(Condition):
                     span=(match.start(), match.end()),
                 )
             )
-            if len(evidence) >= MAX_EVIDENCE:
+            if limit is not None and len(evidence) >= limit:
                 break
         return evidence
 
@@ -84,7 +92,7 @@ class RegexCondition(Condition):
         except re.error as exc:
             raise ConditionError(f"invalid regex {pattern!r}: {exc}") from exc
 
-    def evaluate(self, text: str) -> List[Evidence]:
+    def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
         evidence = []
         for match in self._regex.finditer(text):
             evidence.append(
@@ -94,7 +102,7 @@ class RegexCondition(Condition):
                     span=(match.start(), match.end()),
                 )
             )
-            if len(evidence) >= MAX_EVIDENCE:
+            if limit is not None and len(evidence) >= limit:
                 break
         return evidence
 
@@ -114,13 +122,18 @@ class AnyCondition(Condition):
             raise ConditionError("'any' condition requires at least one sub-condition")
         self.conditions = conditions
 
-    def evaluate(self, text: str) -> List[Evidence]:
+    def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
+        # Only limit=None forces unbounded recursion into sub-conditions; any
+        # concrete limit (including the default) leaves each sub-condition's
+        # own default cap untouched, so nesting inside `any`/`all` never
+        # silently widens e.g. a ConceptCondition's smaller native cap.
         evidence: List[Evidence] = []
         for condition in self.conditions:
-            evidence.extend(condition.evaluate(text))
-            if len(evidence) >= MAX_EVIDENCE:
+            sub = condition.evaluate(text, limit=None) if limit is None else condition.evaluate(text)
+            evidence.extend(sub)
+            if limit is not None and len(evidence) >= limit:
                 break
-        return evidence[:MAX_EVIDENCE]
+        return evidence if limit is None else evidence[:limit]
 
     def to_dict(self) -> dict:
         return {"type": "any", "conditions": [c.to_dict() for c in self.conditions]}
@@ -138,14 +151,16 @@ class AllCondition(Condition):
             raise ConditionError("'all' condition requires at least one sub-condition")
         self.conditions = conditions
 
-    def evaluate(self, text: str) -> List[Evidence]:
+    def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
         evidence: List[Evidence] = []
         for condition in self.conditions:
-            sub_evidence = condition.evaluate(text)
+            sub_evidence = (
+                condition.evaluate(text, limit=None) if limit is None else condition.evaluate(text)
+            )
             if not sub_evidence:
                 return []
             evidence.extend(sub_evidence)
-        return evidence[:MAX_EVIDENCE]
+        return evidence if limit is None else evidence[:limit]
 
     def to_dict(self) -> dict:
         return {"type": "all", "conditions": [c.to_dict() for c in self.conditions]}
@@ -161,8 +176,13 @@ class NotCondition(Condition):
     def __init__(self, condition: Condition):
         self.condition = condition
 
-    def evaluate(self, text: str) -> List[Evidence]:
-        if self.condition.evaluate(text):
+    def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
+        inner = (
+            self.condition.evaluate(text, limit=None)
+            if limit is None
+            else self.condition.evaluate(text)
+        )
+        if inner:
             return []
         return [Evidence(description=f"absence of {self.condition.to_dict()}")]
 

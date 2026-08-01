@@ -82,6 +82,7 @@ class RuleBasedEngine(PolicyEngine):
                 ),
                 hard=rule.hard,
                 user_message=rule.user_message,
+                redacted=rule.redact,
             )
             for rule, evidence in fired
         ]
@@ -133,20 +134,55 @@ class RuleBasedEngine(PolicyEngine):
         ]
 
         result = content
-        redactions: List[Tuple[int, int, str]] = []
+        # start, end, rule_id, severity_rank
+        redactions: List[Tuple[int, int, str, int]] = []
         for rule, evidence in rewrite_rules:
             if not rule.redact:
                 continue
-            for item in evidence:
+            # Redaction must be complete even beyond MAX_EVIDENCE/
+            # MAX_GROUND_EVIDENCE: re-scan this rule's condition without a
+            # cap. `evidence` above (possibly capped) is only for what gets
+            # reported in the verdict/audit trail; this unbounded re-scan is
+            # only reached for fired redact rules, once decision is already
+            # REWRITE, so the hot/common evaluation path stays capped/cheap.
+            full_evidence = rule.condition.evaluate(content, limit=None)
+            for item in full_evidence:
                 if item.span is not None:
-                    redactions.append((item.span[0], item.span[1], rule.id))
-        redactions.sort(reverse=True)
-        last_start = len(result) + 1
-        for start, end, rule_id in redactions:
-            if end > last_start:
-                continue
-            result = f"{result[:start]}[REDACTED:{rule_id}]{result[end:]}"
-            last_start = start
+                    redactions.append(
+                        (item.span[0], item.span[1], rule.id, rule.severity.rank)
+                    )
+
+        if redactions:
+            # Merge overlapping/nested spans into unified intervals before
+            # substitution -- clipping a span against a single "already
+            # redacted" watermark discards content when a later-processed
+            # span is fully contained in an earlier one (its own
+            # non-overlapping tail would otherwise survive). Strict `<`
+            # means touching-but-non-overlapping spans stay separate tags.
+            redactions.sort(key=lambda r: (r[0], r[1]))
+            merged: List[List] = []  # [start, end, [(severity_rank, rule_id), ...]]
+            for start, end, rule_id, sev in redactions:
+                if merged and start < merged[-1][1]:
+                    merged[-1][1] = max(merged[-1][1], end)
+                    merged[-1][2].append((sev, rule_id))
+                else:
+                    merged.append([start, end, [(sev, rule_id)]])
+            # Build the result in one left-to-right pass over the untouched
+            # `content` (merged groups are already non-overlapping and
+            # sorted ascending) instead of repeatedly slicing/rebuilding the
+            # whole string per redaction -- the latter is O(matches x
+            # content length) and becomes the dominant cost once redaction
+            # is no longer capped at MAX_EVIDENCE (tens of seconds on tens
+            # of thousands of matches).
+            pieces = []
+            cursor = 0
+            for start, end, contributors in merged:
+                pieces.append(content[cursor:start])
+                tag_rule_id = max(contributors)[1]
+                pieces.append(f"[REDACTED:{tag_rule_id}]")
+                cursor = end
+            pieces.append(content[cursor:])
+            result = "".join(pieces)
 
         template_rules = [r for r, _ in rewrite_rules if r.rewrite_template]
         if template_rules:

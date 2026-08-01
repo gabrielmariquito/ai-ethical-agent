@@ -123,6 +123,190 @@ def test_output_redaction(engine):
     assert "ana@test.org" not in verdict.rewritten_content
 
 
+def _overlap_engine(rules):
+    return RuleBasedEngine(Policy.from_dict({"schema_version": "1.0", "rules": rules}))
+
+
+def test_redaction_completeness_beyond_fifty_matches(engine):
+    content = " ".join(f"user{i}@example.com" for i in range(60))
+    verdict = _check(engine, content, stage=Stage.OUTPUT)
+    assert verdict.decision is Decision.REWRITE
+    assert "@example.com" not in verdict.rewritten_content
+    assert verdict.rewritten_content.count("[REDACTED:R-REDACT]") == 60
+    match = next(m for m in verdict.matches if m.rule_id == "R-REDACT")
+    assert len(match.evidence) == 50  # reporting stays capped even though redaction isn't
+
+
+def test_overlapping_redaction_spans_partial_no_leak():
+    engine = _overlap_engine(
+        [
+            {
+                "id": "R-OVERLAP-A",
+                "principle": "privacy",
+                "severity": "medium",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"secret-\d+"},
+            },
+            {
+                "id": "R-OVERLAP-B",
+                "principle": "privacy",
+                "severity": "medium",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"\d+-code"},
+            },
+        ]
+    )
+    verdict = _check(engine, "id: secret-1234-code end", stage=Stage.OUTPUT)
+    assert verdict.decision is Decision.REWRITE
+    assert "secret" not in verdict.rewritten_content
+    assert "1234" not in verdict.rewritten_content
+    assert "code" not in verdict.rewritten_content
+    assert "end" in verdict.rewritten_content
+
+
+def test_overlapping_redaction_spans_full_containment_no_leak():
+    engine = _overlap_engine(
+        [
+            {
+                "id": "R-OUTER",
+                "principle": "privacy",
+                "severity": "medium",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"abc-[0-9]{3}-xyz"},
+            },
+            {
+                "id": "R-INNER",
+                "principle": "privacy",
+                "severity": "medium",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"[0-9]{3}"},
+            },
+        ]
+    )
+    verdict = _check(engine, "p abc-123-xyz q", stage=Stage.OUTPUT)
+    assert verdict.decision is Decision.REWRITE
+    assert "123" not in verdict.rewritten_content
+    assert "-xyz" not in verdict.rewritten_content
+    assert "abc-" not in verdict.rewritten_content
+    assert verdict.rewritten_content.count("[REDACTED:") == 1
+
+
+def test_overlapping_redaction_spans_identical_start_merges_to_one_tag():
+    engine = _overlap_engine(
+        [
+            {
+                "id": "R-SHORT",
+                "principle": "privacy",
+                "severity": "low",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"foo"},
+            },
+            {
+                "id": "R-LONG",
+                "principle": "privacy",
+                "severity": "high",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"foobar"},
+            },
+        ]
+    )
+    verdict = _check(engine, "x foobar y", stage=Stage.OUTPUT)
+    assert verdict.decision is Decision.REWRITE
+    assert "foobar" not in verdict.rewritten_content
+    assert "foo" not in verdict.rewritten_content
+    assert verdict.rewritten_content.count("[REDACTED:") == 1
+    assert "[REDACTED:R-LONG]" in verdict.rewritten_content  # higher severity wins the tie-break
+
+
+def test_adjacent_non_overlapping_spans_stay_separate_tags():
+    engine = _overlap_engine(
+        [
+            {
+                "id": "R-AAA",
+                "principle": "privacy",
+                "severity": "medium",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"aaa"},
+            },
+            {
+                "id": "R-BBB",
+                "principle": "privacy",
+                "severity": "medium",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "condition": {"type": "regex", "pattern": r"bbb"},
+            },
+        ]
+    )
+    verdict = _check(engine, "aaabbb", stage=Stage.OUTPUT)
+    assert verdict.decision is Decision.REWRITE
+    assert verdict.rewritten_content == "[REDACTED:R-AAA][REDACTED:R-BBB]"
+
+
+def test_rule_match_redacted_true_for_redact_rule(engine):
+    verdict = _check(engine, "email me at bob@example.com", stage=Stage.OUTPUT)
+    match = next(m for m in verdict.matches if m.rule_id == "R-REDACT")
+    assert match.redacted is True
+    assert verdict.suppresses_raw_content is True
+
+
+def test_rule_match_redacted_false_for_template_only_rule(engine):
+    verdict = _check(engine, "hacking tutorials")
+    match = next(m for m in verdict.matches if m.rule_id == "R-REWRITE")
+    assert match.redacted is False
+    assert verdict.suppresses_raw_content is False
+
+
+def test_verdict_suppresses_raw_content_false_for_allow_and_flag(engine):
+    allow_verdict = _check(engine, "what is the capital of Brazil?")
+    assert allow_verdict.suppresses_raw_content is False
+    flag_verdict = _check(engine, "a medical question")
+    assert flag_verdict.decision is Decision.FLAG
+    assert flag_verdict.suppresses_raw_content is False
+
+
+def test_redact_wins_when_rule_has_both_redact_and_template():
+    data = {
+        "schema_version": "1.0",
+        "rules": [
+            {
+                "id": "R-BOTH",
+                "principle": "privacy",
+                "severity": "medium",
+                "scopes": ["output"],
+                "effect": "REWRITE",
+                "redact": True,
+                "rewrite_template": "{content}\n\n---\nredacted above",
+                "condition": {
+                    "type": "regex",
+                    "pattern": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+                },
+            },
+        ],
+    }
+    engine = RuleBasedEngine(Policy.from_dict(data))
+    verdict = _check(engine, "contact bob@example.com now", stage=Stage.OUTPUT)
+    assert verdict.decision is Decision.REWRITE
+    assert verdict.suppresses_raw_content is True
+    assert "bob@example.com" not in verdict.rewritten_content
+    assert "redacted above" in verdict.rewritten_content
+
+
 def test_flag_does_not_intervene(engine):
     verdict = _check(engine, "a medical question")
     assert verdict.decision is Decision.FLAG

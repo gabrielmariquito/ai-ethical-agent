@@ -105,6 +105,11 @@ class RuleMatch:
     evidence: list = field(default_factory=list)
     hard: bool = False
     user_message: Optional[str] = None
+    redacted: bool = False
+    """True iff the rule producing this match has redact=True -- i.e. this
+    match's own matched text must never be retained anywhere (trace, audit
+    log), regardless of whether the same or another fired rule also carries
+    a rewrite_template. See Verdict.suppresses_raw_content."""
 
     def to_dict(self) -> dict:
         return {
@@ -115,6 +120,7 @@ class RuleMatch:
             "effect": self.effect.value,
             "rationale": self.rationale,
             "hard": self.hard,
+            "redacted": self.redacted,
             "evidence": [e.to_dict() for e in self.evidence],
         }
 
@@ -157,6 +163,19 @@ class Verdict:
     @property
     def intervened(self) -> bool:
         return self.decision in (Decision.DENY, Decision.REWRITE)
+
+    @property
+    def suppresses_raw_content(self) -> bool:
+        """True when this REWRITE was (at least partly) caused by a
+        redact=True rule -- in that case pre-rewrite raw content must never
+        be retained anywhere (trace/audit), even if another fired rule also
+        has a rewrite_template (redaction is sticky: it wins). REWRITE
+        caused purely by rewrite_template rules must NOT suppress raw
+        content -- auditors need the original for those.
+        """
+        return self.decision is Decision.REWRITE and any(
+            m.redacted for m in self.matches
+        )
 
     def to_dict(self) -> dict:
         return {

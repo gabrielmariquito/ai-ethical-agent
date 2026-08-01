@@ -128,3 +128,101 @@ def test_concept_condition_unknown_concept(ontology):
     register_concept_condition(ontology)
     with pytest.raises(ConditionError, match="unknown ontology concept"):
         condition_from_dict({"type": "concept", "concept": "ghost"})
+
+
+TAG_ONTOLOGY = {
+    "schema_version": "1.0",
+    "concepts": [
+        {
+            "id": "tagged",
+            "label": "Tagged",
+            "terms": [{"term": r"tag\d+", "regex": True}],
+        },
+    ],
+    "relations": [],
+    "norms": [
+        {
+            "id": "N-TAG",
+            "principle": "privacy",
+            "severity": "low",
+            "effect": "FLAG",
+            "when": ["tagged"],
+            "description": "tagged",
+        }
+    ],
+}
+
+
+@pytest.fixture
+def tag_ontology():
+    return Ontology.from_dict(TAG_ONTOLOGY)
+
+
+def _tags_text(n):
+    return " ".join(f"tag{i}" for i in range(n))
+
+
+# Regression guard: core_policy.json never nests a `concept` condition inside
+# any/all/not, so nothing in the rest of the suite would catch AnyCondition/
+# AllCondition/NotCondition's `limit` propagation breaking ConceptCondition
+# (which historically had no `limit` parameter at all).
+def test_concept_condition_nested_in_any_default_stays_capped_at_ground_evidence(
+    tag_ontology,
+):
+    register_concept_condition(tag_ontology)
+    cond = condition_from_dict(
+        {
+            "type": "any",
+            "conditions": [
+                {"type": "concept", "concept": "tagged", "direct_only": True},
+            ],
+        }
+    )
+    # ConceptCondition's own MAX_GROUND_EVIDENCE (10) cap must survive
+    # unchanged when nested -- AnyCondition's larger default (50) must not
+    # silently widen it.
+    assert len(cond.evaluate(_tags_text(20))) == 10
+
+
+def test_concept_condition_nested_in_any_unbounded_with_limit_none(tag_ontology):
+    register_concept_condition(tag_ontology)
+    cond = condition_from_dict(
+        {
+            "type": "any",
+            "conditions": [
+                {"type": "concept", "concept": "tagged", "direct_only": True},
+            ],
+        }
+    )
+    assert len(cond.evaluate(_tags_text(20), limit=None)) == 20
+
+
+def test_concept_condition_nested_in_all_unbounded_with_limit_none(tag_ontology):
+    register_concept_condition(tag_ontology)
+    cond = condition_from_dict(
+        {
+            "type": "all",
+            "conditions": [
+                {"type": "concept", "concept": "tagged", "direct_only": True},
+                {"type": "keyword", "value": "tag0"},
+            ],
+        }
+    )
+    evidence = cond.evaluate(_tags_text(20), limit=None)
+    assert len(evidence) == 21  # 20 from the concept + 1 from the keyword
+
+
+def test_concept_condition_nested_in_not_unbounded_does_not_raise(tag_ontology):
+    register_concept_condition(tag_ontology)
+    cond = condition_from_dict(
+        {
+            "type": "not",
+            "condition": {
+                "type": "concept",
+                "concept": "tagged",
+                "direct_only": True,
+            },
+        }
+    )
+    assert cond.evaluate(_tags_text(20), limit=None) == []
+    assert cond.evaluate("nothing tagged here", limit=None)

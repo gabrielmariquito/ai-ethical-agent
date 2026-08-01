@@ -52,7 +52,9 @@ class Concept:
                     [f"{self.id}: invalid term pattern {lex.term!r}: {exc}"]
                 ) from exc
 
-    def ground(self, text: str) -> List[Evidence]:
+    def ground(
+        self, text: str, limit: Optional[int] = MAX_GROUND_EVIDENCE
+    ) -> List[Evidence]:
         evidence: List[Evidence] = []
         for lex, regex in self._patterns:
             for match in regex.finditer(text):
@@ -63,7 +65,7 @@ class Concept:
                         span=(match.start(), match.end()),
                     )
                 )
-                if len(evidence) >= MAX_GROUND_EVIDENCE:
+                if limit is not None and len(evidence) >= limit:
                     return evidence
         return evidence
 
@@ -244,11 +246,13 @@ class Ontology:
                 raise OntologyError([f"{path}: invalid JSON: {exc}"]) from exc
         return cls.from_dict(data)
 
-    def activate(self, text: str) -> Dict[str, List[Evidence]]:
+    def activate(
+        self, text: str, limit: Optional[int] = MAX_GROUND_EVIDENCE
+    ) -> Dict[str, List[Evidence]]:
         activated: Dict[str, List[Evidence]] = {}
         queue = deque()
         for concept in self.concepts.values():
-            evidence = concept.ground(text)
+            evidence = concept.ground(text, limit=limit)
             if evidence:
                 activated[concept.id] = evidence
                 queue.append(concept.id)
@@ -279,10 +283,12 @@ class ConceptCondition(Condition):
         self.concept_id = concept_id
         self.direct_only = direct_only
 
-    def evaluate(self, text: str) -> List[Evidence]:
+    def evaluate(
+        self, text: str, limit: Optional[int] = MAX_GROUND_EVIDENCE
+    ) -> List[Evidence]:
         if self.direct_only:
-            return self.ontology.concepts[self.concept_id].ground(text)
-        return self.ontology.activate(text).get(self.concept_id, [])
+            return self.ontology.concepts[self.concept_id].ground(text, limit=limit)
+        return self.ontology.activate(text, limit=limit).get(self.concept_id, [])
 
     def to_dict(self) -> dict:
         return {
