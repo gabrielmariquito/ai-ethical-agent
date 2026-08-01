@@ -48,6 +48,15 @@ POLICY = {
             },
         },
         {
+            "id": "R-REWRITE-OUTPUT",
+            "principle": "transparency",
+            "severity": "low",
+            "scopes": ["output"],
+            "effect": "REWRITE",
+            "rewrite_template": "{content}\n\n---\nNotice: educational only.",
+            "condition": {"type": "keyword", "value": "diagnosis"},
+        },
+        {
             "id": "R-FLAG",
             "principle": "transparency",
             "severity": "low",

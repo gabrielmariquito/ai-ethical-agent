@@ -28,7 +28,6 @@ from ethical_agent import (  # noqa: E402
     ActionContext,
     AuditLogger,
     CompositeEngine,
-    Decision,
     GuardedAgent,
     KnowledgeGraphEngine,
     MockLLM,
@@ -36,6 +35,7 @@ from ethical_agent import (  # noqa: E402
     Policy,
     RuleBasedEngine,
     Stage,
+    build_check_audit_record,
     default_grounding_path,
     default_norms_path,
     default_policy_path,
@@ -155,27 +155,6 @@ def audit_notice_lines(audit, init_warning) -> list[str]:
         if audit.warning:
             lines.append(audit.warning)
     return lines
-
-
-def check_audit_record(engine, verdict, stage: Stage, text: str) -> dict:
-    """Mirrors ethical_agent/__main__.py::cmd_check's record-building exactly
-    (same trace-key reuse), so a check-produced record and a process/demo
-    (GuardedAgent._finish-produced) record share the same envelope + trace
-    key names.
-    """
-    record = {
-        "status": "denied" if verdict.decision is Decision.DENY else "ok",
-        "engine": engine.name,
-        "config_versions": engine.describe_config(),
-    }
-    if stage is Stage.INPUT:
-        record["input"] = text
-        record["input_verdict"] = verdict.to_dict()
-    else:
-        record["output_verdict"] = verdict.to_dict()
-        if verdict.decision is not Decision.DENY:
-            record["raw_response"] = text
-    return record
 
 
 def indent(text: str, prefix: str = "    ") -> str:
@@ -407,7 +386,7 @@ class CheckTab(ttk.Frame):
             stage_enum = Stage(stage)
             verdict = engine.evaluate(ActionContext(content=text, stage=stage_enum))
             if audit is not None:
-                audit.log(check_audit_record(engine, verdict, stage_enum, text))
+                audit.log(build_check_audit_record(engine, verdict, stage_enum, text))
             return verdict
 
         self.run_btn.config(state="disabled")

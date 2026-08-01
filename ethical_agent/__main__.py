@@ -7,7 +7,7 @@ import sys
 from typing import Optional
 
 from .agent import GuardedAgent
-from .audit import AuditLogger
+from .audit import AuditLogger, build_check_audit_record
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
 from .evaluate import evaluate_engine, format_report, load_dataset
 from .kg_engine import KnowledgeGraphEngine
@@ -20,7 +20,7 @@ from .relaieo import (
     default_relaieo_ttl,
     load_relaieo,
 )
-from .types import ActionContext, Decision, Stage
+from .types import ActionContext, Stage
 
 ENV_NO_AUDIT = "ETHICAL_AGENT_NO_AUDIT"
 
@@ -96,21 +96,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     verdict = engine.evaluate(ActionContext(content=args.text, stage=stage))
 
     if audit is not None:
-        record = {
-            "status": "denied" if verdict.decision is Decision.DENY else "ok",
-            "engine": engine.name,
-            "config_versions": engine.describe_config(),
-        }
-        if stage is Stage.INPUT:
-            record["input"] = args.text
-            record["input_verdict"] = verdict.to_dict()
-        else:
-            record["output_verdict"] = verdict.to_dict()
-            # Same rule as GuardedAgent.process(): the checked content is only
-            # ever retained when the output-stage verdict is not DENY.
-            if verdict.decision is not Decision.DENY:
-                record["raw_response"] = args.text
-        audit.log(record)
+        audit.log(build_check_audit_record(engine, verdict, stage, args.text))
 
     if args.json:
         print(json.dumps(verdict.to_dict(), indent=2, ensure_ascii=False))

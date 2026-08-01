@@ -124,7 +124,13 @@ class GuardedAgent:
             )
             return self._finish(result)
 
-        trace["raw_response"] = response
+        if not output_verdict.suppresses_raw_content:
+            # A redact rule's whole purpose is scrubbing its match from the
+            # content; storing the pre-redaction response here would smuggle
+            # the raw value back into the audit trail. Non-redacting
+            # rewrites (rewrite_template) are not redactions and keep the
+            # original so audits can compare original vs. rewritten.
+            trace["raw_response"] = response
 
         final = response
         if output_verdict.decision is Decision.REWRITE and output_verdict.rewritten_content:

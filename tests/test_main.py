@@ -159,6 +159,38 @@ def test_check_output_stage_denied_content_not_retained(policy_path, tmp_path, c
     assert "output_verdict" in record
 
 
+def test_check_output_redaction_raw_content_not_retained(policy_path, tmp_path, capsys):
+    log_path = tmp_path / "audit.jsonl"
+    argv = _base_argv(policy_path, log_path) + [
+        "check", "contact bob@example.com for help", "--stage", "output",
+    ]
+    code = main(argv)
+    assert code == 2  # REWRITE intervenes
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "bob@example.com" not in log_text
+
+    record = _read_records(log_path)[0]
+    assert record["status"] == "ok"
+    assert record["output_verdict"]["decision"] == "REWRITE"
+    assert "raw_response" not in record
+
+
+def test_check_output_template_only_rewrite_retains_raw_content(policy_path, tmp_path, capsys):
+    log_path = tmp_path / "audit.jsonl"
+    raw = "A common diagnosis for this symptom is seasonal allergy."
+    argv = _base_argv(policy_path, log_path) + [
+        "check", raw, "--stage", "output",
+    ]
+    code = main(argv)
+    assert code == 2  # REWRITE intervenes
+
+    record = _read_records(log_path)[0]
+    assert record["status"] == "ok"
+    assert record["output_verdict"]["decision"] == "REWRITE"
+    assert record["raw_response"] == raw
+
+
 def test_permission_denied_audit_path_does_not_crash(policy_path, tmp_path, capsys):
     blocker = tmp_path / "blocker"
     blocker.write_text("not a directory", encoding="utf-8")

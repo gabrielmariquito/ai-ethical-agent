@@ -70,6 +70,28 @@ def test_redacted_output_pii_not_retained_in_evidence(engine, tmp_path):
     assert all(text is None for text in matched_texts)
 
 
+def test_redacted_output_raw_response_not_retained_in_trace(engine):
+    llm = MockLLM(default="contact bob@example.com for help")
+    agent = GuardedAgent(engine=engine, llm=llm)
+    result = agent.process("how do I get support?")
+    assert result.status == "ok"
+    assert result.output_verdict.suppresses_raw_content is True
+    assert "raw_response" not in result.trace
+
+
+def test_template_only_output_rewrite_retains_raw_response(engine):
+    raw = "A common diagnosis for this symptom is seasonal allergy."
+    llm = MockLLM(default=raw)
+    agent = GuardedAgent(engine=engine, llm=llm)
+    result = agent.process("what could cause sneezing?")
+    assert result.status == "ok"
+    assert result.output_verdict.decision is Decision.REWRITE
+    assert result.output_verdict.suppresses_raw_content is False
+    assert result.trace["raw_response"] == raw
+    assert raw in result.message
+    assert "Notice: educational only." in result.message
+
+
 def test_selfharm_denies_and_shows_support_message(engine):
     llm = MockLLM()
     agent = GuardedAgent(engine=engine, llm=llm)

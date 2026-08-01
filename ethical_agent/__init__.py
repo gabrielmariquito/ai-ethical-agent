@@ -1,5 +1,5 @@
 from .agent import AgentResult, GuardedAgent
-from .audit import AuditLogger
+from .audit import AuditLogger, build_check_audit_record
 from .conditions import (
     Condition,
     ConditionError,
@@ -72,6 +72,7 @@ __all__ = [
     "Stage",
     "SuppressedMatch",
     "Verdict",
+    "build_check_audit_record",
     "condition_from_dict",
     "default_grounding_path",
     "default_norms_path",
