@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from typing import Optional
 
 from .agent import GuardedAgent
+from .audit import AuditLogger
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
 from .evaluate import evaluate_engine, format_report, load_dataset
 from .kg_engine import KnowledgeGraphEngine
@@ -17,7 +20,58 @@ from .relaieo import (
     default_relaieo_ttl,
     load_relaieo,
 )
-from .types import ActionContext, Stage
+from .types import ActionContext, Decision, Stage
+
+ENV_NO_AUDIT = "ETHICAL_AGENT_NO_AUDIT"
+
+
+def _no_audit_env_requested() -> bool:
+    return os.environ.get(ENV_NO_AUDIT, "").strip().lower() in ("1", "true", "yes")
+
+
+class _CliAuditLogger(AuditLogger):
+    """AuditLogger that fails soft on the CLI: a write error is reported to
+    stderr instead of crashing the command, and the first successful write
+    in a process prints a one-time disclosure of where the trail lives.
+    """
+
+    def __init__(self, path):
+        self._notice_shown = False
+        super().__init__(path)
+
+    def log(self, record: dict) -> Optional[str]:
+        try:
+            event_id = super().log(record)
+        except Exception as exc:
+            print(
+                f"[audit] could not write audit record to {self.path} "
+                f"({exc.__class__.__name__}: {exc}); continuing without "
+                "logging this event",
+                file=sys.stderr,
+            )
+            return None
+        if not self._notice_shown:
+            self._notice_shown = True
+            print(
+                f"[audit] writing to {self.path} (disable with --no-audit "
+                f"or {ENV_NO_AUDIT}=1; see AUDIT_GUIDE.pt-BR.md)",
+                file=sys.stderr,
+            )
+        return event_id
+
+
+def _build_audit(args: argparse.Namespace) -> Optional[AuditLogger]:
+    if args.no_audit or _no_audit_env_requested():
+        return None
+    try:
+        return _CliAuditLogger(args.audit_log)
+    except Exception as exc:
+        print(
+            f"[audit] could not initialize audit log at {args.audit_log} "
+            f"({exc.__class__.__name__}: {exc}); continuing without audit logging",
+            file=sys.stderr,
+        )
+        return None
 
 
 def _build_engine(args: argparse.Namespace) -> PolicyEngine:
@@ -37,9 +91,27 @@ def _build_engine(args: argparse.Namespace) -> PolicyEngine:
 
 def cmd_check(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
-    verdict = engine.evaluate(
-        ActionContext(content=args.text, stage=Stage(args.stage))
-    )
+    audit = _build_audit(args)
+    stage = Stage(args.stage)
+    verdict = engine.evaluate(ActionContext(content=args.text, stage=stage))
+
+    if audit is not None:
+        record = {
+            "status": "denied" if verdict.decision is Decision.DENY else "ok",
+            "engine": engine.name,
+            "config_versions": engine.describe_config(),
+        }
+        if stage is Stage.INPUT:
+            record["input"] = args.text
+            record["input_verdict"] = verdict.to_dict()
+        else:
+            record["output_verdict"] = verdict.to_dict()
+            # Same rule as GuardedAgent.process(): the checked content is only
+            # ever retained when the output-stage verdict is not DENY.
+            if verdict.decision is not Decision.DENY:
+                record["raw_response"] = args.text
+        audit.log(record)
+
     if args.json:
         print(json.dumps(verdict.to_dict(), indent=2, ensure_ascii=False))
     else:
@@ -48,6 +120,10 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
+    # Intentionally never audited: this runs hundreds of synthetic dataset
+    # cases directly against the engine, and logging them would swamp the
+    # real usage trail with non-real data. args.audit_log/args.no_audit
+    # exist on this namespace (they're global args) but are never read here.
     engine = _build_engine(args)
     cases = load_dataset(args.dataset)
     results = evaluate_engine(engine, cases)
@@ -77,7 +153,8 @@ def _build_llm(args: argparse.Namespace) -> LLMClient:
 def cmd_process(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
     llm = _build_llm(args)
-    agent = GuardedAgent(engine=engine, llm=llm)
+    audit = _build_audit(args)
+    agent = GuardedAgent(engine=engine, llm=llm, audit=audit)
     result = agent.process(args.text)
 
     if args.json:
@@ -113,6 +190,7 @@ def cmd_process(args: argparse.Namespace) -> int:
 
 def cmd_demo(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
+    audit = _build_audit(args)
 
     def scripted(messages):
         user = messages[-1]["content"].lower()
@@ -126,7 +204,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             return "You can reach our support team at john.doe@example.com."
         return "The sky appears blue due to Rayleigh scattering of sunlight."
 
-    agent = GuardedAgent(engine=engine, llm=MockLLM(scripted))
+    agent = GuardedAgent(engine=engine, llm=MockLLM(scripted), audit=audit)
 
     cases = [
         "Why is the sky blue?",
@@ -188,6 +266,22 @@ def main(argv=None) -> int:
         choices=["rule", "kg", "hybrid"],
         default="hybrid",
         help="engine to use (default: hybrid = rule-based + knowledge graph)",
+    )
+    parser.add_argument(
+        "--audit-log",
+        default="logs/audit.jsonl",
+        help=(
+            "path to the audit JSONL log written by check/process/demo "
+            "(default: logs/audit.jsonl); ignored by eval, which never audits"
+        ),
+    )
+    parser.add_argument(
+        "--no-audit",
+        action="store_true",
+        help=(
+            "disable audit logging entirely for this invocation "
+            f"(same effect as {ENV_NO_AUDIT}=1)"
+        ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

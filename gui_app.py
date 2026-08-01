@@ -13,6 +13,7 @@ Run with:  python gui_app.py   (after `pip install -e .` in this repo)
 from __future__ import annotations
 
 import json
+import os
 import queue
 import sys
 import threading
@@ -25,7 +26,9 @@ sys.path.insert(0, str(ROOT))
 
 from ethical_agent import (  # noqa: E402
     ActionContext,
+    AuditLogger,
     CompositeEngine,
+    Decision,
     GuardedAgent,
     KnowledgeGraphEngine,
     MockLLM,
@@ -78,6 +81,103 @@ def build_llm(model, mock):
         return MockLLM(default="[mock response: no model available]"), banner
 
 
+# ---------------------------------------------------------------------------
+# Audit logging -- mirrors ethical_agent/__main__.py's _build_audit /
+# _CliAuditLogger, but adapted for the GUI: .log() runs on RunHandle's
+# background thread (Tkinter widgets aren't thread-safe outside the main
+# thread), so failures/notices are stashed on the logger instance instead of
+# printed-and-shown here; the caller's on_done() (main thread) surfaces them
+# in the ResultPane. stderr output is still safe from a background thread,
+# so that part happens immediately, same as the CLI.
+# ---------------------------------------------------------------------------
+
+ENV_NO_AUDIT = "ETHICAL_AGENT_NO_AUDIT"
+
+
+def _no_audit_env_requested() -> bool:
+    return os.environ.get(ENV_NO_AUDIT, "").strip().lower() in ("1", "true", "yes")
+
+
+class _GuiAuditLogger(AuditLogger):
+    def __init__(self, path):
+        self.warning = None
+        self.notice = None
+        self._notice_shown = False
+        super().__init__(path)
+
+    def log(self, record: dict):
+        try:
+            event_id = super().log(record)
+        except Exception as exc:  # noqa: BLE001 -- mirrors _CliAuditLogger's own broad catch
+            self.warning = (
+                f"[audit] could not write audit record to {self.path} "
+                f"({exc.__class__.__name__}: {exc}); continuing without "
+                "logging this event"
+            )
+            print(self.warning, file=sys.stderr)
+            return None
+        if not self._notice_shown:
+            self._notice_shown = True
+            self.notice = (
+                f'[audit] writing to {self.path} -- uncheck "Enable audit '
+                f'log" (or set {ENV_NO_AUDIT}=1) to disable'
+            )
+            print(self.notice, file=sys.stderr)
+        return event_id
+
+
+def build_audit(enabled: bool, path: str):
+    """Returns (audit_logger_or_None, init_warning_or_None)."""
+    if not enabled or _no_audit_env_requested():
+        return None, None
+    try:
+        return _GuiAuditLogger(path), None
+    except Exception as exc:  # noqa: BLE001
+        msg = (
+            f"[audit] could not initialize audit log at {path} "
+            f"({exc.__class__.__name__}: {exc}); continuing without audit logging"
+        )
+        print(msg, file=sys.stderr)
+        return None, msg
+
+
+def audit_notice_lines(audit, init_warning) -> list[str]:
+    """Collects any first-write disclosure / failure text to surface on-screen,
+    in addition to the stderr output _GuiAuditLogger already printed -- a
+    windowed Tk app may have no visible console for the user to see stderr.
+    """
+    lines = []
+    if init_warning:
+        lines.append(init_warning)
+    if audit is not None:
+        if audit.notice:
+            lines.append(audit.notice)
+        if audit.warning:
+            lines.append(audit.warning)
+    return lines
+
+
+def check_audit_record(engine, verdict, stage: Stage, text: str) -> dict:
+    """Mirrors ethical_agent/__main__.py::cmd_check's record-building exactly
+    (same trace-key reuse), so a check-produced record and a process/demo
+    (GuardedAgent._finish-produced) record share the same envelope + trace
+    key names.
+    """
+    record = {
+        "status": "denied" if verdict.decision is Decision.DENY else "ok",
+        "engine": engine.name,
+        "config_versions": engine.describe_config(),
+    }
+    if stage is Stage.INPUT:
+        record["input"] = text
+        record["input_verdict"] = verdict.to_dict()
+    else:
+        record["output_verdict"] = verdict.to_dict()
+        if verdict.decision is not Decision.DENY:
+            record["raw_response"] = text
+    return record
+
+
 def indent(text: str, prefix: str = "    ") -> str:
     return "\n".join(prefix + line for line in text.splitlines())
 
@@ -106,8 +206,8 @@ def demo_scripted(messages):
     return "The sky appears blue due to Rayleigh scattering of sunlight."
 
 
-def run_demo_text(engine) -> str:
-    agent = GuardedAgent(engine=engine, llm=MockLLM(demo_scripted))
+def run_demo_text(engine, audit=None) -> str:
+    agent = GuardedAgent(engine=engine, llm=MockLLM(demo_scripted), audit=audit)
     lines = []
     for text in DEMO_CASES:
         result = agent.process(text)
@@ -183,7 +283,20 @@ class EngineSettings(ttk.LabelFrame):
             state="readonly", width=10,
         )
         combo.grid(row=4, column=1, sticky="w", padx=4, pady=2)
+
+        self.audit_var = tk.BooleanVar(value=not _no_audit_env_requested())
+        self.audit_log_var = tk.StringVar(value="logs/audit.jsonl")
+        ttk.Checkbutton(
+            self,
+            text='Enable audit log ("Gravar auditoria" -- --audit-log / --no-audit)',
+            variable=self.audit_var,
+        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=4, pady=2)
+        self._path_row(6, "--audit-log", self.audit_log_var)
+
         self.columnconfigure(1, weight=1)
+
+    def build_audit(self):
+        return build_audit(self.audit_var.get(), self.audit_log_var.get())
 
     def _path_row(self, row, label, var):
         ttk.Label(self, text=label).grid(row=row, column=0, sticky="w", padx=4, pady=2)
@@ -287,9 +400,15 @@ class CheckTab(ttk.Frame):
             self.settings.engine_var.get(),
         )
 
+        audit, init_warning = self.settings.build_audit()
+
         def job():
             engine = build_engine(policy, ontology, grounding, norms, engine_kind)
-            return engine.evaluate(ActionContext(content=text, stage=Stage(stage)))
+            stage_enum = Stage(stage)
+            verdict = engine.evaluate(ActionContext(content=text, stage=stage_enum))
+            if audit is not None:
+                audit.log(check_audit_record(engine, verdict, stage_enum, text))
+            return verdict
 
         self.run_btn.config(state="disabled")
         self.result.start()
@@ -300,6 +419,9 @@ class CheckTab(ttk.Frame):
             else:
                 out = verdict.explain()
             out += f"\n\n[intervened={verdict.intervened}, system_error={verdict.system_error}]"
+            notices = audit_notice_lines(audit, init_warning)
+            if notices:
+                out = "\n".join(notices) + "\n\n" + out
             self.result.show(out, "system_error" if verdict.system_error else None)
             self.run_btn.config(state="normal")
 
@@ -399,14 +521,19 @@ class DemoTab(ttk.Frame):
             self.settings.engine_var.get(),
         )
 
+        audit, init_warning = self.settings.build_audit()
+
         def job():
             engine = build_engine(policy, ontology, grounding, norms, engine_kind)
-            return run_demo_text(engine)
+            return run_demo_text(engine, audit=audit)
 
         self.run_btn.config(state="disabled")
         self.result.start()
 
         def on_done(text):
+            notices = audit_notice_lines(audit, init_warning)
+            if notices:
+                text = "\n".join(notices) + "\n\n" + text
             self.result.show(text)
             self.run_btn.config(state="normal")
 
@@ -459,10 +586,12 @@ class ProcessTab(ttk.Frame):
             self.settings.engine_var.get(),
         )
 
+        audit, init_warning = self.settings.build_audit()
+
         def job():
             engine = build_engine(policy, ontology, grounding, norms, engine_kind)
             llm, banner = build_llm(model, mock)
-            agent = GuardedAgent(engine=engine, llm=llm)
+            agent = GuardedAgent(engine=engine, llm=llm, audit=audit)
             result = agent.process(text)
             return result, banner
 
@@ -502,6 +631,9 @@ class ProcessTab(ttk.Frame):
             )
             if banner:
                 out = banner + "\n\n" + out
+            notices = audit_notice_lines(audit, init_warning)
+            if notices:
+                out = "\n".join(notices) + "\n\n" + out
             out += f"\n\n[status={result.status}, system_error={system_error}]"
             tag = "system_error" if system_error else ("error" if result.status != "ok" else None)
             self.result.show(out, tag)
