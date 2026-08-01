@@ -25,6 +25,7 @@ from tkinter import ttk
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
+LOGS_DIR = ROOT / "logs"
 GUI_APP = ROOT / "gui_app.py"
 
 # Escape hatch: skip auto-launching the interface after install, via either
@@ -54,6 +55,11 @@ FINISH_TEXT = (
     '    ethical-agent check "algum texto"\n'
     '    ethical-agent process "..." --mock\n'
     "    ethical-agent eval\n\n"
+    "Por padrão, cada `check`/`process`/`demo` (CLI ou interface gráfica) "
+    "grava um registro em logs/audit.jsonl -- conteúdo bloqueado nunca é "
+    "incluído. Para desativar: use --no-audit, defina "
+    "ETHICAL_AGENT_NO_AUDIT=1, ou desmarque \"Enable audit log\" na "
+    "interface gráfica. Veja AUDIT_GUIDE.pt-BR.md.\n\n"
     "Ao clicar em Concluir, a interface gráfica (gui_app.py) abre "
     "automaticamente em uma janela separada (a menos que este instalador "
     "tenha sido iniciado com --no-launch). Veja o README.md e o "
@@ -387,6 +393,10 @@ class ProgressPage(_Page):
             if not VENV_DIR.exists():
                 venv.EnvBuilder(with_pip=True).create(VENV_DIR)
             self._queue.put(f"Venv pronto em {VENV_DIR}\n")
+
+            if not LOGS_DIR.exists():
+                LOGS_DIR.mkdir(parents=True, exist_ok=True)
+            self._queue.put(f"Diretório de log de auditoria pronto em {LOGS_DIR}\n")
 
             extras = "llm,dev" if self.app.want_llm.get() else "dev"
             cmd = _pip_cmd(VENV_DIR) + ["install", "-e", f".[{extras}]"]

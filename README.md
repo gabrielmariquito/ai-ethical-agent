@@ -610,6 +610,21 @@ regras/ontologia decidiu sobre aquela entrada/saída sensível — pré-requisit
 para accountability e para reproduzir uma decisão depois que a política
 evoluir.
 
+**A trilha é gravada por padrão** para `check`/`process`/`demo`, tanto na CLI
+quanto na interface gráfica (`gui_app.py`), e o diretório `logs/` é criado
+pelo instalador (`wizard_gui.py`). Como isso grava texto de entrada completo
+por padrão — inclusive dado pessoal —, três formas independentes desligam a
+gravação: `--no-audit` na CLI, a variável de ambiente
+`ETHICAL_AGENT_NO_AUDIT=1` (equivalente em qualquer processo), ou o checkbox
+"Enable audit log" no painel Engine settings da GUI. Na primeira gravação de
+cada processo é impresso um aviso único em `stderr` (e também exibido na GUI,
+já que uma janela pode não ter console visível) informando onde a trilha está
+sendo gravada e como desligá-la; uma falha ao gravar (ex.: permissão negada)
+nunca derruba o comando, só gera um aviso. Ver
+[AUDIT_GUIDE.pt-BR.md](AUDIT_GUIDE.pt-BR.md) para o passo a passo completo e
+`audit_tools.py` para inspecionar o log (`resumir`) ou gerar dados de exemplo
+claramente sintéticos (`gerar`).
+
 **Conteúdo bloqueado nunca é retido, nem no código, nem no log.** Quando o
 *output* do LLM é negado (`Decision.DENY` no estágio `output`), o texto bruto
 gerado nunca é atribuído a `AgentResult.response` nem gravado em
@@ -617,7 +632,10 @@ gerado nunca é atribuído a `AgentResult.response` nem gravado em
 audit log (`GuardedAgent.process` em `ethical_agent/agent.py`). O que
 permanece, para auditabilidade, é só a evidência normal do veredito (o
 trecho curto que casou com a regra/norma), não o conteúdo completo bloqueado.
-Ver `tests/test_agent.py::test_denied_output_is_never_retained`.
+A mesma regra vale para `check --stage output` na CLI/GUI, que constrói o
+registro manualmente (não passa por `GuardedAgent`) mas reproduz a mesma
+lógica. Ver `tests/test_agent.py::test_denied_output_is_never_retained` e
+`tests/test_main.py::test_check_output_stage_denied_content_not_retained`.
 
 ## Limitações conhecidas (intencionais, nesta fase)
 
@@ -652,10 +670,6 @@ Ver `tests/test_agent.py::test_denied_output_is_never_retained`.
   léxico mas nenhuma norma o referencia em `relaieo_norms.json` — ativá-lo
   hoje não tem efeito algum.
 - O campo `deontic` é metadado, não uma lógica ainda (item #3/GRACE).
-- **Trilha de auditoria opt-in**: o `AuditLogger` só grava se for passado ao
-  `GuardedAgent`, e a CLI não instancia nenhum. Hoje o registro em JSONL
-  exige usar a biblioteca em código; instrumentar `process` e `demo` é uma
-  correção pendente.
 
 ## Referências
 
