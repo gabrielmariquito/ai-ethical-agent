@@ -131,6 +131,48 @@ Fora do veredito, o registro traz `config_versions`: a versão exata da polític
 e da ontologia que julgaram aquele caso. É o que permite reabrir um registro
 antigo e saber com quais regras ele foi decidido.
 
+Dois outros campos, fora do veredito, respondem duas perguntas que
+`input`/`output_verdict` sozinhos não respondem: **o que gerou o conteúdo
+avaliado** e **o que o usuário efetivamente recebeu**.
+
+**`llm_provenance`** (só em registros de `process`) diz o que produziu o
+conteúdo, distinguindo três casos:
+
+```jsonc
+{"kind": "real", "model": "llama3.2:3b", "backend": "ollama_local"}   // modelo real, local ou "ollama_cloud"
+{"kind": "mock_requested"}                                            // --mock / caixa "Mock" da GUI
+{"kind": "mock_fallback", "fallback_reason": "ConnectionError: ..."}  // Ollama falhou, caiu para mock
+```
+
+Antes desse campo, um `mock_fallback` era indistinguível de um `real`
+bem-sucedido: o aviso ia só para `stderr` (CLI) ou um banner (GUI), nunca
+para o registro — e como a caixa "Mock" da GUI vem marcada por padrão, o
+caso mais comum era justamente o que não deixava rastro nenhum.
+
+**`message`** (em todo registro de `process`/`demo`) é o texto efetivamente
+entregue ao usuário — a recusa em `DENY`/erro interno, ou a resposta final em
+`ok`/`REWRITE`. Antes, só dava para inferir o conteúdo de uma reescrita via
+`rewritten_output`; uma recusa (`DENY`) não deixava nenhum registro do que foi
+dito. Isso fechava especificamente a auditoria de regras como `R-HARM-002`
+(automutilação), cuja obrigação declarada é "surface help resources": sem
+`message`, não havia como confirmar que o texto de ajuda (CVV, 988 etc.) foi
+de fato mostrado.
+
+`message` nunca reintroduz conteúdo que a regra de retenção descrita no Passo
+1 protege: a recusa é montada só a partir de `rationale`/`user_message` das
+regras que dispararam, nunca do conteúdo gerado ou bloqueado — o mesmo texto
+que já aparece em `result.message` para quem chama a API diretamente.
+
+Nem todo registro tem os quatro campos abaixo — a ausência costuma ser
+deliberada, não esquecimento:
+
+| Campo | `check` | `process` | `demo` | Por que a ausência (quando há) é deliberada |
+|-------|:-------:|:---------:|:------:|----------------------------------------------|
+| `config_versions` | ✅ | ✅ | ✅ | Sempre presente — não há caso de ausência |
+| `llm_provenance` | ❌ | ✅ | ❌ | `check` nunca chama LLM. `demo` usa um `MockLLM` com respostas roteirizadas direto (fora do `resolve_llm`); já é inequivocamente sintético por causa do `source="demo"`, então o campo seria redundante |
+| `message` | ❌ | ✅ | ✅ | `check` avalia conteúdo mas não gera mensagem para ninguém — forçar o campo seria um valor vazio/repetitivo, não sinal |
+| `source` | ❌ | ❌ | ✅ | Marca especificamente dados sintéticos de demonstração (ver `audit_tools.py resumir`); `process` é uso real, não leva a marca |
+
 ### Dois campos que mudam a leitura
 
 **`system_error: true`** não é julgamento ético — é erro de execução que virou
