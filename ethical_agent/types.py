@@ -57,6 +57,27 @@ _SEVERITY_RANK = {
 }
 
 
+# The closed vocabulary of ethical principles a rule or norm may claim.
+#
+# This is CHECKED, not merely declared: Rule.from_dict (policy.py) and the
+# norm/concept loaders (ontology.py) reject anything outside it, listing the
+# offending id. For a long time nothing read this frozenset, and the name
+# promised a validation that did not happen -- a rule could say
+# principle: "beneficencia" (misspelt) and load without a word, then group
+# under a heading no report expects. A principle nobody recognises is a rule
+# nobody can classify; failing to load is the right answer, the same way an
+# invalid severity or scope already fails.
+#
+# `beneficence` is deliberately here and deliberately unused today: no rule in
+# policies/core_policy.json and no norm in ontologies/relaieo_norms.json
+# claims it. It is reserved -- shrinking a vocabulary because nothing has
+# needed it yet is a policy decision, not a cleanup.
+#
+# NOT applied to the eval datasets. `eval/dataset*.json` also has a
+# "principle" field, but that is a different vocabulary that happens to share
+# a name: evaluate_engine reads it only to group the report, and its most
+# common value is "benign", meaning "no principle applies -- this case should
+# pass". Validating datasets against this set would be a category error.
 KNOWN_PRINCIPLES = frozenset(
     {
         "non_maleficence",

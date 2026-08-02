@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from .conditions import Condition, ConditionError, register_condition_type
-from .types import Decision, Evidence, Severity, Stage
+from .types import KNOWN_PRINCIPLES, Decision, Evidence, Severity, Stage
 
 PROPAGATING_PREDICATES = {"is_a", "part_of", "implies"}
 
@@ -129,10 +129,19 @@ class Ontology:
                     errors.append(f"{concept_id}: term without 'term' value")
                     continue
                 terms.append(Lexicalization(term=term, regex=bool(raw_term.get("regex", False))))
+            concept_principle = raw.get("principle", "")
+            # Optional on a concept (unlike a norm), so only checked when
+            # filled -- a concept is a piece of vocabulary and may carry no
+            # principle of its own.
+            if concept_principle and concept_principle not in KNOWN_PRINCIPLES:
+                errors.append(
+                    f"{concept_id}: unknown principle {concept_principle!r}, "
+                    f"expected one of {sorted(KNOWN_PRINCIPLES)}"
+                )
             concepts[concept_id] = Concept(
                 id=concept_id,
                 label=raw.get("label", concept_id),
-                principle=raw.get("principle", ""),
+                principle=concept_principle,
                 description=raw.get("description", ""),
                 provocation=raw.get("provocation", ""),
                 references=list(raw.get("references", [])),
@@ -159,6 +168,16 @@ class Ontology:
             if norm_id in seen_norms:
                 errors.append(f"duplicate norm id: {norm_id}")
             seen_norms.add(norm_id)
+
+            norm_principle = raw.get("principle", "")
+            # Required on a norm: a norm that fires produces a RuleMatch, and
+            # a match nobody can classify by principle is a decision the
+            # report cannot group and the screen cannot translate.
+            if norm_principle and norm_principle not in KNOWN_PRINCIPLES:
+                errors.append(
+                    f"{norm_id}: unknown principle {norm_principle!r}, "
+                    f"expected one of {sorted(KNOWN_PRINCIPLES)}"
+                )
 
             deontic = raw.get("deontic", "prohibition")
             if deontic not in _VALID_DEONTICS:
@@ -199,7 +218,7 @@ class Ontology:
             norms.append(
                 Norm(
                     id=norm_id,
-                    principle=raw.get("principle", ""),
+                    principle=norm_principle,
                     deontic=deontic,
                     severity=severity,
                     effect=effect,

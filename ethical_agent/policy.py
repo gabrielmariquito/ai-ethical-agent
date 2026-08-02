@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from .conditions import Condition, ConditionError, condition_from_dict
-from .types import Decision, Severity, Stage
+from .types import KNOWN_PRINCIPLES, Decision, Severity, Stage
 
 SCHEMA_VERSION = "1.0"
 
@@ -49,6 +49,18 @@ class Rule:
         principle = data.get("principle", "")
         if not principle:
             errors.append(f"{rule_id}: missing 'principle'")
+        elif principle not in KNOWN_PRINCIPLES:
+            # Checked, not merely declared. KNOWN_PRINCIPLES existed for a
+            # long time with nothing reading it, so a rule could say
+            # principle: "beneficencia" (misspelt) and load without a word --
+            # and then group under a heading no report expects, silently. A
+            # principle outside the vocabulary is a rule nobody can classify;
+            # failing to load is the right answer, the same way an invalid
+            # severity or scope already fails here.
+            errors.append(
+                f"{rule_id}: unknown principle {principle!r}, "
+                f"expected one of {sorted(KNOWN_PRINCIPLES)}"
+            )
 
         deontic = data.get("deontic", "prohibition")
         if deontic not in _VALID_DEONTICS:
