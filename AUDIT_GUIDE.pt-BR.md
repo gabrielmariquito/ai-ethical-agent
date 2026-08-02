@@ -377,6 +377,40 @@ verdadeiro — e, no mesmo movimento, `raw_response` não é gravado
 O `span` fica nos dois casos, então você sempre sabe **onde** no texto a regra
 casou, mesmo quando não pode ver **o quê**.
 
+### A evidência também diz o que a regra procurava
+
+No campo `description` de cada evidência você vai encontrar o critério da
+condição por extenso — a palavra-chave, ou o padrão de regex inteiro:
+
+```json
+"description": "regex '\\b(ignore|disregard|forget|desconsidere)\\b[^.?!]{0,40}\\b(instructions?|system prompt|regras)\\b'"
+"description": "keyword 'dosage'"
+```
+
+**Isso é decisão de projeto, pelo mesmo motivo que o trecho casado num `DENY`
+é.** Uma evidência que dissesse apenas "a regra R-INJ-001 casou" não seria
+verificável: você teria de confiar no sistema. Dizendo o que a regra procurava
+*e* o que ela achou *e* onde, a alegação pode ser conferida contra o dado —
+que é o que esta seção inteira defende. E o padrão não é segredo: as políticas
+são arquivos versionados no repositório, e o `config_versions` de cada registro
+diz qual versão decidiu (Passo 5).
+
+**Um caso foi tratado de forma diferente, e vale saber por quê.** Uma regra
+pode ter uma cláusula de ausência (`not`) — dispara quando algo aparece *sem*
+uma expressão de isenção. A evidência dessa cláusula descreve uma condição que,
+por definição, **não** casou: não há trecho a conferir. Até certo ponto ela era
+gravada com a condição inteira serializada, ou seja, a lista completa das
+expressões que fazem a regra não disparar. Isso não acrescentava nada de
+verificável (não houve casamento a verificar) e era, na prática, um roteiro de
+evasão. Hoje ela registra só a forma:
+
+```json
+"description": "absence of any of 6 conditions"
+```
+
+O critério, de novo, é o mesmo: o registro guarda o que torna a decisão
+conferível, e não mais que isso.
+
 Na tela de auditoria (Passo 8) esta seção é a explicação: a tela marca a
 ausência onde ela acontece — a evidência de uma regra de redação aparece com
 "trecho: removido pela própria redação", em vez de simplesmente pular o campo —
