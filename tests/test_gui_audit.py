@@ -78,3 +78,15 @@ def test_gui_app_no_longer_defines_its_own_check_audit_record():
     source = source_path.read_text(encoding="utf-8")
     assert "def check_audit_record(" not in source
     assert "build_check_audit_record(" in source  # actually called, not just imported
+
+
+def test_gui_app_uses_shared_llm_provenance_helpers():
+    # Same reasoning as above: gui_app.py must call the shared resolve_llm /
+    # describe_llm_provenance from ethical_agent.llm instead of reimplementing
+    # its own classification of what produced (or simulated) the content --
+    # otherwise the CLI and GUI could silently drift on this.
+    source_path = Path(__file__).resolve().parent.parent / "gui_app.py"
+    source = source_path.read_text(encoding="utf-8")
+    assert "def build_llm(" in source  # thin wrapper still present
+    assert "resolve_llm(" in source
+    assert "describe_llm_provenance(" in source

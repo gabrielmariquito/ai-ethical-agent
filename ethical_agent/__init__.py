@@ -8,7 +8,13 @@ from .conditions import (
 )
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
 from .kg_engine import KnowledgeGraphEngine
-from .llm import LLMClient, MockLLM, OllamaClient
+from .llm import (
+    LLMClient,
+    MockLLM,
+    OllamaClient,
+    describe_llm_provenance,
+    resolve_llm,
+)
 from .llm_judge import LLMJudgeEngine
 from .ontology import (
     Concept,
@@ -78,10 +84,12 @@ __all__ = [
     "default_norms_path",
     "default_policy_path",
     "default_relaieo_ttl",
+    "describe_llm_provenance",
     "load_default_ontology",
     "load_relaieo",
     "parse_relaieo",
     "register_concept_condition",
     "register_condition_type",
+    "resolve_llm",
     "__version__",
 ]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Optional
 
 from ._stdio import ensure_utf8_stdio
@@ -11,7 +12,8 @@ from .audit import AuditLogger, build_check_audit_record
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
 from .evaluate import evaluate_engine, format_report, load_dataset
 from .kg_engine import KnowledgeGraphEngine
-from .llm import LLMClient, MockLLM, OllamaClient
+from .llm import LLMClient, MockLLM, describe_llm_provenance, resolve_llm
+from .ollama_install import DEFAULT_LOCAL_MODEL, read_env_model
 from .ontology import register_concept_condition
 from .policy import Policy, default_policy_path
 from .relaieo import (
@@ -21,6 +23,15 @@ from .relaieo import (
     load_relaieo,
 )
 from .types import ActionContext, Stage
+
+# Same reasoning as gui_app.py's DEFAULT_MODEL: if the wizard installed a
+# local model it recorded it in <repo root>/.env (OLLAMA_MODEL=...); default
+# to that instead of a model that was never actually pulled. `parent.parent`
+# only lands on the repo root for an editable checkout (the wizard's own
+# install flow) -- for a non-editable install it resolves inside
+# site-packages, where no .env exists, so this just falls back to the
+# previous hardcoded default.
+_DEFAULT_MODEL = read_env_model(Path(__file__).resolve().parent.parent, DEFAULT_LOCAL_MODEL)
 
 
 class _CliAuditLogger(AuditLogger):
@@ -112,27 +123,24 @@ def cmd_eval(args: argparse.Namespace) -> int:
     return 0 if not results["mismatches"] else 1
 
 
-def _build_llm(args: argparse.Namespace) -> LLMClient:
-    if args.mock:
-        return MockLLM(default="[mock response: no model available]")
-    try:
-        llm = OllamaClient(model=args.model)
-        llm.chat([{"role": "user", "content": "ping"}])
-        return llm
-    except Exception as exc:
+def _build_llm(args: argparse.Namespace) -> tuple[LLMClient, dict]:
+    llm, provenance = resolve_llm(args.model, args.mock)
+    if provenance["kind"] == "mock_fallback":
         print(
-            f"[Ollama unavailable ({exc.__class__.__name__}: {exc}); "
+            f"[Ollama unavailable ({provenance['fallback_reason']}); "
             "using MockLLM]",
             file=sys.stderr,
         )
-        return MockLLM(default="[mock response: no model available]")
+    return llm, provenance
 
 
 def cmd_process(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
-    llm = _build_llm(args)
+    llm, llm_provenance = _build_llm(args)
     audit = _build_audit(args)
-    agent = GuardedAgent(engine=engine, llm=llm, audit=audit)
+    agent = GuardedAgent(
+        engine=engine, llm=llm, audit=audit, llm_provenance=llm_provenance
+    )
     result = agent.process(args.text)
 
     if args.json:
@@ -142,6 +150,7 @@ def cmd_process(args: argparse.Namespace) -> int:
                     "status": result.status,
                     "message": result.message,
                     "response": result.response,
+                    "llm_provenance": llm_provenance,
                     "input_verdict": result.input_verdict.to_dict(),
                     "output_verdict": (
                         result.output_verdict.to_dict()
@@ -154,6 +163,7 @@ def cmd_process(args: argparse.Namespace) -> int:
             )
         )
     else:
+        print(describe_llm_provenance(llm_provenance))
         print(result.message)
         if args.verbose:
             print("-" * 72)
@@ -280,7 +290,9 @@ def main(argv=None) -> int:
     )
     p_process.add_argument("text")
     p_process.add_argument(
-        "--model", default="gpt-oss:120b", help="Ollama model to use (default: gpt-oss:120b)"
+        "--model",
+        default=_DEFAULT_MODEL,
+        help=f"Ollama model to use (default: {_DEFAULT_MODEL})",
     )
     p_process.add_argument(
         "--mock",

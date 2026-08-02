@@ -51,6 +51,20 @@ def test_process_writes_audit_record_with_config_versions(policy_path, tmp_path,
     assert "policy_version" in records[0]["config_versions"]
 
 
+def test_process_mock_records_and_prints_llm_provenance(policy_path, tmp_path, capsys):
+    log_path = tmp_path / "audit.jsonl"
+    argv = _base_argv(policy_path, log_path) + [
+        "process", "what is the capital of Brazil?", "--mock",
+    ]
+    code = main(argv)
+    assert code == 0
+    record = _read_records(log_path)[0]
+    assert record["llm_provenance"] == {"kind": "mock_requested"}
+
+    out = capsys.readouterr().out
+    assert "mock requested" in out
+
+
 def test_demo_writes_one_record_per_case(policy_path, tmp_path, capsys):
     log_path = tmp_path / "audit.jsonl"
     argv = _base_argv(policy_path, log_path) + ["demo"]

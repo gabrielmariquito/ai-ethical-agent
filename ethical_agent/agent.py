@@ -53,6 +53,7 @@ class GuardedAgent:
         refusal_template: str = DEFAULT_REFUSAL,
         output_refusal_template: str = DEFAULT_OUTPUT_REFUSAL,
         source: Optional[str] = None,
+        llm_provenance: Optional[dict] = None,
     ):
         self.engine = engine
         self.llm = llm
@@ -61,6 +62,7 @@ class GuardedAgent:
         self.refusal_template = refusal_template
         self.output_refusal_template = output_refusal_template
         self.source = source
+        self.llm_provenance = llm_provenance
 
     def check(
         self,
@@ -194,5 +196,7 @@ class GuardedAgent:
             }
             if self.source is not None:
                 record["source"] = self.source
+            if self.llm_provenance is not None:
+                record["llm_provenance"] = self.llm_provenance
             self.audit.log(record)
         return result

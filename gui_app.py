@@ -31,7 +31,6 @@ from ethical_agent import (  # noqa: E402
     GuardedAgent,
     KnowledgeGraphEngine,
     MockLLM,
-    OllamaClient,
     Policy,
     RuleBasedEngine,
     Stage,
@@ -40,8 +39,10 @@ from ethical_agent import (  # noqa: E402
     default_norms_path,
     default_policy_path,
     default_relaieo_ttl,
+    describe_llm_provenance,
     load_relaieo,
     register_concept_condition,
+    resolve_llm,
 )
 from ethical_agent.evaluate import evaluate_engine, format_report, load_dataset  # noqa: E402
 from ethical_agent.gui_choices import (  # noqa: E402
@@ -50,6 +51,13 @@ from ethical_agent.gui_choices import (  # noqa: E402
     engine_value,
     stage_value,
 )
+from ethical_agent.ollama_install import DEFAULT_LOCAL_MODEL, read_env_model  # noqa: E402
+
+# If the wizard installed a local model, it recorded it in .env
+# (OLLAMA_MODEL=...) -- default to that instead of a model that was never
+# actually pulled. Falls back to the previous hardcoded default when there's
+# no such record (e.g. no wizard run, or Ollama Cloud mode).
+DEFAULT_MODEL = read_env_model(ROOT, DEFAULT_LOCAL_MODEL)
 
 
 # ---------------------------------------------------------------------------
@@ -73,18 +81,9 @@ def build_engine(policy_path, ontology_path, grounding_path, norms_path, engine_
 
 
 def build_llm(model, mock):
-    if mock:
-        return MockLLM(default="[mock response: no model available]"), None
-    try:
-        llm = OllamaClient(model=model)
-        llm.chat([{"role": "user", "content": "ping"}])
-        return llm, None
-    except Exception as exc:  # noqa: BLE001 -- mirrors __main__.py's own broad catch
-        banner = (
-            f"[Ollama unavailable ({exc.__class__.__name__}: {exc}); "
-            "using MockLLM]"
-        )
-        return MockLLM(default="[mock response: no model available]"), banner
+    """Thin wrapper over ethical_agent.resolve_llm, kept for naming parity
+    with __main__.py's own _build_llm."""
+    return resolve_llm(model, mock)
 
 
 # ---------------------------------------------------------------------------
@@ -529,7 +528,7 @@ class ProcessTab(ttk.Frame):
         opts = ttk.Frame(self)
         opts.pack(fill="x", pady=(0, 6))
         ttk.Label(opts, text="Model").pack(side="left")
-        self.model_var = tk.StringVar(value="gpt-oss:120b")
+        self.model_var = tk.StringVar(value=DEFAULT_MODEL)
         ttk.Entry(opts, textvariable=self.model_var, width=20).pack(side="left", padx=(4, 16))
         self.mock_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(opts, text="Mock", variable=self.mock_var).pack(side="left")
@@ -563,22 +562,25 @@ class ProcessTab(ttk.Frame):
 
         def job():
             engine = build_engine(policy, ontology, grounding, norms, engine_kind)
-            llm, banner = build_llm(model, mock)
-            agent = GuardedAgent(engine=engine, llm=llm, audit=audit)
+            llm, llm_provenance = build_llm(model, mock)
+            agent = GuardedAgent(
+                engine=engine, llm=llm, audit=audit, llm_provenance=llm_provenance
+            )
             result = agent.process(text)
-            return result, banner
+            return result, llm_provenance
 
         self.run_btn.config(state="disabled")
         self.result.start()
 
         def on_done(payload):
-            result, banner = payload
+            result, llm_provenance = payload
             if as_json:
                 out = json.dumps(
                     {
                         "status": result.status,
                         "message": result.message,
                         "response": result.response,
+                        "llm_provenance": llm_provenance,
                         "input_verdict": result.input_verdict.to_dict(),
                         "output_verdict": (
                             result.output_verdict.to_dict()
@@ -604,8 +606,7 @@ class ProcessTab(ttk.Frame):
                 or result.input_verdict.system_error
                 or (result.output_verdict is not None and result.output_verdict.system_error)
             )
-            if banner:
-                out = banner + "\n\n" + out
+            out = describe_llm_provenance(llm_provenance) + "\n\n" + out
             notices = audit_notice_lines(audit, init_warning)
             if notices:
                 out = "\n".join(notices) + "\n\n" + out

@@ -125,6 +125,28 @@ def test_audit_log_records_config_versions(engine, tmp_path):
     assert "policy_version" in record["config_versions"]
 
 
+def test_audit_log_records_llm_provenance_when_given(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
+    provenance = {"kind": "real", "model": "llama3.2:3b", "backend": "ollama_local"}
+    agent = GuardedAgent(
+        engine=engine,
+        llm=MockLLM(),
+        audit=AuditLogger(log_path),
+        llm_provenance=provenance,
+    )
+    agent.process("what is the capital of Brazil?")
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert record["llm_provenance"] == provenance
+
+
+def test_audit_log_omits_llm_provenance_when_not_given(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=MockLLM(), audit=AuditLogger(log_path))
+    agent.process("what is the capital of Brazil?")
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert "llm_provenance" not in record
+
+
 def test_denied_output_is_never_retained(engine, tmp_path):
     full_response = (
         "Sure, here is how to make a bomb at home: mix reagent XYZ123 with "
