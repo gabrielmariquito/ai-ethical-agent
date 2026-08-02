@@ -242,61 +242,12 @@ export function renderLayer1(detail) {
 
 // --- layer 2 --------------------------------------------------------------
 
-// The deliberate asymmetry, explained where the auditor meets it rather than
-// in a manual they would have had to read first.
-//
-// ONE note, never two. This used to be a pair of independent <details> --
-// "Por que o trecho bloqueado aparece aqui?" next to "Por que este trecho
-// não aparece?" -- gated on two independent flags. Collapsed, which is how
-// they start, those two headings are a contradiction with no visible
-// resolution, and the sentence that dissolves it was buried in the second
-// body. That is the shape an auditor files as a bug. So: the criterion goes
-// in the summary, where it is read whether or not anyone expands anything,
-// and both faces are named even when this record only shows one of them.
-const ASYMMETRY_CRITERION =
-  "O critério é o motivo da intervenção. Bloquear conteúdo proibido precisa " +
-  "ser conferível, então o trecho fica; remover um dado pessoal precisa " +
-  "remover o dado, então o trecho sai. É a mesma regra decidindo os dois " +
-  "casos, não duas regras em desacordo.";
-
-const ASYMMETRY_FACES = {
-  deny_keeps:
-    "No bloqueio, o trecho aparece. Sem ele não dá para julgar o bloqueio: a " +
-    "tarefa de auditar é decidir se o sistema acertou ao recusar, e isso é " +
-    "impossível sem ver o que foi recusado. É uma escolha, não um vazamento — " +
-    "o resto do conteúdo bloqueado não é guardado.",
-  redact_removes:
-    "Na redação, o trecho não aparece. Uma regra de redação (um e-mail, um " +
-    "CPF) existe justamente para tirar aquele valor de circulação; guardá-lo " +
-    "aqui anularia a própria redação.",
-};
-
-// Named for what this record shows, but each one states both faces -- a
-// deny-only record used to leave the criterion unsaid entirely.
-const ASYMMETRY_SUMMARIES = {
-  deny_keeps: "Por que o trecho bloqueado aparece aqui — e por que, numa redação, não apareceria",
-  redact_removes: "Por que este trecho não aparece — e por que, num bloqueio, apareceria",
-  both: "Por que um trecho aparece e o outro não — é a mesma regra",
-};
-
-const ASYMMETRY_SPAN_NOTE =
-  "Nos dois casos a posição do trecho no texto continua registrada, então " +
-  "você sempre sabe onde a regra casou, mesmo quando não pode ver o quê.";
-
-function asymmetryNote(faces, onExpand) {
-  const key = faces.length > 1 ? "both" : faces[0];
-  const details = el("details", "ea-audit-note");
-  details.appendChild(el("summary", null, ASYMMETRY_SUMMARIES[key]));
-  details.appendChild(el("p", null, ASYMMETRY_CRITERION));
-  for (const face of faces) {
-    details.appendChild(el("p", null, ASYMMETRY_FACES[face]));
-  }
-  details.appendChild(el("p", null, ASYMMETRY_SPAN_NOTE));
-  details.addEventListener("toggle", () => {
-    if (details.open && onExpand) onExpand(faces.join("+"));
-  });
-  return details;
-}
+// The note that used to explain the matched_text asymmetry here was removed.
+// The explanation itself still exists, in AUDIT_GUIDE.pt-BR.md (Passo 3); what
+// this layer keeps is the *marking* at the point of absence -- "trecho:
+// removido pela própria redação", drawn by verdict-view.js -- which is a
+// label, not a note, and is what distinguishes a deliberate absence from
+// there having been no excerpt at all.
 
 export function renderLayer2(detail, handlers) {
   const l2 = detail.layer2;
@@ -316,10 +267,6 @@ export function renderLayer2(detail, handlers) {
   }
 
   const policy = l2.matched_text_policy || {};
-  const faces = policy.faces || [];
-  if (faces.length > 0) {
-    wrap.appendChild(asymmetryNote(faces, handlers && handlers.onAsymmetry));
-  }
 
   // Original vs rewritten -- only when something actually was rewritten.
   //

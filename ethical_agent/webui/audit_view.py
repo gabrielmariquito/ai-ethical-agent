@@ -255,31 +255,22 @@ def summarize_record(record: dict, offset: int) -> dict:
 
 
 def _matched_text_policy(record: dict) -> dict:
-    """Drives the in-screen explanation of a deliberate asymmetry, described
-    at the point the auditor meets it rather than in a manual.
+    """Where in this record a redact rule scrubbed its own matched_text.
 
-    evidence[].matched_text on a DENY constraint DOES carry the excerpt of
-    the blocked content, on purpose: without seeing what was blocked, an
-    auditor cannot judge whether blocking it was right, which is the entire
-    task. Rules with redact=true still scrub their own matched_text
-    (Evidence.without_matched_text, applied in engine.py), because such a
-    rule exists precisely to remove that value. Presented side by side with
-    no explanation the pair reads as an inconsistency; it is one policy.
+    This used to compute six fields, five of which fed an in-screen note
+    explaining the deliberate asymmetry: evidence[].matched_text on a DENY
+    constraint carries the blocked excerpt, because an auditor who cannot see
+    what was blocked cannot judge the block; a redact=true rule scrubs its own
+    (Evidence.without_matched_text, in engine.py), because removing that value
+    is what the rule is for. That note was removed from the screen, and the
+    fields that only fed it went with it. The explanation still lives in
+    AUDIT_GUIDE.pt-BR.md, Passo 3.
 
-    `faces` is what the screen renders from: the *one* note it draws, and
-    which of the policy's two faces this particular record shows. Two
-    independent flags invited two independent notes, and two notes are
-    exactly the misreading -- an auditor scanning collapsed headings sees
-    "the excerpt is kept" next to "the excerpt is removed" and files a bug.
-    One list, one note, criterion stated first.
+    `redacted_stages` stays because it answers a question the screen still
+    asks: raw_response is only "the text before the rewrite" when the *output*
+    was the thing rewritten, so layer 2 needs to know which stage the
+    redaction happened at before it offers a before/after.
     """
-    any_with_text = False
-    any_redacted = False
-    redacted_rule_ids: List[str] = []
-    deny_rule_ids_with_text: List[str] = []
-    # Which stage the redaction happened at. The screen needs this to say the
-    # right thing about raw_response: it is only ever "the text before the
-    # rewrite" when the *output* was the thing rewritten.
     redacted_stages: List[str] = []
 
     for key, stage in (("input_verdict", "input"), ("output_verdict", "output")):
@@ -287,37 +278,10 @@ def _matched_text_policy(record: dict) -> dict:
         if not isinstance(verdict, dict):
             continue
         for match in verdict.get("matches") or []:
-            has_text = any(
-                (ev or {}).get("matched_text") for ev in (match.get("evidence") or [])
-            )
-            if has_text:
-                any_with_text = True
-                if match.get("effect") == "DENY" and match.get("rule_id"):
-                    deny_rule_ids_with_text.append(match["rule_id"])
-            if match.get("redacted"):
-                any_redacted = True
-                if stage not in redacted_stages:
-                    redacted_stages.append(stage)
-                if match.get("rule_id"):
-                    redacted_rule_ids.append(match["rule_id"])
+            if match.get("redacted") and stage not in redacted_stages:
+                redacted_stages.append(stage)
 
-    # Order is the reading order of the note, not an accident: the kept
-    # excerpt is the case the auditor can see, so it is named before the one
-    # they cannot.
-    faces: List[str] = []
-    if deny_rule_ids_with_text:
-        faces.append("deny_keeps")
-    if any_redacted:
-        faces.append("redact_removes")
-
-    return {
-        "any_evidence_with_text": any_with_text,
-        "any_redacted_rule": any_redacted,
-        "redacted_rule_ids": redacted_rule_ids,
-        "redacted_stages": redacted_stages,
-        "deny_rule_ids_with_text": deny_rule_ids_with_text,
-        "faces": faces,
-    }
+    return {"redacted_stages": redacted_stages}
 
 
 def detail_from_record(record: dict, offset: int) -> dict:

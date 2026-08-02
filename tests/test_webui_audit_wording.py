@@ -35,53 +35,27 @@ def verdict_view() -> str:
     return VERDICT_VIEW.read_text(encoding="utf-8")
 
 
-# ------------------------------------------------- the asymmetry is one note
+# ------------------------------------------------- the asymmetry note is gone
+#
+# Five tests lived here, all about the shape of an in-screen note explaining
+# why a blocked excerpt is kept and a redacted one is not. The note was
+# removed from layer 2; the explanation lives in AUDIT_GUIDE.pt-BR.md, Passo
+# 3. Those tests were deleted rather than adapted -- they had no object left.
+# What replaces them is one guard that the note does not come back, plus the
+# marking at the point of absence, which is a label and stays (see the
+# verdict-view section at the bottom of this file).
 
 
-def test_the_asymmetry_is_built_as_a_single_note(layers):
-    # It used to be two <details> gated on two independent flags. Collapsed --
-    # which is how they start -- "Por que o trecho bloqueado aparece aqui?"
-    # sitting next to "Por que este trecho não aparece?" is a contradiction
-    # with no visible resolution, and an auditor reports that as a bug.
-    assert layers.count("function asymmetryNote(") == 1
-    assert layers.count("asymmetryNote(") == 2  # the definition and one call
-    assert "ASYMMETRY_DENY" not in layers
-    assert "ASYMMETRY_REDACTED" not in layers
-
-
-def test_the_note_is_gated_on_faces_not_on_two_independent_flags(layers):
-    assert "const faces = policy.faces || [];" in layers
-    assert "if (faces.length > 0) {" in layers
-    # The old gates, either of which could fire without the other.
-    assert "deny_rule_ids_with_text && policy.deny_rule_ids_with_text.length" not in layers
-    assert "if (policy.any_redacted_rule) {" not in layers
-
-
-def test_every_summary_names_both_faces_or_the_criterion(layers):
-    # The summary is the only line guaranteed to be read: <details> starts
-    # closed. A summary that states just one face leaves the criterion unsaid
-    # for any record that only shows that face.
-    start = layers.index("const ASYMMETRY_SUMMARIES")
-    block = layers[start : layers.index("};", start)]
-    lines = [line for line in block.splitlines() if line.strip().startswith(("deny", "redact", "both"))]
-    assert len(lines) == 3, "expected exactly the three summary variants"
-    for line in lines:
-        assert "—" in line, f"summary states one face with no counterpart: {line.strip()}"
-
-
-def test_the_criterion_is_stated_as_one_rule(layers):
-    # Sliced to the next declaration, not to the next ";" -- the prose itself
-    # contains semicolons.
-    start = layers.index("const ASYMMETRY_CRITERION")
-    criterion = layers[start : layers.index("const ASYMMETRY_FACES", start)]
-    assert "motivo da intervenção" in criterion
-    assert "mesma regra" in criterion
-
-
-def test_the_note_no_longer_depends_on_render_order(layers):
-    # The old redacted body said "logo acima", true only because the other
-    # note happened to be appended first -- a layout coupling with no test.
-    assert "logo acima" not in layers
+def test_the_asymmetry_note_stays_removed(layers):
+    for gone in (
+        "asymmetryNote",
+        "ASYMMETRY_CRITERION",
+        "ASYMMETRY_FACES",
+        "ASYMMETRY_SUMMARIES",
+        "ASYMMETRY_SPAN_NOTE",
+        "policy.faces",
+    ):
+        assert gone not in layers, gone
 
 
 # --------------------------------------------- layer 1 answers why, not just
@@ -208,10 +182,8 @@ def test_the_missing_original_is_explained_rather_than_left_blank(before_after):
 
 
 def test_the_label_did_not_become_a_second_note(before_after):
-    # The one-note rule from the asymmetry above applies here too: this block
-    # gets a label, not an explanation of its own. Scoped to the branch on
-    # purpose -- a whole-file count of the note helper is what the sibling
-    # test does, and it is brittle enough that a *comment* naming the helper
-    # trips it.
+    # This block gets a label, not an explanation of its own. Scoped to the
+    # branch: a whole-file count of a helper name is brittle enough that a
+    # *comment* mentioning the helper trips it, which is exactly what happened
+    # to the asymmetry test this file used to carry.
     assert before_after.count('el("details"') == 1
-    assert "asymmetryNote" not in before_after

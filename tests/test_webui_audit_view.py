@@ -221,14 +221,12 @@ def test_preview_falls_back_to_message_when_there_is_no_input():
     assert summary["preview"] == "resposta entregue"
 
 
-def test_matched_text_policy_flags_deny_excerpt_and_redacted_null():
-    # The two halves of the deliberate asymmetry, from one record each.
-    deny = {"input_verdict": verdict("DENY", matches=[match(effect="DENY")])}
-    policy = audit_view.detail_from_record(deny, 0)["layer2"]["matched_text_policy"]
-    assert policy["any_evidence_with_text"] is True
-    assert policy["deny_rule_ids_with_text"] == ["R-1"]
-    assert policy["any_redacted_rule"] is False
-
+def test_matched_text_policy_reports_which_stage_was_redacted():
+    # All that survives of this helper. It used to carry five more fields,
+    # feeding an in-screen note about the matched_text asymmetry; the note
+    # was removed and they went with it, so the tests for them were deleted
+    # rather than adapted. What the screen still needs is the stage: only an
+    # *output* rewrite has a "text before the rewrite" to offer.
     redacted = {
         "output_verdict": verdict(
             "REWRITE",
@@ -237,51 +235,21 @@ def test_matched_text_policy_flags_deny_excerpt_and_redacted_null():
         )
     }
     policy = audit_view.detail_from_record(redacted, 0)["layer2"]["matched_text_policy"]
-    assert policy["any_redacted_rule"] is True
-    assert policy["redacted_rule_ids"] == ["R-PRIV-002"]
-    # Which stage was redacted decides what the screen may call
-    # raw_response: only an *output* rewrite has a "text before the rewrite".
     assert policy["redacted_stages"] == ["output"]
-    assert policy["any_evidence_with_text"] is False
 
 
-def test_faces_drive_one_note_and_name_which_halves_this_record_shows():
-    # The screen renders a single note off `faces`; two independent flags
-    # invited two independent notes, and two notes read as two
-    # inconsistencies. Each case, including the one that shows both.
+def test_a_record_with_no_redaction_reports_no_stage():
     deny = {"input_verdict": verdict("DENY", matches=[match(effect="DENY")])}
-    assert audit_view.detail_from_record(deny, 0)["layer2"]["matched_text_policy"]["faces"] == [
-        "deny_keeps"
-    ]
+    policy = audit_view.detail_from_record(deny, 0)["layer2"]["matched_text_policy"]
+    assert policy["redacted_stages"] == []
 
-    redacted = {
-        "output_verdict": verdict(
-            "REWRITE",
-            "output",
-            matches=[match("R-PRIV-002", effect="REWRITE", redacted=True, matched_text=None)],
-        )
-    }
-    assert audit_view.detail_from_record(redacted, 0)["layer2"]["matched_text_policy"][
-        "faces"
-    ] == ["redact_removes"]
 
-    # Both halves in one record: the case that used to put the two collapsed
-    # headings side by side, and the one with no test at all.
-    both = {
-        "input_verdict": verdict("DENY", matches=[match(effect="DENY")]),
-        "output_verdict": verdict(
-            "REWRITE",
-            "output",
-            matches=[match("R-PRIV-002", effect="REWRITE", redacted=True, matched_text=None)],
-        ),
-    }
-    faces = audit_view.detail_from_record(both, 0)["layer2"]["matched_text_policy"]["faces"]
-    # Order is the note's reading order: the excerpt you can see, then the
-    # one you cannot.
-    assert faces == ["deny_keeps", "redact_removes"]
-
-    nothing = {"input_verdict": verdict("ALLOW")}
-    assert audit_view.detail_from_record(nothing, 0)["layer2"]["matched_text_policy"]["faces"] == []
+def test_the_note_only_fields_are_gone():
+    # Removing the note without removing what fed it would leave the payload
+    # carrying five fields nobody reads.
+    deny = {"input_verdict": verdict("DENY", matches=[match(effect="DENY")])}
+    policy = audit_view.detail_from_record(deny, 0)["layer2"]["matched_text_policy"]
+    assert set(policy) == {"redacted_stages"}
 
 
 def test_raw_response_presence_is_reported_distinctly_from_its_value():

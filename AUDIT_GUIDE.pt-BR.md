@@ -362,8 +362,10 @@ verdadeiro — e, no mesmo movimento, `raw_response` não é gravado
 O `span` fica nos dois casos, então você sempre sabe **onde** no texto a regra
 casou, mesmo quando não pode ver **o quê**.
 
-A tela de auditoria (Passo 8) explica essa assimetria no ponto exato em que
-você a encontra, em vez de esperar que você tenha lido este parágrafo antes.
+Na tela de auditoria (Passo 8) esta seção é a explicação: a tela marca a
+ausência onde ela acontece — a evidência de uma regra de redação aparece com
+"trecho: removido pela própria redação", em vez de simplesmente pular o campo —
+mas não repete o porquê. É aqui que ele está.
 
 ---
 
@@ -539,8 +541,9 @@ técnico, mostrar pouco impede o julgamento. A gradação é:
 | 3 | Proveniência: `config_versions`, `llm_provenance`, `conversation_id`, `turn_index` | um clique |
 
 Registros de uma mesma conversa são navegáveis em ordem — uma decisão só é
-julgável em contexto. A assimetria do `matched_text` (Passo 3) é explicada
-dentro da camada 2, colada à evidência que provoca a pergunta.
+julgável em contexto. Quando uma regra de redação limpou o próprio trecho, a
+camada 2 diz isso na evidência ("trecho: removido pela própria redação") em vez
+de deixar um campo vazio; o motivo dessa assimetria está no Passo 3.
 
 A lista marca as intervenções distinguindo **bloqueio** de **reescrita** — um
 `DENY` e uma redação de e-mail têm gravidade bem diferente. O filtro padrão

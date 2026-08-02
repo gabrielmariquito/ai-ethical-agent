@@ -72,11 +72,6 @@ export function createRecordPanel(panelEl, onOpenRecord) {
       "layer2",
       () =>
         renderLayer2(detail, {
-          onAsymmetry: (variant) =>
-            track("evidence_asymmetry_note_expanded", {
-              record_event_id: detail.event_id,
-              variant,
-            }),
           onLayer: (key) => layerExpanded(key),
         })
     );

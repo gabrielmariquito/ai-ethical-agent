@@ -742,8 +742,9 @@ tarefa dele. Regras com `redact: true` continuam limpando o próprio
 remover aquele valor. O critério é o *motivo* da intervenção: bloquear
 conteúdo proibido precisa ser conferível, então o excerto fica; remover um
 dado pessoal precisa remover o dado, então o excerto sai. O `span` permanece
-nos dois casos. A tela de auditoria explica essa assimetria no ponto em que o
-auditor esbarra nela, em vez de deixá-la parecer inconsistência.
+nos dois casos. A tela de auditoria marca a ausência onde ela acontece
+("trecho: removido pela própria redação"), e o porquê está no
+[AUDIT_GUIDE.pt-BR.md](AUDIT_GUIDE.pt-BR.md), Passo 3.
 
 ### Tela de auditoria (`/audit`)
 
