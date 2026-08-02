@@ -46,6 +46,17 @@ from ethical_agent.install_record import (  # noqa: E402
     read_record,
     write_record,
 )
+from ethical_agent.install_progress import (  # noqa: E402
+    PHASE_CONFIG,
+    PHASE_MODEL,
+    PHASE_OLLAMA,
+    PHASE_PIP,
+    PHASE_VENV,
+    ProgressTracker,
+    PullProgress,
+    format_bytes,
+    plan_phases,
+)
 from ethical_agent.ollama_install import (  # noqa: E402
     DEFAULT_LOCAL_MODEL,
     DEFAULT_OLLAMA_HOST,
@@ -78,6 +89,14 @@ AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 # Starting cold is slower than answering, hence the wider second budget.
 OLLAMA_PROBE_TIMEOUT = 3.0
 OLLAMA_START_TIMEOUT = 30.0
+
+# Quanto da fase "instalar o Ollama" o download do instalador representa. O
+# resto (conferir a assinatura, rodar o instalador, esperar a permissão do
+# Windows) não tem sinal de progresso nenhum -- a barra fica parada ali de
+# propósito, e o rótulo diz o que está sendo esperado.
+OLLAMA_DOWNLOAD_SPAN = 0.75
+OLLAMA_VERIFY_MARK = 0.80
+OLLAMA_RUN_MARK = 0.85
 
 # Escape hatch: skip auto-launching the interface after install, via either
 # `wizard_gui.py --no-launch` or this environment variable.
@@ -237,7 +256,10 @@ class WizardApp(tk.Tk):
         self.geometry("640x560")
         self.minsize(560, 480)
 
-        self.want_llm = tk.BooleanVar(value=False)
+        # Marcada por padrão: o caminho que ninguém toca tem de ser o que
+        # entrega um modelo de verdade. Desmarcar é o ato deliberado -- e o
+        # texto ao lado da caixa diz o que sobra quando se desmarca (só Mock).
+        self.want_llm = tk.BooleanVar(value=True)
         self.llm_mode = tk.StringVar(value="local")
         self.ollama_model_var = tk.StringVar(value=DEFAULT_LOCAL_MODEL)
         self.ollama_api_key_var = tk.StringVar(value="")
@@ -485,11 +507,15 @@ def _local_install_disclosure_text() -> str:
             "mostradas (https://ollama.com/download)."
         )
     if plan.kind == "download_exe":
+        # Escrito para quem nunca ouviu falar de Ollama: o que vai aparecer na
+        # tela, quanto tempo leva, e o que NÃO se repete. Sem URL e sem a sigla
+        # UAC de propósito -- nenhuma das duas ajuda a decidir, e a janela de
+        # permissão do Windows não se apresenta com esse nome para quem a vê.
         return (
-            f"Vai baixar o instalador oficial de {plan.source_url} -- pede "
-            "sua aprovação no prompt de permissão do Windows (UAC) -- e "
-            "depois o modelo escolhido. Pula qualquer parte que já "
-            "estiver instalada."
+            "O Ollama será baixado e instalado para você. Durante a "
+            "instalação, o Windows vai pedir sua permissão numa janela -- "
+            "aceite para continuar. O download é grande e pode demorar. O que "
+            "já estiver no computador não é baixado outra vez."
         )
     return (
         f"Vai rodar o script de instalação oficial ({plan.source_url}, via "
@@ -506,7 +532,7 @@ class OptionsPage(_Page):
         super().__init__(parent, app)
         venv_label = tk.Label(
             self,
-            text=f"Será criado (ou reaproveitado) um venv em:\n{VENV_DIR}",
+            text=f"Será criado um venv em:\n{VENV_DIR}",
             justify="left",
             font=("Helvetica", 11),
         )
@@ -534,10 +560,10 @@ class OptionsPage(_Page):
 
         self.llm_explain = tk.Label(
             self,
-            text="Instala ollama/python-dotenv e, conforme a opção abaixo, "
-            "também o servidor Ollama + um modelo, ou uma chave de API da "
-            "Ollama Cloud. Sem essa opção, o comando `process --mock` "
-            "continua funcionando (resposta fixa, sem rede).",
+            text="Essa opção instala o Ollama. Você pode escolher entre "
+            "instalar a versão local ou utilizar a versão em nuvem, por meio "
+            "de uma chave API da Ollama Cloud. Sem essa opção, somente o modo "
+            "Mock funciona, com resposta fixa e sem rede.",
             fg="#6b7280",
             justify="left",
         )
@@ -578,7 +604,7 @@ class OptionsPage(_Page):
 
         self.cloud_radio = tk.Radiobutton(
             self.llm_frame,
-            text="Ollama Cloud (sem instalar nem baixar nada localmente)",
+            text="Ollama Cloud",
             variable=app.llm_mode,
             value="cloud",
             command=lambda: self._sync_visibility(),
@@ -594,8 +620,9 @@ class OptionsPage(_Page):
         ).pack(side="left", padx=(6, 0))
         cloud_note = tk.Label(
             self.cloud_detail,
-            text="Gerada em https://ollama.com/settings/keys -- gravada em "
-            "um arquivo .env na raiz do projeto (já ignorado pelo git).",
+            text="Você pode gerar uma chave em "
+            "https://ollama.com/settings/keys. Ela ficará gravada em um "
+            "arquivo .env na raiz do projeto.",
             fg="#6b7280",
             justify="left",
         )
@@ -612,33 +639,30 @@ class OptionsPage(_Page):
 
         audit_row = tk.Frame(audit_frame)
         audit_row.pack(anchor="w", fill="x")
-        tk.Label(audit_row, text="Senha da tela de auditoria (opcional):").pack(side="left")
+        tk.Label(audit_row, text="Senha da tela de auditoria (Opcional):").pack(side="left")
         tk.Entry(
             audit_row, textvariable=app.audit_password_var, width=32, show="*"
         ).pack(side="left", padx=(6, 0))
 
-        # Says what the password is and what it is not, in the same terms as
-        # README.md and AUDIT_GUIDE.pt-BR.md. Promising more than a role
-        # barrier here would be the one place the project contradicts itself,
-        # in the very screen where someone decides how much to trust it.
-        audit_note = tk.Label(
+        # Uma frase, para caber na decisão que se toma aqui. A ressalva de que
+        # a senha separa papéis e não é segurança continua sendo dita -- em
+        # FinishPage, que é a tela lida por quem de fato configurou uma, e em
+        # README.md / AUDIT_GUIDE.pt-BR.md.
+        self.audit_note = tk.Label(
             audit_frame,
-            text="A interface web tem uma tela em /audit para revisar as "
-            "decisões registradas. A senha separa dois papéis -- quem "
-            "conversa com o agente e quem audita -- e não é segurança: quem "
-            "tem acesso a este computador lê logs/audit.jsonl direto, sem "
-            "passar por ela. Gravada no mesmo .env da raiz (já ignorado pelo "
-            "git).",
+            text="Insira a senha para acessar a área de auditoria e revisar "
+            "as decisões registradas.",
             fg="#6b7280",
             justify="left",
         )
-        audit_note.pack(anchor="w", pady=(2, 0))
-        _autowrap(audit_note, audit_frame, padding=8)
+        self.audit_note.pack(anchor="w", pady=(2, 0))
+        _autowrap(self.audit_note, audit_frame, padding=8)
 
-        # Filled by on_show, which is the only place that knows whether a
-        # password is already configured.
+        # Só aparece quando JÁ existe uma senha, que é a única situação em que
+        # há algo a dizer aqui: o campo em branco fazer o que sempre fez não é
+        # notícia. Não é packed no __init__ -- quem sabe qual é o caso é
+        # on_show, e um rótulo vazio ocuparia uma linha para não dizer nada.
         self.audit_state_label = tk.Label(audit_frame, fg="#6b7280", justify="left")
-        self.audit_state_label.pack(anchor="w", pady=(2, 0))
         _autowrap(self.audit_state_label, audit_frame, padding=8)
 
         # Only shown when there is something to remove. The label names the
@@ -666,12 +690,15 @@ class OptionsPage(_Page):
                 text="Já existe uma senha configurada. Deixe o campo em branco "
                 "para mantê-la, ou digite outra para trocar."
             )
-            self.audit_remove_check.pack(anchor="w", pady=(4, 0))
-        else:
-            self.audit_state_label.config(
-                text="Em branco: a auditoria fica desativada e /audit não "
-                "existe (é o comportamento atual)."
+            # after= nos dois: pack() depois de um pack_forget() re-anexa no FIM
+            # da ordem do master, não de volta ao lugar -- o mesmo motivo que
+            # _sync_visibility documenta para os frames local/cloud.
+            self.audit_state_label.pack(anchor="w", pady=(2, 0), after=self.audit_note)
+            self.audit_remove_check.pack(
+                anchor="w", pady=(4, 0), after=self.audit_state_label
             )
+        else:
+            self.audit_state_label.pack_forget()
             self.audit_remove_check.pack_forget()
             # Nothing to remove, so the flag must not survive from an earlier
             # visit where there was.
@@ -739,9 +766,19 @@ class ProgressPage(_Page):
         super().__init__(parent, app)
         self._started = False
         self._queue: queue.Queue[str] = queue.Queue()
+        # Construído em on_show, quando o snapshot das opções já disse quantas
+        # fases esta instalação vai ter. Só a thread principal toca nele.
+        self._tracker: ProgressTracker | None = None
 
-        self.progress = ttk.Progressbar(self, mode="indeterminate")
-        self.progress.pack(fill="x", padx=24, pady=(20, 8))
+        self.progress = ttk.Progressbar(self, mode="determinate", maximum=100.0)
+        self.progress.pack(fill="x", padx=24, pady=(20, 4))
+
+        # Diz em que etapa está e, nas duas fases de download, quanto já veio.
+        # A barra sozinha responde "quanto falta"; sem isto ela não responde
+        # "do quê", que é a pergunta de quem está olhando uma barra parada.
+        self.phase_label = tk.Label(self, justify="left", fg="#374151")
+        self.phase_label.pack(fill="x", padx=24, pady=(0, 8), anchor="w")
+        _autowrap(self.phase_label, self)
 
         self.log = tk.Text(self, height=14, font=_mono_font(), state="disabled")
         self.log.pack(fill="both", expand=True, padx=24, pady=8)
@@ -755,7 +792,6 @@ class ProgressPage(_Page):
             return
         self._started = True
         self.app.set_next_enabled(False)
-        self.progress.start(12)
         self._append(f"Criando/reaproveitando venv em {VENV_DIR} ...\n")
         # As variáveis Tk são lidas AQUI, na thread principal. Daqui em
         # diante -- thread de trabalho, rótulo de status e tela final -- todo
@@ -766,6 +802,21 @@ class ProgressPage(_Page):
         self.app.chosen_api_key = self.app.ollama_api_key_var.get().strip()
         self.app.chosen_audit_password = self.app.audit_password_var.get().strip()
         self.app.chosen_remove_audit_password = self.app.remove_audit_password.get()
+        # O plano de fases sai do snapshot, antes da thread existir: o
+        # denominador da barra tem de estar fechado quando ela começa a andar,
+        # ou ela anda para trás quando uma fase nova aparece no meio.
+        self._tracker = ProgressTracker(
+            plan_phases(
+                want_llm=self.app.chosen_want_llm,
+                llm_mode=self.app.chosen_llm_mode,
+                model=self.app.chosen_model,
+                writes_config=bool(
+                    self.app.chosen_audit_password
+                    or self.app.chosen_remove_audit_password
+                ),
+            )
+        )
+        self._refresh_progress()
         threading.Thread(target=self._run_install, daemon=True).start()
         self.after(80, self._poll_queue)
 
@@ -777,8 +828,27 @@ class ProgressPage(_Page):
 
     # -- runs on the background thread -------------------------------------
 
+    # O progresso viaja na mesma fila do log, como sentinela prefixada -- o
+    # mesmo canal que __DONE__/__LLM_OK__ já usavam. A thread de trabalho não
+    # toca em widget nenhum: quem move a barra é _poll_queue, na principal.
+
+    def _phase(self, key: str) -> None:
+        self._queue.put(f"__PHASE__{key}")
+
+    def _phase_done(self, key: str) -> None:
+        """Fecha uma fase -- inclusive quando ela foi pulada por já estar
+        pronta ("Ollama já está instalado"), que é progresso real."""
+        self._queue.put(f"__PHASEDONE__{key}")
+
+    def _phase_fraction(self, fraction: float | None, detail: str | None = None) -> None:
+        if fraction is not None:
+            self._queue.put(f"__FRAC__{fraction:.6f}")
+        if detail:
+            self._queue.put(f"__DETAIL__{detail}")
+
     def _run_install(self) -> None:
         try:
+            self._phase(PHASE_VENV)
             if not VENV_DIR.exists():
                 venv.EnvBuilder(with_pip=True).create(VENV_DIR)
             self._queue.put(f"Venv pronto em {VENV_DIR}\n")
@@ -786,7 +856,9 @@ class ProgressPage(_Page):
             if not LOGS_DIR.exists():
                 LOGS_DIR.mkdir(parents=True, exist_ok=True)
             self._queue.put(f"Diretório de log de auditoria pronto em {LOGS_DIR}\n")
+            self._phase_done(PHASE_VENV)
 
+            self._phase(PHASE_PIP)
             extras = "llm,dev" if self.app.chosen_want_llm else "dev"
             cmd = _pip_cmd(VENV_DIR) + ["install", "-e", f".[{extras}]"]
             self._queue.put("Rodando: " + " ".join(cmd) + "\n")
@@ -808,13 +880,24 @@ class ProgressPage(_Page):
                 self._queue.put("__FAILED__")
                 return
             self._queue.put("\nInstalação do projeto concluída com sucesso.\n")
+            self._phase_done(PHASE_PIP)
 
             # O registro existe a partir daqui mesmo que a fase de LLM
             # adiante avise ou falhe -- é o desinstalador que o lê depois,
             # e "instalei o projeto e mais nada" também é informação.
             write_record(ROOT, InstallRecord())
 
+            # Sem LLM, gravar a senha da auditoria é a última fase e a única
+            # coisa que "gravar configuração" quer dizer. Com LLM, a fase fica
+            # no fim de _run_llm_setup_*, depois do modelo -- marcá-la aqui
+            # empurraria a barra para além das fases do Ollama, que ainda nem
+            # começaram.
+            audit_is_last_phase = not self.app.chosen_want_llm
+            if audit_is_last_phase:
+                self._phase(PHASE_CONFIG)
             self._apply_audit_password()
+            if audit_is_last_phase:
+                self._phase_done(PHASE_CONFIG)
 
             if self.app.chosen_want_llm:
                 self._run_llm_setup()
@@ -881,16 +964,19 @@ class ProgressPage(_Page):
 
     def _run_llm_setup_cloud(self) -> None:
         key = self.app.chosen_api_key
+        self._phase(PHASE_CONFIG)
         env_path = write_env_api_key(ROOT, key)
         self._queue.put(f"Chave da Ollama Cloud gravada em {env_path}\n")
         # Union, not replace -- the audit-password step ran before this one
         # and may have put its own key in the record.
         self._record_env_key("OLLAMA_API_KEY")
+        self._phase_done(PHASE_CONFIG)
         self._queue.put("__LLM_OK__")
 
     def _run_llm_setup_local(self) -> None:
         model = self.app.chosen_model
 
+        self._phase(PHASE_OLLAMA)
         ollama_exe = find_ollama_exe()
         # Este é o único instante em que "havia um Ollama aqui antes?" é
         # observável, e é o que decide, numa desinstalação futura, se remover
@@ -910,7 +996,9 @@ class ProgressPage(_Page):
         if not wait_for_server(timeout=OLLAMA_PROBE_TIMEOUT):
             if not self._start_ollama_server(ollama_exe):
                 return
+        self._phase_done(PHASE_OLLAMA)
 
+        self._phase(PHASE_MODEL)
         pulled_now = False
         if model_already_pulled(ollama_exe, model):
             self._queue.put(f"Modelo {model} já baixado -- pulando.\n")
@@ -918,8 +1006,10 @@ class ProgressPage(_Page):
             return
         else:
             pulled_now = True
+        self._phase_done(PHASE_MODEL)
 
         self._queue.put(f"Modelo real ({model}) pronto para uso.\n")
+        self._phase(PHASE_CONFIG)
         env_path = write_env_model(ROOT, model)
         self._queue.put(f"Modelo padrão gravado em {env_path} (OLLAMA_MODEL={model}).\n")
         # model_pulled só quando o pull rodou de fato -- um modelo que já
@@ -932,6 +1022,7 @@ class ProgressPage(_Page):
                 env_keys=("OLLAMA_MODEL",),
             ),
         )
+        self._phase_done(PHASE_CONFIG)
         self._queue.put("__LLM_OK__")
 
     def _start_ollama_server(self, ollama_exe: Path) -> bool:
@@ -986,10 +1077,18 @@ class ProgressPage(_Page):
         dest = Path(tempfile.gettempdir()) / "OllamaSetup.exe"
         self._queue.put(f"Baixando o instalador do Ollama de {plan.source_url} ...\n")
         last_reported = 0.0
+        last_fraction = 0.0
 
         def on_progress(done: int, total: int | None) -> None:
-            nonlocal last_reported
+            nonlocal last_reported, last_fraction
             now = time.monotonic()
+            # A barra pode andar mais miúdo que o log: ela não acumula linhas.
+            if total and now - last_fraction >= 0.2:
+                last_fraction = now
+                self._phase_fraction(
+                    OLLAMA_DOWNLOAD_SPAN * done / total,
+                    f"{format_bytes(done)} de {format_bytes(total)}",
+                )
             if now - last_reported < 0.5:
                 return
             last_reported = now
@@ -1012,6 +1111,7 @@ class ProgressPage(_Page):
         write_record(ROOT, InstallRecord(installer_download=str(dest)))
 
         self._queue.put("Verificando a assinatura digital do instalador...\n")
+        self._phase_fraction(OLLAMA_VERIFY_MARK, "conferindo a assinatura do instalador")
         if not verify_windows_signature(dest):
             self._fail_llm(
                 "a assinatura digital do instalador baixado não pôde ser "
@@ -1023,6 +1123,10 @@ class ProgressPage(_Page):
             "Assinatura válida. Executando o instalador -- aprove o prompt "
             "de permissão do Windows (UAC) se ele aparecer.\n"
         )
+        # A barra fica parada durante o instalador do Ollama, e a razão mais
+        # provável de ela ficar parada MUITO tempo é uma janela de permissão
+        # esperando resposta -- possivelmente atrás desta. O rótulo diz isso.
+        self._phase_fraction(OLLAMA_RUN_MARK, "aguardando a janela de permissão do Windows")
         try:
             result = subprocess.run([str(dest)])
         except OSError as exc:
@@ -1084,6 +1188,9 @@ class ProgressPage(_Page):
 
     def _pull_model(self, ollama_exe: Path, model: str) -> bool:
         self._queue.put(f"Baixando o modelo {model} (ollama pull)...\n")
+        # O único passo longo da instalação, e o único com tamanho conhecido de
+        # antemão -- é ele que justifica a barra ter progresso interno.
+        pull = PullProgress(model)
         try:
             proc = subprocess.Popen(
                 [str(ollama_exe), "pull", model],
@@ -1095,6 +1202,7 @@ class ProgressPage(_Page):
             )
             for chunk in iter_stream_chunks(proc.stdout):  # type: ignore[union-attr]
                 self._queue.put(chunk + "\n")
+                self._phase_fraction(*pull.update(chunk))
             code = proc.wait()
         except Exception as exc:  # noqa: BLE001
             self._fail_llm(f"não foi possível baixar o modelo {model}: {exc}")
@@ -1127,24 +1235,57 @@ class ProgressPage(_Page):
             while True:
                 item = self._queue.get_nowait()
                 if item == "__DONE__":
-                    self.progress.stop()
+                    if self._tracker is not None:
+                        self._tracker.complete()
                     self.app.install_ok = True
                     self.app.set_next_enabled(True)
+                    self._refresh_progress()
                     self._update_status_label()
                 elif item == "__FAILED__":
-                    self.progress.stop()
+                    # A barra fica onde parou. Completá-la aqui diria que
+                    # terminou -- que é exatamente o que não aconteceu, e o
+                    # tipo de mentira que a barra indeterminada já contava.
                     self.app.install_ok = False
                     self.app.set_next_enabled(True)
+                    self.phase_label.config(text="Instalação interrompida.", fg="#b91c1c")
                     self._update_status_label()
                 elif item == "__LLM_OK__":
                     self.app.llm_ready = True
                 elif item == "__LLM_WARN__":
                     self.app.llm_ready = False
-                else:
+                elif not self._apply_progress_sentinel(item):
                     self._append(item)
         except queue.Empty:
             pass
         self.after(80, self._poll_queue)
+
+    def _apply_progress_sentinel(self, item: str) -> bool:
+        """Feeds one progress sentinel to the tracker, or reports it isn't one.
+
+        The queue carries pip and `ollama pull` output in this same channel,
+        so a line that merely looks like a sentinel has to fall through to the
+        log rather than disappear.
+        """
+        tracker = self._tracker
+        if tracker is None:
+            return False
+        for prefix, apply in (
+            ("__PHASEDONE__", tracker.finish),
+            ("__PHASE__", tracker.start),
+            ("__FRAC__", lambda value: tracker.set_fraction(float(value))),
+            ("__DETAIL__", tracker.set_detail),
+        ):
+            if item.startswith(prefix):
+                apply(item[len(prefix) :])
+                self._refresh_progress()
+                return True
+        return False
+
+    def _refresh_progress(self) -> None:
+        if self._tracker is None:
+            return
+        self.progress["value"] = self._tracker.percent
+        self.phase_label.config(text=self._tracker.label, fg="#374151")
 
     def _update_status_label(self) -> None:
         app = self.app

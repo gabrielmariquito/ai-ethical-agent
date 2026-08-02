@@ -36,9 +36,116 @@ def test_options_page_discloses_download_source_before_install():
     assert "installer_plan_for_platform" in SOURCE
 
 
+def _windows_disclosure_source() -> str:
+    """Just the download_exe branch, comments stripped.
+
+    Scoped to the branch because "UAC" and "OllamaSetup.exe" are still
+    legitimate further down, inside _install_ollama_windows, where they are
+    log output for a run in progress rather than a choice being explained.
+    Comments dropped because the code is allowed to *name* what it left out
+    and why -- this is a test about what reaches the screen.
+    """
+    body = SOURCE[SOURCE.index('if plan.kind == "download_exe":') :]
+    body = body[: body.index("Vai rodar o script")]
+    return "\n".join(
+        line for line in body.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+def test_windows_disclosure_is_written_for_someone_who_never_heard_of_ollama():
+    # This paragraph is read *before* deciding, by someone who has no reason
+    # to know what an installer URL or the acronym UAC is. What they need is
+    # what will appear on their screen, that it takes a while, and that it
+    # won't all happen again next time.
+    section = _windows_disclosure_source()
+    assert "UAC" not in section
+    assert "OllamaSetup.exe" not in section
+    assert "source_url" not in section
+    assert "janela" in section  # a permission window will appear
+    assert "não é baixado outra vez" in section
+
+
+def test_options_page_does_not_hedge_about_reusing_the_venv():
+    options = SOURCE[SOURCE.index("class OptionsPage") : SOURCE.index("class ProgressPage")]
+    assert "(ou reaproveitado)" not in options
+
+
+def test_llm_option_is_checked_by_default():
+    # The path nobody touches has to be the one that ends with a real model;
+    # Mock-only is the deliberate opt-out, not the default outcome.
+    assert "self.want_llm = tk.BooleanVar(value=True)" in SOURCE
+
+
 def test_progress_page_has_persistent_status_label_surviving_finish_page():
     assert "self.status_label" in SOURCE
     assert "_update_status_label" in SOURCE
+
+
+# -- progress bar ----------------------------------------------------------
+
+
+def test_progress_bar_reflects_real_state_instead_of_animating():
+    # It used to be mode="indeterminate" started once and stopped at the end:
+    # a barber pole that ran for the whole install without saying which step
+    # it was on or how much was left.
+    assert 'ttk.Progressbar(self, mode="determinate"' in SOURCE
+    assert "self.progress.start(" not in SOURCE
+    assert "self.progress.stop()" not in SOURCE
+    assert 'self.progress["value"] = self._tracker.percent' in SOURCE
+
+
+def test_phase_plan_is_fixed_before_the_worker_starts():
+    # How many steps there are depends only on the options, all known at this
+    # point. A denominator that grows mid-run is a bar that goes backwards.
+    on_show = SOURCE[SOURCE.index("    def on_show(self) -> None:\n        if self._started:") :]
+    on_show = on_show[: on_show.index("    def _append")]
+    assert "ProgressTracker(" in on_show
+    assert on_show.index("plan_phases(") < on_show.index("threading.Thread")
+
+
+def test_progress_page_labels_the_phase_it_is_on():
+    assert "self.phase_label" in SOURCE
+    assert "self.phase_label.config(text=self._tracker.label" in SOURCE
+
+
+def test_every_phase_is_both_opened_and_closed():
+    for phase in ("PHASE_VENV", "PHASE_PIP", "PHASE_OLLAMA", "PHASE_MODEL", "PHASE_CONFIG"):
+        assert f"self._phase({phase})" in SOURCE, phase
+        assert f"self._phase_done({phase})" in SOURCE, phase
+
+
+def test_a_skipped_step_still_closes_its_phase():
+    # "Ollama já está instalado -- pulando" and "Modelo já baixado -- pulando"
+    # are progress; leaving those phases open would freeze the bar on a
+    # machine where there was nothing left to do.
+    local = SOURCE[
+        SOURCE.index("def _run_llm_setup_local") : SOURCE.index("def _start_ollama_server")
+    ]
+    assert local.index("já está instalado") < local.index("self._phase_done(PHASE_OLLAMA)")
+    assert local.index("já baixado") < local.index("self._phase_done(PHASE_MODEL)")
+
+
+def test_the_model_download_reports_real_progress_not_just_its_phase():
+    # The one long step, and the one with a known size. A bar that sits still
+    # for the entire pull is the problem the determinate bar was meant to fix.
+    pull = SOURCE[SOURCE.index("def _pull_model") : SOURCE.index("def _fail_llm")]
+    assert "PullProgress(model)" in pull
+    assert "self._phase_fraction(" in pull
+
+
+def test_a_failed_install_does_not_fill_the_bar():
+    poll = SOURCE[SOURCE.index("def _poll_queue") : SOURCE.index("def _apply_progress_sentinel")]
+    failed = poll[poll.index('elif item == "__FAILED__":') :]
+    failed = failed[: failed.index('elif item == "__LLM_OK__":')]
+    assert "complete()" not in failed
+    assert "100" not in failed
+
+
+def test_progress_sentinels_fall_through_to_the_log_when_unrecognized():
+    # pip and `ollama pull` output share this queue; a line that merely looks
+    # like a sentinel has to be logged, not swallowed.
+    assert "elif not self._apply_progress_sentinel(item):" in SOURCE
+    assert "self._append(item)" in SOURCE
 
 
 def test_progress_page_never_fails_project_install_because_of_llm_phase():
@@ -207,18 +314,25 @@ def _options_audit_section() -> str:
     return section[: section.index("self.validation_label")]
 
 
+def test_audit_field_is_marked_optional_and_says_what_the_password_unlocks():
+    section = _options_audit_section()
+    assert "Senha da tela de auditoria (Opcional):" in SOURCE
+    assert "acessar a área de auditoria" in section
+
+
 def test_audit_note_says_what_the_password_is_not():
     # Same terms as README.md and AUDIT_GUIDE.pt-BR.md. Promising more than a
-    # role barrier here would be the one place the project contradicts
-    # itself, in the very screen where someone decides to trust it.
+    # role barrier would be the one place the project contradicts itself.
     #
-    # Scoped to the options section on purpose: asserting against the whole
-    # file let this pass while the note had been deleted, because FinishPage
-    # happens to use the same phrases.
-    section = _options_audit_section()
-    assert "separa dois papéis" in section
-    assert "não é segurança" in section
-    assert "logs/audit.jsonl direto" in section
+    # The caveat used to live in the options note; the options screen now
+    # carries a single sentence about what the field does, and this guarantee
+    # moved to FinishPage -- the screen actually read by whoever configured a
+    # password. Scoped to that class on purpose: asserting against the whole
+    # file is what once let this pass while the text had been deleted.
+    finish = SOURCE[SOURCE.index("class FinishPage") :]
+    assert "separa dois papéis" in finish
+    assert "não é segurança" in finish
+    assert "logs/audit.jsonl direto" in finish
 
 
 def test_widgets_that_on_show_configures_are_created_in_init():

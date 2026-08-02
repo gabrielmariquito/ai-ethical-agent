@@ -216,7 +216,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         dotenv_password_present,
         load_audit_password,
     )
-    from .webui.server import make_server
+    from .webui.server import PortInUseError, make_server
 
     try:
         audit_password, password_source, password_warnings = load_audit_password(
@@ -247,13 +247,43 @@ def cmd_serve(args: argparse.Namespace) -> int:
     }
     # The password goes in as its own argument, never through initial_config:
     # handlers_choices.py serves that dict verbatim to the chat screen.
-    server = make_server(
-        args.port,
-        initial_config,
-        audit_password=audit_password,
-        auditor_session_log=args.auditor_session_log,
-        change_requests_log=args.change_requests_log,
-    )
+    try:
+        server = make_server(
+            args.port,
+            initial_config,
+            audit_password=audit_password,
+            auditor_session_log=args.auditor_session_log,
+            change_requests_log=args.change_requests_log,
+        )
+    except PortInUseError:
+        # Until this was caught, a second `serve` on a busy port did not
+        # fail at all on Windows: it bound alongside the first, printed a
+        # perfectly correct banner, and left the browser talking to the
+        # older process. Whatever that first server was started with -- an
+        # audit password or not -- is what the browser actually gets, which
+        # is how a banner saying "Auditoria: habilitada" ends up next to a
+        # nav item that says the opposite.
+        from .uninstall import web_ui_running
+
+        print(f"error: a porta {args.port} já está em uso.", file=sys.stderr)
+        if web_ui_running(args.port):
+            # A 200 from /api/choices, so it is this project's server and
+            # not a stranger's process -- the distinction uninstall.py's
+            # helper exists to make, borrowed here for the same reason.
+            print(
+                "       Já há um servidor deste projeto respondendo nela. "
+                "Encerre-o (Ctrl+C na janela dele) antes de subir outro --\n"
+                "       se ele foi iniciado com outra configuração, é a dele "
+                "que o navegador vê, não a desta.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "       Outro programa está escutando nessa porta.",
+                file=sys.stderr,
+            )
+        print(f"       Ou escolha outra porta: --port {args.port + 1}", file=sys.stderr)
+        return 2
     print(
         f"Serving at http://127.0.0.1:{args.port} "
         "(127.0.0.1 apenas -- não acessível pela rede). Ctrl+C to stop"

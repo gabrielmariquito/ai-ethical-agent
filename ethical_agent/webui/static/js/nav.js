@@ -10,6 +10,16 @@
 // This is presentation only: hiding the link was never what keeps the trail
 // separate (anyone can type the URL). The real barrier is server-side, in
 // routing.match() -- see webui/auth.py.
+//
+// THREE states, not two. Whether the audit screen exists is only known once
+// GET /api/choices has answered, and every screen renders the nav before
+// that (see chat.js init: once immediately, once again after the fetch).
+// This used to coerce the missing value with Boolean(), so the first render
+// asserted "desativada" -- a definite claim about the server, made before
+// asking it. When something then went wrong before the second render, the
+// nav went on stating it indefinitely, and the operator had no way to tell
+// "the server says no" apart from "nobody asked yet". Undefined is its own
+// state, and it renders without the badge.
 
 const ITEMS = [
   { path: "/", label: "Conversa" },
@@ -20,7 +30,11 @@ const ITEMS = [
 ];
 
 export function renderNav(navEl, activePath, options = {}) {
-  const auditEnabled = Boolean(options.auditEnabled);
+  // Undefined stays undefined; only an actual boolean is a claim.
+  const auditEnabled =
+    options.auditEnabled === undefined || options.auditEnabled === null
+      ? undefined
+      : Boolean(options.auditEnabled);
   navEl.innerHTML = "";
   navEl.setAttribute("role", "navigation");
   const list = document.createElement("ul");
@@ -30,6 +44,10 @@ export function renderNav(navEl, activePath, options = {}) {
     const li = document.createElement("li");
     const isActive = item.path === activePath;
     const enabled = item.realm === "audit" ? auditEnabled : true;
+    // The badge is the *claim*, so it is the part that waits for an answer.
+    // Unknown looks inert exactly like disabled -- clicking through to a
+    // 404 would be worse -- it just does not say why.
+    const known = enabled !== undefined;
 
     if (enabled) {
       const a = document.createElement("a");
@@ -46,7 +64,7 @@ export function renderNav(navEl, activePath, options = {}) {
       span.setAttribute("aria-disabled", "true");
       span.setAttribute("tabindex", "-1");
       span.textContent = item.label;
-      if (item.badge) {
+      if (item.badge && known) {
         const badge = document.createElement("small");
         badge.className = "ea-nav__badge";
         badge.textContent = item.badge;

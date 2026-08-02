@@ -4,7 +4,29 @@ import socket
 import pytest
 
 from ethical_agent.__main__ import main
-from webui_support import RunningServer
+from ethical_agent.webui.server import PortInUseError, make_server
+from webui_support import RunningServer, make_initial_config
+
+
+@pytest.fixture(autouse=True)
+def isolated_password_sources(monkeypatch, tmp_path):
+    """No test in this file may see the developer's own audit password.
+
+    `cmd_serve` resolves the password from three places, and the last one is
+    ETHICAL_AGENT_AUDIT_PASSWORD in <repo>/.env -- the file the graphical
+    installer writes. That is a real file in a real checkout, so the moment
+    whoever runs the suite configures an audit password for themselves,
+    every `main(["serve", ...])` here starts picking it up and assertions
+    like `audit_password is None` fail for reasons that have nothing to do
+    with the code under test. This happened.
+
+    Both sources are neutralised by default; a test that wants one sets it
+    explicitly (see _run_serve below).
+    """
+    import ethical_agent.webui.auth as auth_module
+
+    monkeypatch.setattr(auth_module, "REPO_ROOT", tmp_path / "fake-repo-root")
+    monkeypatch.delenv("ETHICAL_AGENT_AUDIT_PASSWORD", raising=False)
 
 
 @pytest.fixture
@@ -16,6 +38,78 @@ def server(tmp_path):
 
 def test_server_socket_is_bound_to_127_0_0_1_only(server):
     assert server.server.server_address[0] == "127.0.0.1"
+
+
+# -- one port, one server ----------------------------------------------------
+
+
+def test_a_second_server_cannot_take_a_port_already_in_use(tmp_path, server):
+    """The bug this guards against was silent, and only on Windows.
+
+    socketserver.TCPServer sets allow_reuse_address = 1. On POSIX that means
+    "rebind a TIME_WAIT socket", which is wanted. On Windows SO_REUSEADDR
+    means a second socket may bind an address that is *actively in use*, and
+    connections go to one of them non-deterministically -- so a second
+    `serve --port 8765` bound happily, printed "Serving at ..." and a correct
+    audit banner, while the browser kept talking to the older process. The
+    observed symptom was a nav item reporting the audit screen as disabled
+    while the banner of the server the operator was reading said enabled:
+    two servers, and the banner belonged to the one not answering.
+    """
+    port = server.server.server_address[1]
+    with pytest.raises(PortInUseError):
+        make_server(port, make_initial_config(tmp_path))
+    # ...and the one that was already there is untouched.
+    status, _, _ = server.get("/api/choices")
+    assert status == 200
+
+
+def test_port_zero_still_gets_a_free_port_each_time(tmp_path):
+    # The exclusive-bind flag must not break the ephemeral-port path every
+    # test in this suite relies on.
+    first = make_server(0, make_initial_config(tmp_path))
+    second = make_server(0, make_initial_config(tmp_path))
+    try:
+        assert first.server_address[1] != second.server_address[1]
+    finally:
+        first.server_close()
+        second.server_close()
+
+
+def test_serve_exits_with_a_readable_message_when_the_port_is_taken(server, capsys):
+    port = server.server.server_address[1]
+    code = main(["serve", "--port", str(port)])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert str(port) in err
+    assert "já está em uso" in err
+    # It has to say what to do, not merely what happened -- and the port it
+    # suggests must not be the one that just failed.
+    assert f"--port {port + 1}" in err
+
+
+def test_serve_says_the_occupant_is_ours_when_it_answers_our_api(server, capsys):
+    # uninstall.web_ui_running only counts a 200 from /api/choices, so this
+    # never accuses a stranger's process of being ours.
+    code = main(["serve", "--port", str(server.server.server_address[1])])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "servidor deste projeto" in err
+
+
+def test_serve_does_not_claim_the_occupant_is_ours_for_a_stranger(tmp_path, capsys):
+    stranger = socket.socket()
+    stranger.bind(("127.0.0.1", 0))
+    stranger.listen(1)
+    port = stranger.getsockname()[1]
+    try:
+        code = main(["serve", "--port", str(port)])
+        assert code == 2
+        err = capsys.readouterr().err
+        assert "Outro programa" in err
+        assert "servidor deste projeto" not in err
+    finally:
+        stranger.close()
 
 
 def test_server_unreachable_via_any_other_local_address(server):

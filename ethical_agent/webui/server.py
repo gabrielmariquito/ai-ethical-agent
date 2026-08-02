@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import errno
+import os
+import socket
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
@@ -25,6 +28,45 @@ from .auditor_log import (
 from .auth import AuditAuth
 from .httphandler import make_handler
 from .state import ServerState
+
+
+class _ExclusiveThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer that refuses a port somebody else is already on.
+
+    socketserver.TCPServer sets allow_reuse_address = 1, and on POSIX that
+    means the useful thing: rebind a socket still in TIME_WAIT, so stopping
+    and immediately restarting the server works. On **Windows SO_REUSEADDR
+    means something else entirely** -- it lets a second socket bind an
+    address that is actively in use, and incoming connections are handed to
+    one of the two non-deterministically.
+
+    The consequence was a silent, genuinely confusing failure: a second
+    `ethical-agent serve --port 8765` bound successfully, printed "Serving
+    at http://127.0.0.1:8765" and a correct audit banner, while the browser
+    kept talking to the *older* process -- one started before the audit
+    password existed, which therefore reported the audit screen as disabled.
+    Two servers, one port, and a startup banner describing whichever one was
+    not answering.
+
+    SO_EXCLUSIVEADDRUSE is the Windows-specific flag for "this address is
+    mine": the second bind fails with WSAEADDRINUSE, which is what the
+    operator needed to be told in the first place.
+    """
+
+    # POSIX keeps the inherited True; there the flag is not the problem and
+    # dropping it would bring back "Address already in use" on restart.
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if exclusive is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
+
+
+class PortInUseError(Exception):
+    """The port is taken. Raised instead of letting a bare WinError 10048 /
+    EADDRINUSE traceback reach someone who just typed `serve`."""
 
 
 class AuditLogCollisionError(Exception):
@@ -66,7 +108,16 @@ def make_server(
         state.change_request_logger = ChangeRequestLogger(change_requests_log, state.auditor_lock)
 
     handler_cls = make_handler(state)
-    server = ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
+    try:
+        server = _ExclusiveThreadingHTTPServer(("127.0.0.1", port), handler_cls)
+    except OSError as exc:
+        # errno.EADDRINUSE is 48 on macOS and 98 on Linux; on Windows the
+        # winerror is 10048 and errno surfaces as EADDRINUSE too. Anything
+        # else -- a privileged port (EACCES), a bad interface -- is a
+        # different story and keeps its own message.
+        if exc.errno != errno.EADDRINUSE:
+            raise
+        raise PortInUseError(str(port)) from exc
     server.daemon_threads = True
     # Exposed for tests that need to reach into ServerState (job registry GC,
     # conversation store) without a second, parallel way to construct it.
