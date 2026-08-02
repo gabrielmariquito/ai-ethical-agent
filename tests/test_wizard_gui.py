@@ -6,6 +6,30 @@ from pathlib import Path
 # same reasoning tests/test_gui_audit.py documents for gui_app.py.
 SOURCE = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(encoding="utf-8")
 
+# WHAT AN ASSERTION AGAINST `SOURCE` DOES NOT GUARANTEE
+#
+# It reads the installer as text, so it cannot tell you the window opens, the
+# widget is visible, or the sentence reads well. Worse, and less obviously: a
+# bare `"x" in SOURCE` passes as long as "x" exists ANYWHERE in the file. When
+# the test's name promises something about a particular screen, that is not
+# the same claim -- delete the screen and the assertion can still hold from a
+# comment, a log line, or another page.
+#
+# So: anything asserting about a specific place slices to that place first
+# (see _options_audit_section, _fail_llm_body, and the FinishPage slices).
+# Assertions that genuinely only mean "this feature exists at all" are left
+# against the whole file on purpose, and that is all they mean.
+#
+# Counts get the same suspicion. `SOURCE.count(x) == N` couples a test to a
+# number that moves for unrelated reasons and proves nothing about *which* N
+# matched; where the real requirement is "every one of them complies", say
+# that instead.
+#
+# The check that matters when tightening one of these: delete the thing the
+# test claims to guard and confirm it goes red. Two of these passed that
+# deletion before being scoped, including one that survived being scoped to
+# the right class -- "logs/audit.jsonl" contains "/audit".
+
 
 def test_old_misleading_checkbox_text_is_gone():
     # The old label promised "um modelo de verdade via Ollama" for what was
@@ -174,10 +198,21 @@ def test_stopped_server_is_started_before_degrading_to_the_warning():
     assert "_fail_llm" in body
 
 
+def _fail_llm_body() -> str:
+    body = SOURCE[SOURCE.index("    def _fail_llm(self, reason: str)") :]
+    return body[: body.index("\n    def ")]
+
+
 def test_failure_path_offers_manual_instructions():
-    assert "ollama pull" in SOURCE
-    assert "ollama serve" in SOURCE
-    assert "https://ollama.com/download" in SOURCE
+    # Scoped to _fail_llm. Against the whole file this passed for the wrong
+    # reason: "ollama pull" and "ollama serve" each appear five times in
+    # wizard_gui.py -- in comments, in progress log lines, in the Ollama
+    # server start attempt -- so deleting the manual instructions entirely
+    # would not have failed it.
+    body = _fail_llm_body()
+    assert "https://ollama.com/download" in body
+    assert "ollama pull" in body
+    assert "ollama serve" in body
 
 
 def test_windows_installer_is_signature_verified_before_running():
@@ -194,9 +229,15 @@ def test_streamed_subprocess_output_is_decoded_as_utf8():
     # decode child output as UTF-8 (not the locale/cp1252 default) with a
     # non-fatal error mode, or a non-ASCII byte (e.g. `ollama pull`'s Braille
     # spinner glyphs) raises UnicodeDecodeError reading it back on Windows.
+    #
+    # No fixed count: pinning "exactly 3" coupled a test about UTF-8
+    # decoding to how many subprocesses the installer happens to stream,
+    # which changes for reasons that have nothing to do with encoding. What
+    # matters is that EVERY streamed block complies -- that is the stronger
+    # statement, and it keeps holding when a fourth is added.
     popen_blocks = re.findall(r"subprocess\.Popen\((?:[^()]|\([^()]*\))*\)", SOURCE)
     streamed_blocks = [b for b in popen_blocks if "stdout=subprocess.PIPE" in b]
-    assert len(streamed_blocks) == 3
+    assert streamed_blocks, "nenhum subprocess.Popen transmitido encontrado -- regex quebrou?"
     for block in streamed_blocks:
         assert 'encoding="utf-8"' in block
         assert 'errors="replace"' in block
@@ -294,8 +335,16 @@ def test_status_label_and_finish_page_report_what_actually_ran():
 def test_audit_password_field_is_masked_like_the_ollama_key():
     # The installer must not echo the password on screen. The Ollama Cloud
     # key already established the pattern.
-    assert "audit_password_var" in SOURCE
-    assert SOURCE.count('show="*"') == 2
+    #
+    # Asserted on the audit field's own widget, not on a count of masked
+    # fields in the file: `count('show="*"') == 2` failed whenever a third
+    # masked field was added anywhere -- for reasons unrelated to this
+    # password -- and passing never proved that the two masked ones were the
+    # two that matter.
+    section = _options_audit_section()
+    assert "audit_password_var" in section
+    entry = section[section.index("textvariable=app.audit_password_var") :]
+    assert 'show="*"' in entry[: entry.index(")")]
 
 
 def test_audit_password_section_is_outside_the_llm_frame():
@@ -315,8 +364,11 @@ def _options_audit_section() -> str:
 
 
 def test_audit_field_is_marked_optional_and_says_what_the_password_unlocks():
+    # Both against the section. The first line used to assert against SOURCE
+    # while its neighbour used the section -- the exact mix this file warns
+    # about below, in test_audit_note_says_what_the_password_is_not.
     section = _options_audit_section()
-    assert "Senha da tela de auditoria (Opcional):" in SOURCE
+    assert "Senha da tela de auditoria (Opcional):" in section
     assert "acessar a área de auditoria" in section
 
 
@@ -390,9 +442,21 @@ def test_the_password_value_never_reaches_the_progress_log():
 def test_finish_page_tells_the_person_the_audit_screen_exists():
     # Configuring a password and never being told there is a screen would
     # leave the original problem exactly where it was.
-    assert "self.app.audit_enabled" in SOURCE
-    assert "/audit" in SOURCE
-    assert "Auditoria: HABILITADA" in SOURCE
+    #
+    # Scoped to the *enabled* branch, not to FinishPage and not to the file.
+    #
+    # Two collisions made the looser versions useless, and the second only
+    # showed up when this test was checked by deleting the sentence it
+    # guards: against the whole file, "/audit" appears five times; against
+    # FinishPage it still appears three, because the slice also contains the
+    # disabled branch ("Existe uma tela em /audit...") and the phrase
+    # "logs/audit.jsonl", which contains "/audit" as a substring. Deleting
+    # the URL from the enabled branch failed neither.
+    finish = SOURCE[SOURCE.index("class FinishPage") :]
+    enabled = finish[finish.index("if self.app.audit_enabled:") : finish.index("        else:")]
+    assert "Auditoria: HABILITADA" in enabled
+    assert "/audit e pede a senha" in enabled, "a tela habilitada tem de dizer ONDE ela fica"
+    assert "DEFAULT_WEB_PORT" in enabled, "e a porta vem da constante, não de um literal"
 
 
 def test_finish_page_reports_audit_from_the_snapshot_not_the_live_variable():

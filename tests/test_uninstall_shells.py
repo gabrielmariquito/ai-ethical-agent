@@ -516,11 +516,21 @@ def test_gui_disables_bytecode_writing_before_importing_the_package():
 
 
 def test_gui_options_all_start_unchecked():
-    # The central requirement of the options screen. Five now: the four
-    # removals plus the confirmation for deleting the audit trail, which used
-    # to be a typed word and is a checkbox like the others.
-    assert GUI_SOURCE.count("tk.BooleanVar(value=False)") == 5
+    # The central requirement of the options screen: nothing is removed
+    # because the person did not look.
+    #
+    # Stated as "none of them starts checked" rather than "there are exactly
+    # five unchecked ones". The count was coupled to how many options the
+    # screen happens to offer -- it broke when one was added for reasons
+    # having nothing to do with defaults, and it never proved that the five
+    # counted were the five that matter. The negative is what carries the
+    # requirement, and it keeps holding as the screen grows.
     assert "tk.BooleanVar(value=True)" not in GUI_SOURCE
+    assert "tk.BooleanVar(value=False)" in GUI_SOURCE
+    # Every BooleanVar in the file is explicitly initialised: a bare
+    # tk.BooleanVar() defaults to False today, but silently, which is the
+    # kind of default this screen should not be relying on.
+    assert "tk.BooleanVar()" not in GUI_SOURCE
 
 
 def test_gui_has_a_summary_page_that_is_the_simulation():
