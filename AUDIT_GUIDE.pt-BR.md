@@ -60,6 +60,21 @@ comando nem muda o veredito**. É reportada como aviso e a execução segue:
 > O registro guarda o texto de entrada **completo**. Trate `logs/audit.jsonl`
 > como arquivo sensível.
 
+> [!NOTE]
+> **Registros antigos podem trazer mais do que os novos.** Até certo ponto, a
+> evidência de uma regra com cláusula de ausência (`not`) era gravada com a
+> condição inteira serializada — a lista completa das expressões que impedem a
+> regra de disparar. Isso foi corrigido na origem, então **registros novos não
+> carregam mais esse texto**; mas a trilha é append-only e **não foi
+> reescrita**, de propósito: reescrever histórico de auditoria destrói a
+> propriedade que faz a trilha valer alguma coisa, e seria um remédio pior que
+> a doença.
+>
+> Consequência prática: quem abrir o `logs/audit.jsonl` direto, em vez de pela
+> tela, ainda pode encontrar esse trecho em registros gravados antes da
+> correção. A tela não o mostra mais. Se você for compartilhar um recorte da
+> trilha, é um dos pontos a conferir.
+
 ### 1.3 Visão geral
 
 ```bash
