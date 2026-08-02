@@ -49,6 +49,7 @@ from ethical_agent.ollama_install import (  # noqa: E402
     verify_windows_signature,
     wait_for_server,
     write_env_api_key,
+    write_env_model,
 )
 
 # Escape hatch: skip auto-launching the interface after install, via either
@@ -650,6 +651,8 @@ class ProgressPage(_Page):
             return
 
         self._queue.put(f"Modelo real ({model}) pronto para uso.\n")
+        env_path = write_env_model(ROOT, model)
+        self._queue.put(f"Modelo padrão gravado em {env_path} (OLLAMA_MODEL={model}).\n")
         self._queue.put("__LLM_OK__")
 
     def _install_ollama_server(self) -> Path | None:

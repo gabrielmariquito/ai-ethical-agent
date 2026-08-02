@@ -31,13 +31,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Tuple
 
-DEFAULT_LOCAL_MODEL = "llama3.1:8b"
+DEFAULT_LOCAL_MODEL = "llama3.2:3b"
 
 # (download size in GB, recommended RAM in GB). Extend as more models get a
 # wizard-verified estimate; unknown models fall back to a generic message
 # instead of guessing a number.
 KNOWN_MODEL_SIZES: dict[str, tuple[float, float]] = {
     "llama3.1:8b": (4.7, 16.0),
+    "llama3.2:3b": (2.0, 8.0),
 }
 
 WINDOWS_INSTALLER_URL = "https://ollama.com/download/OllamaSetup.exe"
@@ -218,21 +219,45 @@ def model_already_pulled(
     return False
 
 
-def write_env_api_key(root: Path, key: str) -> Path:
-    """Creates/updates `.env` at `root`, replacing an existing
-    OLLAMA_API_KEY= line in place rather than duplicating it, and leaving
-    every other line untouched."""
+def _upsert_env_var(root: Path, key: str, value: str) -> Path:
+    """Creates/updates `.env` at `root`, replacing an existing `key=` line
+    in place rather than duplicating it, and leaving every other line
+    untouched."""
     env_path = root / ".env"
+    prefix = f"{key}="
     lines: list[str] = []
     replaced = False
     if env_path.exists():
         for line in env_path.read_text(encoding="utf-8").splitlines():
-            if line.startswith("OLLAMA_API_KEY="):
-                lines.append(f"OLLAMA_API_KEY={key}")
+            if line.startswith(prefix):
+                lines.append(f"{prefix}{value}")
                 replaced = True
             else:
                 lines.append(line)
     if not replaced:
-        lines.append(f"OLLAMA_API_KEY={key}")
+        lines.append(f"{prefix}{value}")
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return env_path
+
+
+def write_env_api_key(root: Path, key: str) -> Path:
+    return _upsert_env_var(root, "OLLAMA_API_KEY", key)
+
+
+def write_env_model(root: Path, model: str) -> Path:
+    return _upsert_env_var(root, "OLLAMA_MODEL", model)
+
+
+def read_env_model(root: Path, default: str) -> str:
+    """Reads `OLLAMA_MODEL=` from `root`/.env, without requiring
+    python-dotenv to be installed -- this has to work even when the `llm`
+    extra (which pulls in python-dotenv) was never installed."""
+    env_path = root / ".env"
+    if env_path.exists():
+        prefix = "OLLAMA_MODEL="
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith(prefix):
+                value = line[len(prefix):].strip()
+                if value:
+                    return value
+    return default

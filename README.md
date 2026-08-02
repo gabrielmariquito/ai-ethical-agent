@@ -229,7 +229,7 @@ python -m ethical_agent demo
 
 # Processar um prompt pelo pipeline completo (guardrail + LLM), mostrando status e resposta
 python -m ethical_agent process "Por que o céu é azul?"
-python -m ethical_agent process "algum texto" --model gpt-oss:120b   # escolher modelo Ollama
+python -m ethical_agent process "algum texto" --model llama3.2:3b   # escolher modelo Ollama
 python -m ethical_agent process "algum texto" --mock                # sem rede, resposta fixa
 python -m ethical_agent process "algum texto" --verbose              # + veredito completo
 python -m ethical_agent process "algum texto" --json
@@ -268,14 +268,14 @@ OLLAMA_API_KEY=sua_chave_aqui
 A chave é gerada em https://ollama.com/settings/keys. Quando `OLLAMA_API_KEY`
 está definida, o `OllamaClient` aponta automaticamente para
 `https://ollama.com` e usa o modelo passado em `--model` (default
-`gpt-oss:120b`) — confira antes em `ollama list` se sua conta tem acesso a
+`llama3.2:3b`) — confira antes em `ollama list` se sua conta tem acesso a
 ele; alguns modelos cloud exigem assinatura paga.
 
 **Opção B — Ollama local** (instalado via https://ollama.com/download):
 
 ```bash
 ollama serve                # sobe o servidor local
-ollama pull gpt-oss:120b    # baixa o modelo escolhido
+ollama pull llama3.2:3b     # baixa o modelo escolhido
 ```
 
 Sem `OLLAMA_API_KEY` no `.env`, o `OllamaClient` usa

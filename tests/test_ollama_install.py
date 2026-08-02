@@ -21,8 +21,8 @@ from ethical_agent.ollama_install import (
 
 def test_estimate_model_size_text_known_model_shows_size_and_ram():
     text = estimate_model_size_text(DEFAULT_LOCAL_MODEL)
-    assert "4,7 GB" in text
-    assert "16 GB" in text
+    assert "2,0 GB" in text
+    assert "8 GB" in text
 
 
 def test_estimate_model_size_text_unknown_model_points_to_library_page():
