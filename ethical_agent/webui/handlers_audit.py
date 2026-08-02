@@ -7,7 +7,7 @@ from typing import List, Optional
 from . import audit_view, routing
 from .archive import _parse_line, iter_records_reverse
 from .auditor_log import EVENT_TYPES, event_type_catalog, sanitize_payload
-from .auth import SESSION_TTL_SECONDS
+from .auth import AUDIT_SESSION_COOKIE, SESSION_TTL_SECONDS
 from .errors import ApiError, bad_request
 
 # The audit screen's HTTP surface. Every route below declares realm="audit"
@@ -19,9 +19,6 @@ from .errors import ApiError, bad_request
 # This module reads the trail and presents it. It never recomputes a verdict
 # and never re-evaluates content: every decision shown here was made by
 # ethical_agent/ when the record was written.
-
-AUDIT_SESSION_COOKIE = "ea_audit_session"
-
 
 def _audit_log_path(state) -> Path:
     """Always the trail the server was started with -- never a path from the

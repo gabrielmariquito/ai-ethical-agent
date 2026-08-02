@@ -37,6 +37,16 @@ from ..ollama_install import read_env_var
 
 ENV_PASSWORD_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 
+# The name of the session cookie, defined once because two modules need it and
+# they need the SAME one: handlers_audit.py writes it on login, httphandler.py
+# reads it on every request. It lived in both files as its own literal, with
+# nothing tying them together -- and renaming one side would not have broken
+# anything loudly. The login would still answer 200 and set a cookie; the
+# dispatcher would simply never find it, so every request after signing in
+# would 401 and the auditor would be told the session expired. A cookie name
+# is exactly the kind of string that gets "tidied" without reading both ends.
+AUDIT_SESSION_COOKIE = "ea_audit_session"
+
 # .../ai-ethical-agent -- this file is at webui/auth.py, two packages deep.
 # Where the project's .env lives, and where a password file inside the repo
 # would be at risk of being committed. Only points at the real project root

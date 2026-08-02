@@ -1,5 +1,6 @@
 import argparse
 import json
+from pathlib import Path
 
 import pytest
 
@@ -56,3 +57,46 @@ def test_resumir_excludes_demo_records_from_real_counts(policy_path, tmp_path, c
 # (test_gui_demo_tags_source) is superseded by a behavioral equivalent that
 # hits the real /api/demo endpoint and reads the audit trail back:
 # tests/test_webui_demo.py::test_demo_endpoint_tags_all_records_with_demo_source.
+
+
+# ------------------------------------- the fourth demo shares the same parts
+#
+# examples/demo.py is the one caller of this pipeline outside the package, and
+# for a while it was also the one that had drifted: it carried its own
+# build_llm(), written before resolve_llm classified provenance, so every
+# record it wrote came out without llm_provenance -- a fourth copy of the
+# mistake check_audit_record and resolve_llm already cost this project twice.
+#
+# Read as text, not imported: importing it runs the demo, which needs an
+# engine, a policy and (optionally) a live Ollama. Crude in the usual way --
+# it cannot tell you the example works, only that it is still wired to the
+# shared parts instead of to copies of them.
+
+EXAMPLE = (Path(__file__).resolve().parent.parent / "examples" / "demo.py").read_text(
+    encoding="utf-8"
+)
+
+
+def test_the_example_builds_its_llm_through_resolve_llm():
+    assert "resolve_llm" in EXAMPLE
+    # The shape of the old hand-rolled copy: a try/except around OllamaClient
+    # with a MockLLM fallback, which is resolve_llm's body written again.
+    assert "OllamaClient(" not in EXAMPLE, "voltou a construir o cliente por conta própria"
+
+
+def test_the_example_records_which_model_answered():
+    # The concrete thing the divergence cost: records with no llm_provenance,
+    # so the trail could not say what produced them.
+    assert "llm_provenance=provenance" in EXAMPLE
+
+
+def test_the_example_uses_the_shared_prompts():
+    # audit_tools.py counts source="demo" records as synthetic and names
+    # three producers; a fourth prompt list would make "the demo cases" mean
+    # different things depending on which of them wrote the record.
+    assert "from ethical_agent.demo import DEMO_CASES" in EXAMPLE
+    assert "for prompt in DEMO_CASES:" in EXAMPLE
+
+
+def test_the_example_still_tags_its_records_as_demo():
+    assert 'source="demo"' in EXAMPLE

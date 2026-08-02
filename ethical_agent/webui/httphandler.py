@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 from . import routing
+from .auth import AUDIT_SESSION_COOKIE
 from .errors import ApiError
 
 STATIC_DIR = (Path(__file__).resolve().parent / "static").resolve()
@@ -49,8 +50,6 @@ GATED_ASSET_PREFIXES = (
     ("css/audit.css", "audit", False),
     ("js/tools/", "audit", True),
 )
-
-AUDIT_SESSION_COOKIE = "ea_audit_session"
 
 # Params whose names start with "_" are the server's own namespace: the
 # dispatcher strips any the client sent before injecting its own, so a
