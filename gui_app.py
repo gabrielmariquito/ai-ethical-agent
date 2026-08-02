@@ -13,7 +13,6 @@ Run with:  python gui_app.py   (after `pip install -e .` in this repo)
 from __future__ import annotations
 
 import json
-import os
 import queue
 import sys
 import threading
@@ -24,6 +23,7 @@ from tkinter import filedialog, ttk
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
+from ethical_agent._stdio import ensure_utf8_stdio  # noqa: E402
 from ethical_agent import (  # noqa: E402
     ActionContext,
     AuditLogger,
@@ -44,6 +44,12 @@ from ethical_agent import (  # noqa: E402
     register_concept_condition,
 )
 from ethical_agent.evaluate import evaluate_engine, format_report, load_dataset  # noqa: E402
+from ethical_agent.gui_choices import (  # noqa: E402
+    ENGINE_LABELS,
+    STAGE_LABELS,
+    engine_value,
+    stage_value,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -91,13 +97,6 @@ def build_llm(model, mock):
 # so that part happens immediately, same as the CLI.
 # ---------------------------------------------------------------------------
 
-ENV_NO_AUDIT = "ETHICAL_AGENT_NO_AUDIT"
-
-
-def _no_audit_env_requested() -> bool:
-    return os.environ.get(ENV_NO_AUDIT, "").strip().lower() in ("1", "true", "yes")
-
-
 class _GuiAuditLogger(AuditLogger):
     def __init__(self, path):
         self.warning = None
@@ -119,17 +118,15 @@ class _GuiAuditLogger(AuditLogger):
         if not self._notice_shown:
             self._notice_shown = True
             self.notice = (
-                f'[audit] writing to {self.path} -- uncheck "Enable audit '
-                f'log" (or set {ENV_NO_AUDIT}=1) to disable'
+                f"[audit] writing to {self.path} (mandatory; "
+                "see AUDIT_GUIDE.pt-BR.md)"
             )
             print(self.notice, file=sys.stderr)
         return event_id
 
 
-def build_audit(enabled: bool, path: str):
+def build_audit(path: str):
     """Returns (audit_logger_or_None, init_warning_or_None)."""
-    if not enabled or _no_audit_env_requested():
-        return None, None
     try:
         return _GuiAuditLogger(path), None
     except Exception as exc:  # noqa: BLE001
@@ -249,33 +246,27 @@ class EngineSettings(ttk.LabelFrame):
         self.ontology_var = tk.StringVar(value=str(default_relaieo_ttl()))
         self.grounding_var = tk.StringVar(value=str(default_grounding_path()))
         self.norms_var = tk.StringVar(value=str(default_norms_path()))
-        self.engine_var = tk.StringVar(value="hybrid")
+        self.engine_var = tk.StringVar(value="Hybrid")
 
-        self._path_row(0, "--policy", self.policy_var)
-        self._path_row(1, "--ontology", self.ontology_var)
-        self._path_row(2, "--grounding", self.grounding_var)
-        self._path_row(3, "--norms", self.norms_var)
+        self._path_row(0, "Policy", self.policy_var)
+        self._path_row(1, "Ontology", self.ontology_var)
+        self._path_row(2, "Grounding", self.grounding_var)
+        self._path_row(3, "Norms", self.norms_var)
 
-        ttk.Label(self, text="--engine").grid(row=4, column=0, sticky="w", padx=4, pady=2)
+        ttk.Label(self, text="Engine").grid(row=4, column=0, sticky="w", padx=4, pady=2)
         combo = ttk.Combobox(
-            self, textvariable=self.engine_var, values=["rule", "kg", "hybrid"],
+            self, textvariable=self.engine_var, values=list(ENGINE_LABELS),
             state="readonly", width=10,
         )
         combo.grid(row=4, column=1, sticky="w", padx=4, pady=2)
 
-        self.audit_var = tk.BooleanVar(value=not _no_audit_env_requested())
         self.audit_log_var = tk.StringVar(value="logs/audit.jsonl")
-        ttk.Checkbutton(
-            self,
-            text='Enable audit log ("Gravar auditoria" -- --audit-log / --no-audit)',
-            variable=self.audit_var,
-        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=4, pady=2)
-        self._path_row(6, "--audit-log", self.audit_log_var)
+        self._path_row(5, "--audit-log", self.audit_log_var)
 
         self.columnconfigure(1, weight=1)
 
     def build_audit(self):
-        return build_audit(self.audit_var.get(), self.audit_log_var.get())
+        return build_audit(self.audit_log_var.get())
 
     def _path_row(self, row, label, var):
         ttk.Label(self, text=label).grid(row=row, column=0, sticky="w", padx=4, pady=2)
@@ -290,13 +281,16 @@ class EngineSettings(ttk.LabelFrame):
         if path:
             var.set(path)
 
+    def engine_kind(self) -> str:
+        return engine_value(self.engine_var.get())
+
     def build_engine(self):
         return build_engine(
             self.policy_var.get(),
             self.ontology_var.get(),
             self.grounding_var.get(),
             self.norms_var.get(),
-            self.engine_var.get(),
+            self.engine_kind(),
         )
 
 
@@ -312,7 +306,7 @@ class ResultPane(ttk.Frame):
         bar.pack(fill="x")
         ttk.Button(bar, text="Copy result", command=self._copy).pack(side="right")
 
-        self.text = tk.Text(self, height=18, wrap="none", state="disabled", font=("Consolas", 10))
+        self.text = tk.Text(self, height=18, wrap="word", state="disabled", font=("Consolas", 10))
         self.text.pack(fill="both", expand=True, pady=(6, 0))
         self.text.tag_config("error", foreground="#b91c1c")
         self.text.tag_config("system_error", foreground="#b45309")
@@ -353,14 +347,14 @@ class CheckTab(ttk.Frame):
 
         opts = ttk.Frame(self)
         opts.pack(fill="x", pady=(0, 6))
-        ttk.Label(opts, text="--stage").pack(side="left")
-        self.stage_var = tk.StringVar(value="input")
+        ttk.Label(opts, text="Stage").pack(side="left")
+        self.stage_var = tk.StringVar(value="Input")
         ttk.Combobox(
-            opts, textvariable=self.stage_var, values=["input", "output"],
+            opts, textvariable=self.stage_var, values=list(STAGE_LABELS),
             state="readonly", width=10,
         ).pack(side="left", padx=(4, 16))
         self.json_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(opts, text="--json", variable=self.json_var).pack(side="left")
+        ttk.Checkbutton(opts, text="JSON", variable=self.json_var).pack(side="left")
         self.run_btn = ttk.Button(opts, text="Run check", command=self._run)
         self.run_btn.pack(side="right")
 
@@ -369,14 +363,14 @@ class CheckTab(ttk.Frame):
 
     def _run(self):
         text = self.input_text.get("1.0", "end-1c")
-        stage = self.stage_var.get()
+        stage = stage_value(self.stage_var.get())
         as_json = self.json_var.get()
         policy, ontology, grounding, norms, engine_kind = (
             self.settings.policy_var.get(),
             self.settings.ontology_var.get(),
             self.settings.grounding_var.get(),
             self.settings.norms_var.get(),
-            self.settings.engine_var.get(),
+            self.settings.engine_kind(),
         )
 
         audit, init_warning = self.settings.build_audit()
@@ -419,7 +413,7 @@ class EvalTab(ttk.Frame):
 
         row = ttk.Frame(self)
         row.pack(fill="x", pady=(0, 6))
-        ttk.Label(row, text="--dataset").pack(side="left")
+        ttk.Label(row, text="Dataset").pack(side="left")
         self.dataset_var = tk.StringVar(value=default_dataset)
         ttk.Entry(row, textvariable=self.dataset_var).pack(
             side="left", fill="x", expand=True, padx=4
@@ -429,7 +423,7 @@ class EvalTab(ttk.Frame):
         opts = ttk.Frame(self)
         opts.pack(fill="x", pady=(0, 6))
         self.json_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(opts, text="--json", variable=self.json_var).pack(side="left")
+        ttk.Checkbutton(opts, text="JSON", variable=self.json_var).pack(side="left")
         self.run_btn = ttk.Button(opts, text="Run eval", command=self._run)
         self.run_btn.pack(side="right")
 
@@ -449,7 +443,7 @@ class EvalTab(ttk.Frame):
             self.settings.ontology_var.get(),
             self.settings.grounding_var.get(),
             self.settings.norms_var.get(),
-            self.settings.engine_var.get(),
+            self.settings.engine_kind(),
         )
 
         def job():
@@ -497,7 +491,7 @@ class DemoTab(ttk.Frame):
             self.settings.ontology_var.get(),
             self.settings.grounding_var.get(),
             self.settings.norms_var.get(),
-            self.settings.engine_var.get(),
+            self.settings.engine_kind(),
         )
 
         audit, init_warning = self.settings.build_audit()
@@ -534,17 +528,17 @@ class ProcessTab(ttk.Frame):
 
         opts = ttk.Frame(self)
         opts.pack(fill="x", pady=(0, 6))
-        ttk.Label(opts, text="--model").pack(side="left")
+        ttk.Label(opts, text="Model").pack(side="left")
         self.model_var = tk.StringVar(value="gpt-oss:120b")
         ttk.Entry(opts, textvariable=self.model_var, width=20).pack(side="left", padx=(4, 16))
         self.mock_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(opts, text="--mock", variable=self.mock_var).pack(side="left")
+        ttk.Checkbutton(opts, text="Mock", variable=self.mock_var).pack(side="left")
         self.verbose_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(opts, text="--verbose", variable=self.verbose_var).pack(
+        ttk.Checkbutton(opts, text="Verbose", variable=self.verbose_var).pack(
             side="left", padx=(16, 0)
         )
         self.json_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(opts, text="--json", variable=self.json_var).pack(side="left", padx=(16, 0))
+        ttk.Checkbutton(opts, text="JSON", variable=self.json_var).pack(side="left", padx=(16, 0))
         self.run_btn = ttk.Button(opts, text="Run process", command=self._run)
         self.run_btn.pack(side="right")
 
@@ -562,7 +556,7 @@ class ProcessTab(ttk.Frame):
             self.settings.ontology_var.get(),
             self.settings.grounding_var.get(),
             self.settings.norms_var.get(),
-            self.settings.engine_var.get(),
+            self.settings.engine_kind(),
         )
 
         audit, init_warning = self.settings.build_audit()
@@ -634,7 +628,7 @@ class ProcessTab(ttk.Frame):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("ethical_agent GUI")
+        self.title("Ethical Agent")
         self.geometry("900x700")
 
         settings = EngineSettings(self)
@@ -650,6 +644,7 @@ class App(tk.Tk):
 
 
 def main():
+    ensure_utf8_stdio()
     app = App()
     app.mainloop()
 

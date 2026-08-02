@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from typing import Optional
 
+from ._stdio import ensure_utf8_stdio
 from .agent import GuardedAgent
 from .audit import AuditLogger, build_check_audit_record
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
@@ -21,12 +21,6 @@ from .relaieo import (
     load_relaieo,
 )
 from .types import ActionContext, Stage
-
-ENV_NO_AUDIT = "ETHICAL_AGENT_NO_AUDIT"
-
-
-def _no_audit_env_requested() -> bool:
-    return os.environ.get(ENV_NO_AUDIT, "").strip().lower() in ("1", "true", "yes")
 
 
 class _CliAuditLogger(AuditLogger):
@@ -53,16 +47,14 @@ class _CliAuditLogger(AuditLogger):
         if not self._notice_shown:
             self._notice_shown = True
             print(
-                f"[audit] writing to {self.path} (disable with --no-audit "
-                f"or {ENV_NO_AUDIT}=1; see AUDIT_GUIDE.pt-BR.md)",
+                f"[audit] writing to {self.path} (mandatory; "
+                "see AUDIT_GUIDE.pt-BR.md)",
                 file=sys.stderr,
             )
         return event_id
 
 
 def _build_audit(args: argparse.Namespace) -> Optional[AuditLogger]:
-    if args.no_audit or _no_audit_env_requested():
-        return None
     try:
         return _CliAuditLogger(args.audit_log)
     except Exception as exc:
@@ -108,8 +100,8 @@ def cmd_check(args: argparse.Namespace) -> int:
 def cmd_eval(args: argparse.Namespace) -> int:
     # Intentionally never audited: this runs hundreds of synthetic dataset
     # cases directly against the engine, and logging them would swamp the
-    # real usage trail with non-real data. args.audit_log/args.no_audit
-    # exist on this namespace (they're global args) but are never read here.
+    # real usage trail with non-real data. args.audit_log exists on this
+    # namespace (it's a global arg) but is never read here.
     engine = _build_engine(args)
     cases = load_dataset(args.dataset)
     results = evaluate_engine(engine, cases)
@@ -223,6 +215,7 @@ def _indent(text: str, prefix: str = "    ") -> str:
 
 
 def main(argv=None) -> int:
+    ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         prog="ethical_agent",
         description="Neuro-symbolic ethical guardrail (rule-based + knowledge graph).",
@@ -259,14 +252,6 @@ def main(argv=None) -> int:
         help=(
             "path to the audit JSONL log written by check/process/demo "
             "(default: logs/audit.jsonl); ignored by eval, which never audits"
-        ),
-    )
-    parser.add_argument(
-        "--no-audit",
-        action="store_true",
-        help=(
-            "disable audit logging entirely for this invocation "
-            f"(same effect as {ENV_NO_AUDIT}=1)"
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)

@@ -24,27 +24,29 @@ da política e da ontologia (`config_versions`) que produziu aquele veredito.
 
 - Caminho padrão: `logs/audit.jsonl`, um objeto JSON por linha.
 - Pode ser trocado com `--audit-log CAMINHO` (CLI) ou pelo campo `--audit-log`
-  ao lado do checkbox "Enable audit log" no painel **Engine settings** da GUI.
+  no painel **Engine settings** da GUI.
 - O arquivo e o diretório `logs/` são criados na primeira gravação. O
   instalador (`wizard_gui.py`) já cria `logs/` ao final, como conveniência.
 - `eval` **nunca** grava: roda centenas de casos sintéticos direto contra a
   engine, e gravá-los poluiria a trilha com o que não é uso real.
 
-### 1.2 Como desativar
+### 1.2 Por que é obrigatória
 
 Gravar o texto de entrada completo — que pode incluir dado pessoal — é uma
-postura deliberada, não um acidente. Três formas independentes desligam:
-
-- `--no-audit` (CLI), em qualquer subcomando;
-- `ETHICAL_AGENT_NO_AUDIT=1` (qualquer processo, CLI ou GUI);
-- desmarcar "Enable audit log" no painel **Engine settings** da GUI.
+postura deliberada, não um acidente. E a trilha só sustenta a afirmação de
+auditabilidade do projeto se não puder ser desligada: um registro que pode
+ser silenciado é indistinguível, para quem lê depois, de "não houve
+atividade". Por isso `check`/`process`/`demo` sempre gravam, na CLI e na GUI
+— não existe flag, variável de ambiente ou checkbox para desativar. O que
+continua configurável é **onde** ela grava (`--audit-log` / campo
+equivalente na GUI), nunca **se** ela grava.
 
 Na primeira gravação bem-sucedida de cada processo é impresso um aviso de uma
 linha em `stderr` (e, na GUI, também no painel de resultado, já que uma janela
 pode não ter console visível):
 
 ```
-[audit] writing to logs/audit.jsonl (disable with --no-audit or ETHICAL_AGENT_NO_AUDIT=1; see AUDIT_GUIDE.pt-BR.md)
+[audit] writing to logs/audit.jsonl (mandatory; see AUDIT_GUIDE.pt-BR.md)
 ```
 
 Uma falha ao gravar — permissão negada, caminho inválido — **nunca derruba o
@@ -157,7 +159,7 @@ auditoria: bastava essa palavra para liberar?**
 Este é o coração da auditoria. Rode o mesmo texto direto:
 
 ```bash
-python -m ethical_agent --no-audit check "We are building a tool to detect and avoid bias in our hiring model."
+python -m ethical_agent check "We are building a tool to detect and avoid bias in our hiring model."
 ```
 
 ```
@@ -260,7 +262,7 @@ mesmo texto nas três configurações:
 ```bash
 for e in rule kg hybrid; do
   printf "%-7s " "$e"
-  python -m ethical_agent --no-audit --engine $e check "SEU TEXTO" | sed -n 1p
+  python -m ethical_agent --engine $e check "SEU TEXTO" | sed -n 1p
 done
 ```
 
@@ -289,7 +291,7 @@ Rode a mesma entrada duas vezes e compare, descartando o carimbo de tempo:
 
 ```bash
 for i in 1 2; do
-  python -m ethical_agent --no-audit check --json "Deploy a hiring model that reproduces bias against women." \
+  python -m ethical_agent check --json "Deploy a hiring model that reproduces bias against women." \
   | python -c "import json,sys; d=json.load(sys.stdin); d.pop('created_at'); print(json.dumps(d,sort_keys=True))" > /tmp/run$i.json
 done
 diff /tmp/run1.json /tmp/run2.json && echo "IDÊNTICOS"
@@ -309,9 +311,9 @@ Auditar uma decisão não diz se o sistema é bom no geral. Para isso, os três
 datasets:
 
 ```bash
-python -m ethical_agent --no-audit eval
-python -m ethical_agent --no-audit eval --dataset eval/dataset_huggingface_injections.json
-python -m ethical_agent --no-audit eval --dataset eval/dataset_beavertails.json
+python -m ethical_agent eval
+python -m ethical_agent eval --dataset eval/dataset_huggingface_injections.json
+python -m ethical_agent eval --dataset eval/dataset_beavertails.json
 ```
 
 Resultados da engine `hybrid` (medidos em 2026-08-01):

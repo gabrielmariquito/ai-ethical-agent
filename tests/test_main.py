@@ -13,11 +13,8 @@ def policy_path(tmp_path):
     return p
 
 
-def _base_argv(policy_path, audit_log, extra_global=None):
-    argv = ["--engine", "rule", "--policy", str(policy_path), "--audit-log", str(audit_log)]
-    if extra_global:
-        argv += extra_global
-    return argv
+def _base_argv(policy_path, audit_log):
+    return ["--engine", "rule", "--policy", str(policy_path), "--audit-log", str(audit_log)]
 
 
 def _read_records(path):
@@ -63,17 +60,16 @@ def test_demo_writes_one_record_per_case(policy_path, tmp_path, capsys):
     assert len(records) == 7
 
 
-def test_no_audit_flag_writes_nothing(policy_path, tmp_path, capsys):
+def test_no_audit_flag_no_longer_exists(policy_path, tmp_path):
     log_path = tmp_path / "audit.jsonl"
-    argv = _base_argv(policy_path, log_path, extra_global=["--no-audit"]) + [
-        "process", "what is the capital of Brazil?", "--mock",
+    argv = _base_argv(policy_path, log_path) + [
+        "--no-audit", "process", "what is the capital of Brazil?", "--mock",
     ]
-    code = main(argv)
-    assert code == 0
-    assert not log_path.exists()
+    with pytest.raises(SystemExit):
+        main(argv)
 
 
-def test_env_var_disables_audit(policy_path, tmp_path, monkeypatch, capsys):
+def test_env_var_no_longer_disables_audit(policy_path, tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("ETHICAL_AGENT_NO_AUDIT", "1")
     log_path = tmp_path / "audit.jsonl"
     argv = _base_argv(policy_path, log_path) + [
@@ -81,7 +77,8 @@ def test_env_var_disables_audit(policy_path, tmp_path, monkeypatch, capsys):
     ]
     code = main(argv)
     assert code == 0
-    assert not log_path.exists()
+    records = _read_records(log_path)
+    assert len(records) == 1
 
 
 def test_eval_never_writes_audit(policy_path, tmp_path, capsys):

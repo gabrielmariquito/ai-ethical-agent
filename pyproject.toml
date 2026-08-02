@@ -24,10 +24,21 @@ dependencies = []
 [project.optional-dependencies]
 # Needed only for `ethical_agent process` (a real LLM via Ollama).
 llm = ["ollama>=0.3", "python-dotenv>=1.0"]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "setuptools>=68", "wheel"]
 
 [project.scripts]
 ethical-agent = "ethical_agent.__main__:main"
 
 [tool.setuptools]
-packages = ["ethical_agent"]
+# policies/, ontologies/ and eval/ are siblings of ethical_agent/ on disk, and
+# the default_*_path() helpers (ethical_agent/policy.py, ethical_agent/relaieo.py)
+# resolve them via Path(__file__).resolve().parents[1] / "<dir>" -- one level
+# above the installed package, i.e. site-packages root in a non-editable
+# install. Listing them here ships them at that same relative location so
+# `pip install .` (not just `pip install -e .`) produces a working install.
+packages = ["ethical_agent", "policies", "ontologies", "eval"]
+
+[tool.setuptools.package-data]
+policies = ["*.json"]
+ontologies = ["*.ttl", "*.json", "*.md"]
+eval = ["*.json"]

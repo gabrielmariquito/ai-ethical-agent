@@ -200,17 +200,21 @@ pip install -e ".[dev]"
 Isso expõe tanto `python -m ethical_agent ...` quanto um script de console
 `ethical-agent ...` (`[project.scripts]` no `pyproject.toml`).
 
-> **Caso conhecido que NÃO funciona:** `pip install .` (instalação
-> **não-editável**, que copia o pacote para `site-packages`) quebra os
-> caminhos padrão de política/ontologia. `policies/`, `ontologies/` e `eval/`
-> vivem no repositório, **fora** do pacote `ethical_agent/`, e
+> **`pip install .` (não-editável) funciona.** `policies/`, `ontologies/` e
+> `eval/` vivem no repositório, **fora** do pacote `ethical_agent/`, e
 > `default_policy_path()`/`default_relaieo_ttl()` os resolvem por caminho
-> relativo ao arquivo-fonte (`Path(__file__).resolve().parents[1]`). Numa
-> instalação editável isso continua apontando para o repositório; numa
-> instalação normal, aponta para dentro de `site-packages` onde esses
-> arquivos não existem, e todo comando falha com `FileNotFoundError` a menos
-> que você passe `--policy`/`--ontology`/`--grounding`/`--norms`/`--dataset`
-> manualmente. Use sempre `pip install -e .` neste estágio do projeto.
+> relativo ao arquivo-fonte (`Path(__file__).resolve().parents[1]`). O
+> `pyproject.toml` declara esses três diretórios como pacotes de dados
+> adicionais (`[tool.setuptools.package-data]`), então uma instalação
+> não-editável os copia para o mesmo local relativo — `site-packages/policies/`,
+> `site-packages/ontologies/`, `site-packages/eval/`, irmãos de
+> `ethical_agent/` — e os caminhos padrão continuam resolvendo sem precisar de
+> `--policy`/`--ontology`/`--grounding`/`--norms`/`--dataset` manuais. Isso
+> cobre apenas o pacote `ethical_agent` e o script de console `ethical-agent`;
+> `gui_app.py`, `wizard_gui.py` e `audit_tools.py` são scripts de raiz do
+> repositório, não fazem parte do pacote instalado, e continuam exigindo rodar
+> a partir de um clone (ou `pip install -e .`, que é o que `wizard_gui.py` usa
+> ao montar seu próprio venv).
 
 ## Início rápido
 
@@ -610,17 +614,18 @@ regras/ontologia decidiu sobre aquela entrada/saída sensível — pré-requisit
 para accountability e para reproduzir uma decisão depois que a política
 evoluir.
 
-**A trilha é gravada por padrão** para `check`/`process`/`demo`, tanto na CLI
-quanto na interface gráfica (`gui_app.py`), e o diretório `logs/` é criado
-pelo instalador (`wizard_gui.py`). Como isso grava texto de entrada completo
-por padrão — inclusive dado pessoal —, três formas independentes desligam a
-gravação: `--no-audit` na CLI, a variável de ambiente
-`ETHICAL_AGENT_NO_AUDIT=1` (equivalente em qualquer processo), ou o checkbox
-"Enable audit log" no painel Engine settings da GUI. Na primeira gravação de
-cada processo é impresso um aviso único em `stderr` (e também exibido na GUI,
-já que uma janela pode não ter console visível) informando onde a trilha está
-sendo gravada e como desligá-la; uma falha ao gravar (ex.: permissão negada)
-nunca derruba o comando, só gera um aviso. Ver
+**A trilha é obrigatória** para `check`/`process`/`demo`, tanto na CLI quanto
+na interface gráfica (`gui_app.py`), e o diretório `logs/` é criado pelo
+instalador (`wizard_gui.py`). Não existe flag, variável de ambiente ou
+checkbox para desligá-la — uma trilha que pode ser desligada não sustenta a
+afirmação de auditabilidade do projeto, porque um log vazio ficaria
+indistinguível de "não houve atividade". O que continua configurável é
+**onde** ela grava (`--audit-log` na CLI, campo equivalente na GUI), nunca
+**se** ela grava. Na primeira gravação de cada processo é impresso um aviso
+único em `stderr` (e também exibido na GUI, já que uma janela pode não ter
+console visível) informando onde a trilha está sendo gravada; uma falha ao
+gravar (ex.: permissão negada) nunca derruba o comando, só gera um aviso
+visível. Ver
 [AUDIT_GUIDE.pt-BR.md](AUDIT_GUIDE.pt-BR.md) para o passo a passo completo e
 `audit_tools.py` para inspecionar o log (`resumir`) ou gerar dados de exemplo
 claramente sintéticos (`gerar`).

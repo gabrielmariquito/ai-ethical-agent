@@ -21,6 +21,8 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ethical_agent._stdio import ensure_utf8_stdio
+
 DEFAULT_AUDIT_LOG = "logs/audit.jsonl"
 SYNTHETIC_ENGINE = "SYNTHETIC-SAMPLE-DATA"
 # Matches the source="demo" GuardedAgent gets from `ethical_agent demo`,
@@ -105,6 +107,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_utf8_stdio()
     parser = argparse.ArgumentParser(
         prog="audit_tools.py",
         description="Ferramentas de leitura/geração de exemplo para logs/audit.jsonl.",
