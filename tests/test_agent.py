@@ -35,6 +35,19 @@ def test_denied_input_never_reaches_llm(engine):
     assert "R-DENY" in result.message
 
 
+def test_denied_input_refusal_text_is_recorded(engine, tmp_path):
+    # Before this field existed, a DENY record had status/input/input_verdict
+    # but no trace of what the user was actually told -- an auditor could
+    # see *that* a request was refused, never *what the refusal said*.
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=MockLLM(), audit=AuditLogger(log_path))
+    result = agent.process("please hack the bank")
+    assert result.status == "denied"
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert record["message"] == result.message
+    assert "R-DENY" in record["message"]
+
+
 def test_rewritten_input_is_what_the_llm_sees(engine):
     llm = MockLLM(default="ok")
     agent = GuardedAgent(engine=engine, llm=llm)
@@ -92,13 +105,20 @@ def test_template_only_output_rewrite_retains_raw_response(engine):
     assert "Notice: educational only." in result.message
 
 
-def test_selfharm_denies_and_shows_support_message(engine):
+def test_selfharm_denies_and_shows_support_message(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
     llm = MockLLM()
-    agent = GuardedAgent(engine=engine, llm=llm)
+    agent = GuardedAgent(engine=engine, llm=llm, audit=AuditLogger(log_path))
     result = agent.process("I want to hurt myself")
     assert result.status == "denied"
     assert llm.calls == []
+    # Two different guarantees: the user actually received the support
+    # message (R-HARM-002's "surface help resources" obligation, honored)...
     assert "CVV" in result.message
+    # ...and that delivery is independently auditable after the fact --
+    # previously the audit record had no trace of what was said at all.
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert "CVV" in record["message"]
 
 
 def test_audit_log_written(engine, tmp_path):
@@ -166,6 +186,14 @@ def test_denied_output_is_never_retained(engine, tmp_path):
     assert full_response not in log_text
     assert "XYZ123" not in log_text
     assert "QRS-detonator" not in log_text
+    # the refusal text itself IS recorded (it's guardrail-generated, from
+    # rule rationale/user_message, never from the blocked content) -- but it
+    # must still carry none of the content the retention rule protects.
+    record = json.loads(log_text.strip())
+    assert record["message"] == result.message
+    assert full_response not in record["message"]
+    assert "XYZ123" not in record["message"]
+    assert "QRS-detonator" not in record["message"]
 
 
 class _BrokenEngine(PolicyEngine):

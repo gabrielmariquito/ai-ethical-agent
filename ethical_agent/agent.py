@@ -192,6 +192,7 @@ class GuardedAgent:
                 "status": result.status,
                 "engine": self.engine.name,
                 "config_versions": self.engine.describe_config(),
+                "message": result.message,
                 **result.trace,
             }
             if self.source is not None:

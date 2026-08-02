@@ -59,6 +59,18 @@ def test_build_check_audit_record_template_only_retains_raw_content():
     assert record["raw_response"] == text
 
 
+def test_build_check_audit_record_has_no_message_field():
+    # Deliberate: check() never calls an LLM and generates no message for
+    # anyone -- unlike GuardedAgent.process, which always records
+    # result.message. Forcing an empty/redundant "message" here would be
+    # noise, not signal. See AUDIT_GUIDE.pt-BR.md's field-presence table.
+    engine = _engine()
+    text = "contact bob@example.com for help"
+    verdict = engine.evaluate(ActionContext(content=text, stage=Stage.OUTPUT))
+    record = build_check_audit_record(engine, verdict, Stage.OUTPUT, text)
+    assert "message" not in record
+
+
 def test_build_check_audit_record_input_stage_always_retains_input():
     engine = _engine()
     text = "what is the capital of Brazil?"
