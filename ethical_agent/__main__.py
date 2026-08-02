@@ -8,7 +8,13 @@ from typing import Optional
 
 from ._stdio import ensure_utf8_stdio
 from .agent import GuardedAgent
-from .audit import AuditLogger, build_check_audit_record
+from .audit import (
+    AuditLogger,
+    audit_first_write_notice,
+    audit_init_failure_message,
+    audit_write_failure_message,
+    build_check_audit_record,
+)
 from .demo import DEMO_CASES, demo_scripted
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
 from .evaluate import evaluate_engine, format_report, load_dataset
@@ -49,20 +55,14 @@ class _CliAuditLogger(AuditLogger):
         try:
             event_id = super().log(record)
         except Exception as exc:
-            print(
-                f"[audit] could not write audit record to {self.path} "
-                f"({exc.__class__.__name__}: {exc}); continuing without "
-                "logging this event",
-                file=sys.stderr,
-            )
+            # Printed and dropped: on the CLI stderr is the only surface there
+            # is. The web logger keeps the same string around as well, because
+            # a browser tab has no stderr to look at.
+            print(audit_write_failure_message(self.path, exc), file=sys.stderr)
             return None
         if not self._notice_shown:
             self._notice_shown = True
-            print(
-                f"[audit] writing to {self.path} (mandatory; "
-                "see AUDIT_GUIDE.pt-BR.md)",
-                file=sys.stderr,
-            )
+            print(audit_first_write_notice(self.path), file=sys.stderr)
         return event_id
 
 
@@ -70,11 +70,7 @@ def _build_audit(args: argparse.Namespace) -> Optional[AuditLogger]:
     try:
         return _CliAuditLogger(args.audit_log)
     except Exception as exc:
-        print(
-            f"[audit] could not initialize audit log at {args.audit_log} "
-            f"({exc.__class__.__name__}: {exc}); continuing without audit logging",
-            file=sys.stderr,
-        )
+        print(audit_init_failure_message(args.audit_log, exc), file=sys.stderr)
         return None
 
 

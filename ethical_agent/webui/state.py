@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 
 from ethical_agent import AuditLogger
 from ethical_agent.agent import AgentResult
+from ethical_agent.audit import audit_first_write_notice, audit_write_failure_message
 
 # Only jobs that have finished (phase "done"/"error") are ever candidates for
 # GC, and only once they've sat unread for this long -- a job still in
@@ -42,20 +43,16 @@ class _WebAuditLogger(AuditLogger):
         with self._lock:
             try:
                 event_id = super().log(record)
-            except Exception as exc:  # noqa: BLE001 -- mirrors the CLI/GUI loggers' own broad catch
-                self.warning = (
-                    f"[audit] could not write audit record to {self.path} "
-                    f"({exc.__class__.__name__}: {exc}); continuing without "
-                    "logging this event"
-                )
+            except Exception as exc:  # noqa: BLE001 -- mirrors the CLI logger's own broad catch
+                # Same sentence as the CLI (audit.py owns the wording), but
+                # kept on the instance as well: audit_notice_lines() hands it
+                # to the browser, which has no stderr the reader can see.
+                self.warning = audit_write_failure_message(self.path, exc)
                 print(self.warning, file=sys.stderr)
                 return None
             if not self._notice_shown:
                 self._notice_shown = True
-                self.notice = (
-                    f"[audit] writing to {self.path} (mandatory; "
-                    "see AUDIT_GUIDE.pt-BR.md)"
-                )
+                self.notice = audit_first_write_notice(self.path)
                 print(self.notice, file=sys.stderr)
             return event_id
 

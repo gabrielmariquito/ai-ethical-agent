@@ -13,6 +13,7 @@ from ethical_agent import (
     register_concept_condition,
     resolve_llm,
 )
+from ethical_agent.audit import audit_init_failure_message
 
 from .state import _WebAuditLogger
 
@@ -52,14 +53,16 @@ def build_llm(
 
 
 def build_audit(path: str, lock: threading.Lock):
-    """Returns (audit_logger_or_None, init_warning_or_None)."""
+    """Returns (audit_logger_or_None, init_warning_or_None).
+
+    Same sentence as the CLI's _build_audit (audit.py owns the wording); the
+    difference is that this one also *returns* it, so audit_notice_lines() can
+    put it on screen -- a browser tab has no visible stderr.
+    """
     try:
         return _WebAuditLogger(path, lock), None
     except Exception as exc:  # noqa: BLE001
-        msg = (
-            f"[audit] could not initialize audit log at {path} "
-            f"({exc.__class__.__name__}: {exc}); continuing without audit logging"
-        )
+        msg = audit_init_failure_message(path, exc)
         print(msg, file=sys.stderr)
         return None, msg
 
