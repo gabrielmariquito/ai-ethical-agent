@@ -21,14 +21,16 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import urllib.error
+import urllib.request
 import venv
+import webbrowser
 from pathlib import Path
 from tkinter import ttk
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 LOGS_DIR = ROOT / "logs"
-GUI_APP = ROOT / "gui_app.py"
 
 # ethical_agent isn't necessarily pip-installed yet at this point (that's
 # what ProgressPage is about to do) -- but ethical_agent.ollama_install is
@@ -38,6 +40,7 @@ GUI_APP = ROOT / "gui_app.py"
 sys.path.insert(0, str(ROOT))
 
 from ethical_agent._stdio import ensure_utf8_stdio  # noqa: E402
+from ethical_agent.__main__ import DEFAULT_WEB_PORT  # noqa: E402
 from ethical_agent.ollama_install import (  # noqa: E402
     DEFAULT_LOCAL_MODEL,
     download_file,
@@ -79,15 +82,14 @@ FINISH_TEXT = (
     '    ethical-agent check "algum texto"\n'
     '    ethical-agent process "..." --mock\n'
     "    ethical-agent eval\n\n"
-    "Cada `check`/`process`/`demo` (CLI ou interface gráfica) grava um "
+    "Cada `check`/`process`/`demo` (CLI ou interface web) grava um "
     "registro em logs/audit.jsonl -- conteúdo bloqueado nunca é incluído. "
     "A gravação é obrigatória (não há como desativá-la); o caminho pode ser "
-    "trocado com --audit-log / campo equivalente na GUI. Veja "
+    "trocado com --audit-log / campo equivalente na interface. Veja "
     "AUDIT_GUIDE.pt-BR.md.\n\n"
-    "Ao clicar em Concluir, a interface gráfica (gui_app.py) abre "
-    "automaticamente em uma janela separada (a menos que este instalador "
-    "tenha sido iniciado com --no-launch). Veja o README.md e o "
-    "GUI_README.md para a documentação completa."
+    "Ao clicar em Concluir, a interface web abre automaticamente no "
+    "navegador (a menos que este instalador tenha sido iniciado com "
+    "--no-launch). Veja o README.md para a documentação completa."
 )
 
 # Os mesmos casos mostrados na seção "Casos onde funciona bem / onde falha"
@@ -152,9 +154,28 @@ def _venv_python(venv_dir: Path) -> Path:
 def _manual_launch_instructions() -> str:
     py = _venv_python(VENV_DIR)
     return (
-        "Para abrir a interface gráfica manualmente mais tarde:\n\n"
-        f"    {py} {GUI_APP}\n"
+        "Para abrir a interface web manualmente mais tarde:\n\n"
+        f"    {py} -m ethical_agent serve --port {DEFAULT_WEB_PORT}\n\n"
+        f"    (depois abra http://127.0.0.1:{DEFAULT_WEB_PORT} no navegador)\n"
     )
+
+
+def _wait_for_web_ui(port: int, timeout: float = 5.0, poll: float = 0.2) -> bool:
+    """Polls the web server's own /api/choices until it responds or
+    `timeout` elapses -- short, bounded polling instead of a blind sleep
+    before deciding whether to open a browser at all."""
+    url = f"http://127.0.0.1:{port}/api/choices"
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            with urllib.request.urlopen(url, timeout=poll) as resp:
+                if getattr(resp, "status", 200) == 200:
+                    return True
+        except (urllib.error.URLError, OSError):
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll)
 
 
 def _no_launch_env_requested() -> bool:
@@ -260,7 +281,7 @@ class WizardApp(tk.Tk):
             self.destroy()
 
     def _launch_interface(self) -> None:
-        """Best-effort auto-launch of the GUI once install finishes.
+        """Best-effort auto-launch of the web interface once install finishes.
 
         Never treated as an install failure: any problem here is caught and
         printed as a warning, with manual-launch instructions as a fallback,
@@ -273,9 +294,10 @@ class WizardApp(tk.Tk):
             )
             print(_manual_launch_instructions())
             return
+        port = DEFAULT_WEB_PORT
         try:
             python_exe = _venv_python(VENV_DIR)
-            cmd = [str(python_exe), str(GUI_APP)]
+            cmd = [str(python_exe), "-m", "ethical_agent", "serve", "--port", str(port)]
             popen_kwargs: dict = dict(
                 cwd=ROOT,
                 stdout=subprocess.DEVNULL,
@@ -313,11 +335,19 @@ class WizardApp(tk.Tk):
         stop_cmd = (
             f"taskkill /PID {proc.pid} /F" if sys.platform == "win32" else f"kill {proc.pid}"
         )
-        print(
-            f"Interface gráfica aberta em uma janela separada (PID {proc.pid}), "
-            "rodando em segundo plano, independente deste instalador.\n"
-            f"Para encerrá-la: feche a janela, ou rode `{stop_cmd}`.\n"
-        )
+        url = f"http://127.0.0.1:{port}"
+        if _wait_for_web_ui(port):
+            webbrowser.open(url)
+            print(
+                f"Interface web aberta no navegador ({url}); o servidor roda em "
+                f"segundo plano (PID {proc.pid}), independente deste instalador.\n"
+                f"Para encerrá-lo: rode `{stop_cmd}`.\n"
+            )
+        else:
+            print(
+                f"O servidor (PID {proc.pid}) não respondeu em {url} a tempo -- "
+                "não abri o navegador automaticamente; ele pode ainda estar subindo."
+            )
         print(_manual_launch_instructions())
 
     def _go_back(self) -> None:
@@ -997,7 +1027,7 @@ def main(argv: list[str] | None = None) -> int:
         "--no-launch",
         action="store_true",
         help=(
-            "não abrir a interface gráfica (gui_app.py) automaticamente ao "
+            "não abrir a interface web automaticamente ao "
             f"final da instalação (o mesmo efeito de definir {ENV_NO_LAUNCH}=1)"
         ),
     )

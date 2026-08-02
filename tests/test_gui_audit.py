@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from ethical_agent import RuleBasedEngine, build_check_audit_record
 from ethical_agent.policy import Policy
@@ -80,25 +79,9 @@ def test_build_check_audit_record_input_stage_always_retains_input():
     assert "input_verdict" in record
 
 
-def test_gui_app_no_longer_defines_its_own_check_audit_record():
-    # Read the source directly rather than `import gui_app`: importing it
-    # requires tkinter to be installed and the CWD/sys.path to include the
-    # repo root, neither of which this assertion should depend on -- the
-    # source text is enough to prove the duplicate function is gone and the
-    # shared helper is what's actually called.
-    source_path = Path(__file__).resolve().parent.parent / "gui_app.py"
-    source = source_path.read_text(encoding="utf-8")
-    assert "def check_audit_record(" not in source
-    assert "build_check_audit_record(" in source  # actually called, not just imported
-
-
-def test_gui_app_uses_shared_llm_provenance_helpers():
-    # Same reasoning as above: gui_app.py must call the shared resolve_llm /
-    # describe_llm_provenance from ethical_agent.llm instead of reimplementing
-    # its own classification of what produced (or simulated) the content --
-    # otherwise the CLI and GUI could silently drift on this.
-    source_path = Path(__file__).resolve().parent.parent / "gui_app.py"
-    source = source_path.read_text(encoding="utf-8")
-    assert "def build_llm(" in source  # thin wrapper still present
-    assert "resolve_llm(" in source
-    assert "describe_llm_provenance(" in source
+# The former gui_app.py-source-text tests that used to live here
+# (test_gui_app_no_longer_defines_its_own_check_audit_record,
+# test_gui_app_uses_shared_llm_provenance_helpers) are superseded by
+# behavioral equivalents that hit the real web endpoints instead of grepping
+# source text: tests/test_webui_check.py::test_check_endpoint_uses_shared_audit_record_builder
+# and tests/test_webui_chat.py::test_chat_response_includes_llm_provenance_text.

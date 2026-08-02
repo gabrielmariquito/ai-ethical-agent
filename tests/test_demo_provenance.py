@@ -1,6 +1,5 @@
 import argparse
 import json
-from pathlib import Path
 
 import pytest
 
@@ -53,9 +52,7 @@ def test_resumir_excludes_demo_records_from_real_counts(policy_path, tmp_path, c
     assert "denied" not in out
 
 
-def test_gui_demo_tags_source():
-    # Read the source directly rather than `import gui_app` -- importing it
-    # needs tkinter and a sys.path/CWD setup this test shouldn't depend on
-    # (same reasoning tests/test_gui_audit.py documents).
-    source = (Path(__file__).resolve().parent.parent / "gui_app.py").read_text(encoding="utf-8")
-    assert 'source="demo"' in source
+# The former gui_app.py-source-text test that used to live here
+# (test_gui_demo_tags_source) is superseded by a behavioral equivalent that
+# hits the real /api/demo endpoint and reads the audit trail back:
+# tests/test_webui_demo.py::test_demo_endpoint_tags_all_records_with_demo_source.

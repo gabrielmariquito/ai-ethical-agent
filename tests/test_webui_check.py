@@ -89,7 +89,17 @@ def test_check_endpoint_uses_shared_audit_record_builder(server):
         json.loads(line) for line in Path(server.audit_log_path).read_text(encoding="utf-8").splitlines()
     ]
     actual_record = records[-1]
+
+    def _without_created_at(value):
+        # Verdict.created_at defaults to datetime.now(...) -- re-evaluating
+        # the same text a second time here legitimately produces a
+        # different timestamp than what the endpoint's own call persisted;
+        # everything else must match exactly.
+        if isinstance(value, dict) and "created_at" in value:
+            return {k: v for k, v in value.items() if k != "created_at"}
+        return value
+
     for key, value in expected_record.items():
-        assert actual_record[key] == value, key
+        assert _without_created_at(actual_record[key]) == _without_created_at(value), key
     assert verdict.decision is Decision.REWRITE
     assert "raw_response" not in actual_record  # redact:true -- confirms the shared retention rule ran

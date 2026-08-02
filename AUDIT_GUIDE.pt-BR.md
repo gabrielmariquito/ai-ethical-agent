@@ -15,7 +15,7 @@ versionados, e a mesma entrada sempre produz o mesmo resultado.
 ## Passo 1 — Abrir a trilha
 
 Por padrão, toda chamada a `check`, `process` ou `demo` — pela CLI
-(`ethical_agent`) ou pela interface gráfica (`gui_app.py`) — grava um registro
+(`ethical_agent`) ou pela interface web (`ethical-agent serve`) — grava um registro
 JSON em `logs/audit.jsonl`. O objetivo é permitir auditar o **uso real** do
 sistema depois do fato: cada registro traz, além do resultado, a versão exata
 da política e da ontologia (`config_versions`) que produziu aquele veredito.
@@ -23,8 +23,8 @@ da política e da ontologia (`config_versions`) que produziu aquele veredito.
 ### 1.1 Onde ela fica
 
 - Caminho padrão: `logs/audit.jsonl`, um objeto JSON por linha.
-- Pode ser trocado com `--audit-log CAMINHO` (CLI) ou pelo campo `--audit-log`
-  no painel **Engine settings** da GUI.
+- Pode ser trocado com `--audit-log CAMINHO` (CLI) ou pelo campo `Audit log`
+  no painel **Configuração** da interface web.
 - O arquivo e o diretório `logs/` são criados na primeira gravação. O
   instalador (`wizard_gui.py`) já cria `logs/` ao final, como conveniência.
 - `eval` **nunca** grava: roda centenas de casos sintéticos direto contra a
@@ -36,14 +36,14 @@ Gravar o texto de entrada completo — que pode incluir dado pessoal — é uma
 postura deliberada, não um acidente. E a trilha só sustenta a afirmação de
 auditabilidade do projeto se não puder ser desligada: um registro que pode
 ser silenciado é indistinguível, para quem lê depois, de "não houve
-atividade". Por isso `check`/`process`/`demo` sempre gravam, na CLI e na GUI
-— não existe flag, variável de ambiente ou checkbox para desativar. O que
-continua configurável é **onde** ela grava (`--audit-log` / campo
-equivalente na GUI), nunca **se** ela grava.
+atividade". Por isso `check`/`process`/`demo` sempre gravam, na CLI e na
+interface web — não existe flag, variável de ambiente ou checkbox para
+desativar. O que continua configurável é **onde** ela grava (`--audit-log` /
+campo equivalente na interface web), nunca **se** ela grava.
 
 Na primeira gravação bem-sucedida de cada processo é impresso um aviso de uma
-linha em `stderr` (e, na GUI, também no painel de resultado, já que uma janela
-pode não ter console visível):
+linha em `stderr` (e, na interface web, também como aviso na própria
+conversa, já que uma aba de navegador pode não ter console visível):
 
 ```
 [audit] writing to logs/audit.jsonl (mandatory; see AUDIT_GUIDE.pt-BR.md)
@@ -140,14 +140,16 @@ conteúdo, distinguindo três casos:
 
 ```jsonc
 {"kind": "real", "model": "llama3.2:3b", "backend": "ollama_local"}   // modelo real, local ou "ollama_cloud"
-{"kind": "mock_requested"}                                            // --mock / caixa "Mock" da GUI
+{"kind": "mock_requested"}                                            // --mock / caixa "Mock" marcada de propósito
 {"kind": "mock_fallback", "fallback_reason": "ConnectionError: ..."}  // Ollama falhou, caiu para mock
 ```
 
 Antes desse campo, um `mock_fallback` era indistinguível de um `real`
-bem-sucedido: o aviso ia só para `stderr` (CLI) ou um banner (GUI), nunca
-para o registro — e como a caixa "Mock" da GUI vem marcada por padrão, o
-caso mais comum era justamente o que não deixava rastro nenhum.
+bem-sucedido: o aviso ia só para `stderr` (CLI), nunca para o registro. Na
+interface web, a caixa "Mock" vem **desmarcada** por padrão (chama o modelo
+de verdade primeiro) e um `mock_fallback` agora também aparece como aviso
+visível na própria conversa, não só neste campo do registro — mas o campo
+continua sendo a fonte definitiva para quem lê a trilha depois.
 
 **`message`** (em todo registro de `process`/`demo`) é o texto efetivamente
 entregue ao usuário — a recusa em `DENY`/erro interno, ou a resposta final em
@@ -178,9 +180,9 @@ deliberada, não esquecimento:
 `GuardedAgent.process()` pode receber o histórico de turnos anteriores da
 mesma conversa (para o **modelo** continuar de onde parou) junto de um
 `conversation_id`/`turn_index` (para a **trilha** poder ser remontada
-depois). Só a aba **Process** da GUI (`gui_app.py`) usa isso hoje — a CLI
-continua turno único, sem esses dois campos. Quando presentes, o registro
-traz:
+depois). Só a tela de conversa da interface web (`ethical-agent serve`) usa
+isso hoje — a CLI continua turno único, sem esses dois campos. Quando
+presentes, o registro traz:
 
 ```jsonc
 {"conversation_id": "3f9a2b7c1e4d4a9f8b21...", "turn_index": 2}
@@ -205,11 +207,15 @@ Ambos os campos são omitidos (não aparecem como `null`) quando a chamada não
 faz parte de uma conversa com histórico — mesmo padrão de `llm_provenance`,
 acima.
 
-**O histórico da GUI vive só na memória do processo** — fechar a janela
-perde a conversa em curso. Isso não afeta a trilha: cada turno já foi
-gravado em `logs/audit.jsonl` no momento em que aconteceu. Reconstruir uma
-conversa depois do fato é feito lendo o arquivo (comando acima), não
-reabrindo a interface — a GUI não recarrega nem retoma conversas antigas.
+**O histórico vivo de uma conversa existe só na memória do processo do
+servidor** — reiniciar `ethical-agent serve` perde o contexto que o modelo
+tinha das conversas em curso. Isso não afeta a trilha: cada turno já foi
+gravado em `logs/audit.jsonl` no momento em que aconteceu. A lista lateral de
+conversas anteriores da interface web faz exatamente a reconstrução do
+comando acima (por trás, uma varredura do arquivo, não uma segunda cópia do
+histórico) — mas sempre **somente leitura**: reabrir uma conversa antiga
+nunca a realimenta para o modelo, porque o servidor não tem mais o contexto
+vivo dela depois de reiniciar, e fingir que tem seria enganoso.
 
 **O que o modelo recebe de um turno anterior que foi bloqueado ou
 reescrito** — nunca o conteúdo bruto, sempre `message` (o texto que o
@@ -259,9 +265,9 @@ nada acumula entre turnos na avaliação do guardrail. Ver também a linha
 correspondente em "O que não dá para auditar", abaixo.
 
 **Nota**: turnos da mesma `conversation_id` podem legitimamente ter
-`engine`/`config_versions`/`llm_provenance` diferentes entre si (a GUI
-permite trocar modelo/engine entre turnos) — isso não é uma inconsistência a
-investigar, é o comportamento esperado.
+`engine`/`config_versions`/`llm_provenance` diferentes entre si (a interface
+web permite trocar modelo/engine entre turnos) — isso não é uma
+inconsistência a investigar, é o comportamento esperado.
 
 ### Dois campos que mudam a leitura
 

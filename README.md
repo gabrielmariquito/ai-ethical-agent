@@ -210,8 +210,9 @@ Isso expõe tanto `python -m ethical_agent ...` quanto um script de console
 > `site-packages/ontologies/`, `site-packages/eval/`, irmãos de
 > `ethical_agent/` — e os caminhos padrão continuam resolvendo sem precisar de
 > `--policy`/`--ontology`/`--grounding`/`--norms`/`--dataset` manuais. Isso
-> cobre apenas o pacote `ethical_agent` e o script de console `ethical-agent`;
-> `gui_app.py`, `wizard_gui.py` e `audit_tools.py` são scripts de raiz do
+> cobre o pacote `ethical_agent` inteiro — inclusive `ethical_agent.webui`
+> (interface web, `ethical-agent serve`) — e o script de console
+> `ethical-agent`; `wizard_gui.py` e `audit_tools.py` são scripts de raiz do
 > repositório, não fazem parte do pacote instalado, e continuam exigindo rodar
 > a partir de um clone (ou `pip install -e .`, que é o que `wizard_gui.py` usa
 > ao montar seu próprio venv).
@@ -615,15 +616,16 @@ para accountability e para reproduzir uma decisão depois que a política
 evoluir.
 
 **A trilha é obrigatória** para `check`/`process`/`demo`, tanto na CLI quanto
-na interface gráfica (`gui_app.py`), e o diretório `logs/` é criado pelo
+na interface web (`ethical-agent serve`), e o diretório `logs/` é criado pelo
 instalador (`wizard_gui.py`). Não existe flag, variável de ambiente ou
 checkbox para desligá-la — uma trilha que pode ser desligada não sustenta a
 afirmação de auditabilidade do projeto, porque um log vazio ficaria
 indistinguível de "não houve atividade". O que continua configurável é
-**onde** ela grava (`--audit-log` na CLI, campo equivalente na GUI), nunca
+**onde** ela grava (`--audit-log` na CLI, campo equivalente na interface web), nunca
 **se** ela grava. Na primeira gravação de cada processo é impresso um aviso
-único em `stderr` (e também exibido na GUI, já que uma janela pode não ter
-console visível) informando onde a trilha está sendo gravada; uma falha ao
+único em `stderr` (e também exibido na interface web, já que uma aba de
+navegador pode não ter console visível) informando onde a trilha está sendo
+gravada; uma falha ao
 gravar (ex.: permissão negada) nunca derruba o comando, só gera um aviso
 visível. Ver
 [AUDIT_GUIDE.pt-BR.md](AUDIT_GUIDE.pt-BR.md) para o passo a passo completo e
@@ -637,7 +639,7 @@ gerado nunca é atribuído a `AgentResult.response` nem gravado em
 audit log (`GuardedAgent.process` em `ethical_agent/agent.py`). O que
 permanece, para auditabilidade, é só a evidência normal do veredito (o
 trecho curto que casou com a regra/norma), não o conteúdo completo bloqueado.
-A mesma regra vale para `check --stage output` na CLI/GUI, que constrói o
+A mesma regra vale para `check --stage output` na CLI e na interface web, que constrói o
 registro manualmente (não passa por `GuardedAgent`) mas reproduz a mesma
 lógica. Ver `tests/test_agent.py::test_denied_output_is_never_retained` e
 `tests/test_main.py::test_check_output_stage_denied_content_not_retained`.

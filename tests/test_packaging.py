@@ -34,6 +34,31 @@ EXPECTED_DATA_FILES = {
     "eval/dataset_huggingface_injections.json",
 }
 
+# Unlike EXPECTED_DATA_FILES above, these live *inside* the ethical_agent
+# package on disk (ethical_agent/webui/static/...) and httphandler.py resolves
+# STATIC_DIR relative to its own __file__ -- so, unlike policies/ontologies/
+# eval, these are expected to be nested under ethical_agent/ in the wheel,
+# not shipped as top-level siblings.
+EXPECTED_WEBUI_FILES = {
+    "ethical_agent/webui/static/index.html",
+    "ethical_agent/webui/static/check.html",
+    "ethical_agent/webui/static/demo.html",
+    "ethical_agent/webui/static/eval.html",
+    "ethical_agent/webui/static/css/app.css",
+    "ethical_agent/webui/static/js/api.js",
+    "ethical_agent/webui/static/js/chat.js",
+    "ethical_agent/webui/static/js/check.js",
+    "ethical_agent/webui/static/js/demo.js",
+    "ethical_agent/webui/static/js/eval.js",
+    "ethical_agent/webui/static/js/config-panel.js",
+    "ethical_agent/webui/static/js/nav.js",
+    "ethical_agent/webui/static/js/markdown.js",
+    "ethical_agent/webui/static/js/verdict-view.js",
+    "ethical_agent/webui/static/js/intervention-view.js",
+    "ethical_agent/webui/static/js/sidebar.js",
+    "ethical_agent/webui/static/js/file-browser.js",
+}
+
 
 def _venv_python(venv_dir: Path) -> Path:
     if sys.platform == "win32":
@@ -116,6 +141,63 @@ def test_data_files_reachable_from_clean_install(tmp_path):
             "o = load_default_ontology();"
             "assert len(o.concepts) == 154, len(o.concepts);"
             "Policy.from_file(default_policy_path());"
+            "print('OK')",
+        ],
+        capture_output=True, text=True, cwd=empty_cwd,
+    )
+    assert check.returncode == 0, check.stdout + check.stderr
+    assert "OK" in check.stdout
+
+
+def test_wheel_includes_webui_static_files(tmp_path):
+    src = _clean_repo_copy(tmp_path)
+    out_dir = tmp_path / "out"
+
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "pip", "wheel",
+            str(src), "--no-deps", "--no-build-isolation",
+            "-w", str(out_dir),
+        ],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    wheels = list(out_dir.glob("*.whl"))
+    assert len(wheels) == 1, wheels
+    with zipfile.ZipFile(wheels[0]) as archive:
+        names = set(archive.namelist())
+
+    missing = EXPECTED_WEBUI_FILES - names
+    assert not missing, f"webui static files missing from built wheel: {missing}"
+
+
+def test_webui_server_importable_and_static_dir_reachable_from_clean_install(tmp_path):
+    # Mirrors test_data_files_reachable_from_clean_install above, but for
+    # `ethical-agent serve`: a working import alone wouldn't catch STATIC_DIR
+    # (httphandler.py, resolved relative to its own __file__) pointing at a
+    # directory package-data didn't actually ship.
+    src = _clean_repo_copy(tmp_path)
+    venv_dir = tmp_path / "venv"
+    venv.create(venv_dir, with_pip=True)
+    python = _venv_python(venv_dir)
+
+    empty_cwd = tmp_path / "empty_cwd"
+    empty_cwd.mkdir()
+
+    install = subprocess.run(
+        [str(python), "-m", "pip", "install", str(src)],
+        capture_output=True, text=True, cwd=empty_cwd,
+    )
+    assert install.returncode == 0, install.stdout + install.stderr
+
+    check = subprocess.run(
+        [
+            str(python), "-c",
+            "from ethical_agent.webui.server import make_server;"
+            "from ethical_agent.webui.httphandler import STATIC_DIR;"
+            "assert (STATIC_DIR / 'index.html').is_file(), STATIC_DIR;"
+            "assert (STATIC_DIR / 'js' / 'chat.js').is_file(), STATIC_DIR;"
             "print('OK')",
         ],
         capture_output=True, text=True, cwd=empty_cwd,

@@ -36,9 +36,13 @@ ethical-agent = "ethical_agent.__main__:main"
 # above the installed package, i.e. site-packages root in a non-editable
 # install. Listing them here ships them at that same relative location so
 # `pip install .` (not just `pip install -e .`) produces a working install.
-packages = ["ethical_agent", "policies", "ontologies", "eval"]
+# ethical_agent.webui is a plain subpackage (not implicit -- this project
+# lists packages explicitly rather than using find:), needed so `ethical-agent
+# serve` and its static/*.html|css|js assets survive a non-editable install.
+packages = ["ethical_agent", "ethical_agent.webui", "policies", "ontologies", "eval"]
 
 [tool.setuptools.package-data]
 policies = ["*.json"]
 ontologies = ["*.ttl", "*.json", "*.md"]
 eval = ["*.json"]
+"ethical_agent.webui" = ["static/*.html", "static/css/*.css", "static/js/*.js"]
