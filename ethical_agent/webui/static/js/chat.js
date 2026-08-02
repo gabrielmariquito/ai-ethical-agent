@@ -200,7 +200,7 @@ function renderEmptyState() {
     <div class="ea-empty-state">
       <h1>Ethical Agent</h1>
       <p>Converse com um agente de linguagem protegido por um guardrail ético
-      neurossimbólico. Toda entrada e toda saída gerada passam pelo guardrail
+      simbólico. Toda entrada e toda saída gerada passam pelo guardrail
       antes de chegar até você.</p>
       <p><strong>Toda decisão é registrada em <code>logs/audit.jsonl</code>,
       por design.</strong></p>
