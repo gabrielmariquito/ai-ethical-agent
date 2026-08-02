@@ -27,6 +27,11 @@ GENERIC_SYSTEM_ERROR_REASON = (
     "evaluated (internal error); see the audit log for details"
 )
 
+LLM_FAILURE_REASON = (
+    "the request was denied as a precaution because the model failed to "
+    "generate a response (internal error); see the audit log for details"
+)
+
 
 @dataclass
 class AgentResult:
@@ -47,6 +52,7 @@ class GuardedAgent:
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         refusal_template: str = DEFAULT_REFUSAL,
         output_refusal_template: str = DEFAULT_OUTPUT_REFUSAL,
+        source: Optional[str] = None,
     ):
         self.engine = engine
         self.llm = llm
@@ -54,6 +60,7 @@ class GuardedAgent:
         self.system_prompt = system_prompt
         self.refusal_template = refusal_template
         self.output_refusal_template = output_refusal_template
+        self.source = source
 
     def check(
         self,
@@ -100,12 +107,23 @@ class GuardedAgent:
             safe_input = input_verdict.rewritten_content
             trace["rewritten_input"] = safe_input
 
-        response = self.llm.chat(
-            [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": safe_input},
-            ]
-        )
+        try:
+            response = self.llm.chat(
+                [
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": safe_input},
+                ]
+            )
+        except Exception as exc:
+            trace["llm_error"] = f"{exc.__class__.__name__}: {exc}"
+            result = AgentResult(
+                status="system_error",
+                message=f"Request denied by the ethical guardrail.\n- {LLM_FAILURE_REASON}",
+                response=None,
+                input_verdict=input_verdict,
+                trace=trace,
+            )
+            return self._finish(result)
 
         output_verdict = self.check(response, Stage.OUTPUT, metadata)
         trace["output_verdict"] = output_verdict.to_dict()
@@ -168,12 +186,13 @@ class GuardedAgent:
 
     def _finish(self, result: AgentResult) -> AgentResult:
         if self.audit is not None:
-            self.audit.log(
-                {
-                    "status": result.status,
-                    "engine": self.engine.name,
-                    "config_versions": self.engine.describe_config(),
-                    **result.trace,
-                }
-            )
+            record = {
+                "status": result.status,
+                "engine": self.engine.name,
+                "config_versions": self.engine.describe_config(),
+                **result.trace,
+            }
+            if self.source is not None:
+                record["source"] = self.source
+            self.audit.log(record)
         return result

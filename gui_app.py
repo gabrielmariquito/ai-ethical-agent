@@ -605,8 +605,10 @@ class ProcessTab(ttk.Frame):
                         lines.append("Output verdict:")
                         lines.append(indent(result.output_verdict.explain()))
                 out = "\n".join(lines)
-            system_error = result.input_verdict.system_error or (
-                result.output_verdict is not None and result.output_verdict.system_error
+            system_error = (
+                result.status == "system_error"
+                or result.input_verdict.system_error
+                or (result.output_verdict is not None and result.output_verdict.system_error)
             )
             if banner:
                 out = banner + "\n\n" + out

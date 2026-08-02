@@ -5,7 +5,7 @@ import pytest
 from ethical_agent.agent import GuardedAgent
 from ethical_agent.audit import AuditLogger
 from ethical_agent.engine import PolicyEngine, RuleBasedEngine
-from ethical_agent.llm import MockLLM
+from ethical_agent.llm import LLMClient, MockLLM
 from ethical_agent.policy import Policy
 from ethical_agent.types import Decision, Stage
 
@@ -176,3 +176,28 @@ def test_process_requires_llm(engine):
     agent = GuardedAgent(engine=engine)
     with pytest.raises(RuntimeError, match="requires an LLMClient"):
         agent.process("hello")
+
+
+class _BrokenLLM(LLMClient):
+    def chat(self, messages):
+        raise RuntimeError("boom")
+
+
+def test_llm_failure_produces_system_error_and_audit_record(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=_BrokenLLM(), audit=AuditLogger(log_path))
+    result = agent.process("what is the capital of Brazil?")
+    assert result.status == "system_error"
+    assert result.response is None
+
+    assert log_path.exists()
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert record["status"] == "system_error"
+    assert "boom" in record["llm_error"]
+
+
+def test_llm_failure_does_not_leak_exception_to_user(engine):
+    agent = GuardedAgent(engine=engine, llm=_BrokenLLM())
+    result = agent.process("what is the capital of Brazil?")
+    assert result.status == "system_error"
+    assert "boom" not in result.message
