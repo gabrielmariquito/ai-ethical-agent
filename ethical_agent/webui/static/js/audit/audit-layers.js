@@ -365,6 +365,12 @@ export function renderLayer2(detail, handlers) {
           )
         );
         details.appendChild(summary);
+        // The sibling block above carries its own ea-audit-label next to the
+        // text it describes. Without one here, an open <details> shows a bare
+        // quote whose only identification is back up in the summary line --
+        // the reader has to remember what they clicked. This is a label, not
+        // a second note: the asymmetry note stays the only note in this layer.
+        details.appendChild(el("p", "ea-audit-label", "Resposta original do modelo:"));
         details.appendChild(quoted(texts.raw_response));
         details.addEventListener("toggle", () => {
           if (details.open && handlers && handlers.onLayer) handlers.onLayer("raw_response");

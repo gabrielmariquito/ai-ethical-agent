@@ -144,3 +144,74 @@ def test_redacted_evidence_says_so_instead_of_rendering_silence(verdict_view):
     assert "removido pela própria redação" in verdict_view
     assert "function renderEvidence(evidence, redacted)" in verdict_view
     assert "renderEvidence(match.evidence, match.redacted)" in verdict_view
+
+
+# ------------------------------------------- "antes e depois" da saída
+#
+# WHAT THESE DO NOT GUARANTEE, stated plainly because the instrument is
+# crude: they read JavaScript as text. They cannot tell you the branch
+# renders, that the DOM nests correctly, that the label is visible, or that
+# the wording reads well -- only that the structural decisions below are
+# still in the file. A rewrite that keeps every string and breaks the render
+# passes all of them.
+#
+# They exist anyway because of a measured gap: across 109 real records in
+# logs/audit.jsonl, the "Ver o texto original" branch rendered zero times.
+# It needs a record carrying BOTH rewritten_output and raw_response, i.e. an
+# output-stage rewrite by template with no redact rule alongside (redaction
+# is sticky -- Verdict.suppresses_raw_content -- and correctly withholds the
+# raw value). Real traffic has only produced the redact case. So this is the
+# one branch of the audit screen that no test and no usage exercises, and a
+# break here would stay silent until someone opened the screen on a record
+# that has never yet existed. test_webui_audit_view.py covers the DTO that
+# feeds it; nothing covered the consumer.
+
+
+@pytest.fixture(scope="module")
+def before_after(layers: str) -> str:
+    """Just the output-rewrite branch: `if (rewroteOutput) {` up to the
+    `else if (redactedOutput)` that follows it."""
+    start = layers.index("    if (rewroteOutput) {")
+    return layers[start : layers.index("    } else if (redactedOutput) {", start)]
+
+
+def test_the_original_is_offered_only_for_an_output_rewrite(layers):
+    # raw_response is the answer to the *already rewritten* prompt, so on an
+    # input rewrite it is not an "original" of anything and offering it there
+    # would mislabel the evidence. The input branch must not touch it.
+    start = layers.index("    if (rewroteInput) {")
+    input_branch = layers[start : layers.index("    if (rewroteOutput) {", start)]
+    assert "raw_response" not in input_branch
+
+
+def test_the_branch_distinguishes_absent_from_present_and_null(before_after):
+    # detail_from_record reports the two separately on purpose: a record
+    # without the key and a record with an explicit null are different facts,
+    # and only the first is the redaction case the absence note explains.
+    # Gating on presence alone would render an empty quote for the second.
+    assert "texts.raw_response_present && texts.raw_response !== null" in before_after
+
+
+def test_both_texts_carry_their_own_label(before_after):
+    # The delivered text has always had one. The original did not: with the
+    # <details> open, the quote's only identification was the summary line
+    # above it, which the reader has to remember having clicked.
+    assert 'el("p", "ea-audit-label", "Resposta entregue à pessoa:")' in before_after
+    assert 'el("p", "ea-audit-label", "Resposta original do modelo:")' in before_after
+
+
+def test_the_missing_original_is_explained_rather_than_left_blank(before_after):
+    # The absence is the redaction working. Saying nothing here reads as the
+    # screen hiding something, which is the opposite of the claim it makes.
+    assert "ea-audit-absent" in before_after
+    assert "Não é esta tela que o esconde." in before_after
+
+
+def test_the_label_did_not_become_a_second_note(before_after):
+    # The one-note rule from the asymmetry above applies here too: this block
+    # gets a label, not an explanation of its own. Scoped to the branch on
+    # purpose -- a whole-file count of the note helper is what the sibling
+    # test does, and it is brittle enough that a *comment* naming the helper
+    # trips it.
+    assert before_after.count('el("details"') == 1
+    assert "asymmetryNote" not in before_after
