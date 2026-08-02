@@ -68,10 +68,29 @@ def test_email_e_telefone_na_mesma_frase_somem_os_dois(engine):
         ("CPF rotulado", "o CPF dele e 12345678900"),
         ("CPF com dois-pontos", "CPF: 12345678900"),
         ("cpf minúsculo", "cpf 12345678900"),
+        ("CPF com rótulo distante", "O CPF do titular e 12345678900"),
+        ("CPF do cliente", "CPF do cliente: 12345678900"),
     ],
 )
 def test_formatos_brasileiros_sao_redigidos(engine, nome, texto):
     assert _redigido(engine, texto), nome
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "Para o cadastro voce precisa do CPF. O numero do pedido e 12345678900.",
+        "O CPF e obrigatorio. Ja o codigo de rastreio, 12345678900, chega depois.",
+        "Sobre CPF\nO numero 12345678900 e do pedido.",
+    ],
+)
+def test_o_rotulo_do_cpf_nao_vale_de_outra_frase(engine, texto):
+    # A âncora é proximidade, e proximidade tem de respeitar fronteira de
+    # frase. Uma janela cega de N caracteres casa "precisa do CPF. O número do
+    # pedido é 12345678900" -- rótulo numa frase, número noutro assunto. O
+    # padrão proíbe atravessar `.`, `?`, `!` e quebra de linha.
+    v = _saida(engine, texto)
+    assert v.decision is Decision.ALLOW, f"casou atravessando frase: {v.rewritten_content}"
 
 
 # --------------------------------- os formatos antigos continuam cobertos

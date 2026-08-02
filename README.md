@@ -395,7 +395,7 @@ print(result.message)
 Este projeto usa **três** datasets de avaliação com propósitos deliberadamente
 diferentes, e os resultados só fazem sentido lidos junto com essa distinção:
 
-- **[`eval/dataset.json`](eval/dataset.json)** (47 casos, EN/pt-BR) foi escrito
+- **[`eval/dataset.json`](eval/dataset.json)** (57 casos, EN/pt-BR) foi escrito
   pela mesma pessoa e no mesmo momento em que as regras
   (`policies/core_policy.json`) e o léxico de grounding
   (`ontologies/relaieo_grounding.json`) foram calibrados. Frases diretas,
@@ -440,22 +440,35 @@ o BeaverTails encontrou falsos positivos reais (ver abaixo).
 
 ## Resultados da avaliação
 
-`python -m ethical_agent eval [--dataset ...]`, execução real em 2026-07-31
-(política v0.2.1, RelAIEO com grounding v0.1.1 / normas v0.2.0):
+`python -m ethical_agent eval [--dataset ...]`, execução real em 2026-08-02
+(política v0.3.0, dataset in-distribution v0.3.0, RelAIEO com grounding v0.1.1
+/ normas v0.2.0):
 
-### `eval/dataset.json` — 47 casos, in-distribution
+### `eval/dataset.json` — 57 casos, in-distribution
 
 Os 6 casos `REL-*` exigem a camada de knowledge-graph do RelAIEO e são o
 ganho mensurável do item #2 nesse dataset:
 
 | Métrica | `--engine rule` (só #1) | `--engine kg` (só #2) | `--engine hybrid` (#1+#2) |
 |---------|------------------------|------------------------|-----------------------------|
-| Acurácia binária | 0.872 | 0.468 | **1.000** |
+| Acurácia binária | 0.877 | 0.421 | **0.982** |
 | Precisão | 1.000 | 1.000 | **1.000** |
-| Recall | 0.806 | 0.194 | **1.000** |
-| F1 | 0.893 | 0.324 | **1.000** |
-| Confusão (TP/FP/FN/TN) | 25/0/6/16 | 6/0/25/16 | 31/0/0/16 |
-| Acurácia de decisão exata | 0.872 | 0.468 | **1.000** |
+| Recall | 0.821 | 0.154 | **0.974** |
+| F1 | 0.901 | 0.267 | **0.987** |
+| Confusão (TP/FP/FN/TN) | 32/0/7/18 | 6/0/33/18 | 38/0/1/18 |
+| Acurácia de decisão exata | 0.877 | 0.421 | **0.982** |
+
+> [!NOTE]
+> **A híbrida deixou de marcar 1.000, e isso é intencional.** Em 2026-08-02 o
+> dataset passou de 47 para 57 casos, com dez cenários de PII brasileira que
+> antes não existiam aqui. Um deles, `PRIV-016`, **falha de propósito**: é um
+> CPF sem pontuação e sem rótulo, que uma engine de regex pura não alcança sem
+> casar número de pedido e identificador junto. O `expected_decision` registra
+> o que o guardrail *deveria* fazer, não o que ele faz — um dataset que só
+> contém o que as regras já acertam não mede nada, e o 1.000 anterior media
+> em parte isso. `PRIV-014` e `PRIV-015` são o oposto: fronteiras que a
+> política decidiu não cruzar (CNPJ, CEP), com passagem esperada, para que
+> cobri-las depois seja ato deliberado.
 
 ### `eval/dataset_huggingface_injections.json` — 662 casos, externo (deepset/prompt-injections)
 
@@ -679,7 +692,7 @@ ontologies/
 ├── relaieo_norms.json           # nossas normas de verificação (RQ3)
 └── PROVENANCE.md                # proveniência e licença
 eval/
-├── dataset.json                       # 47 casos in-distribution (usados para calibrar as regras)
+├── dataset.json                       # 57 casos in-distribution (usados para calibrar as regras)
 ├── dataset_huggingface_injections.json  # 662 casos externos (deepset/prompt-injections, HF)
 └── dataset_beavertails.json           # 220 casos externos (PKU-Alignment/BeaverTails, HF)
 examples/demo.py                       # exemplo mínimo de uso da biblioteca
