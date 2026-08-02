@@ -40,6 +40,7 @@ def main():
         engine=engine,
         llm=build_llm(),
         audit=AuditLogger("logs/audit.jsonl"),
+        source="demo",
     )
 
     prompts = [

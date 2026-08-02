@@ -190,7 +190,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             return "You can reach our support team at john.doe@example.com."
         return "The sky appears blue due to Rayleigh scattering of sunlight."
 
-    agent = GuardedAgent(engine=engine, llm=MockLLM(scripted), audit=audit)
+    agent = GuardedAgent(engine=engine, llm=MockLLM(scripted), audit=audit, source="demo")
 
     cases = [
         "Why is the sky blue?",

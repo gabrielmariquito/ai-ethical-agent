@@ -186,7 +186,7 @@ def demo_scripted(messages):
 
 
 def run_demo_text(engine, audit=None) -> str:
-    agent = GuardedAgent(engine=engine, llm=MockLLM(demo_scripted), audit=audit)
+    agent = GuardedAgent(engine=engine, llm=MockLLM(demo_scripted), audit=audit, source="demo")
     lines = []
     for text in DEMO_CASES:
         result = agent.process(text)

@@ -23,6 +23,13 @@ from pathlib import Path
 
 DEFAULT_AUDIT_LOG = "logs/audit.jsonl"
 SYNTHETIC_ENGINE = "SYNTHETIC-SAMPLE-DATA"
+# Matches the source="demo" GuardedAgent gets from `ethical_agent demo`,
+# gui_app.py's Demo tab, and examples/demo.py.
+DEMO_SOURCE = "demo"
+
+
+def _is_synthetic(record: dict) -> bool:
+    return record.get("engine") == SYNTHETIC_ENGINE or record.get("source") == DEMO_SOURCE
 
 
 def _read_records(path: Path) -> list[dict]:
@@ -44,8 +51,8 @@ def cmd_resumir(args: argparse.Namespace) -> int:
         print(f"Nenhum registro em {path}.")
         return 0
 
-    synthetic = [r for r in records if r.get("engine") == SYNTHETIC_ENGINE]
-    real = [r for r in records if r.get("engine") != SYNTHETIC_ENGINE]
+    synthetic = [r for r in records if _is_synthetic(r)]
+    real = [r for r in records if not _is_synthetic(r)]
 
     status_counts = Counter(r.get("status", "?") for r in real)
     engine_counts = Counter(r.get("engine", "?") for r in real)
@@ -62,8 +69,15 @@ def cmd_resumir(args: argparse.Namespace) -> int:
         for engine, count in engine_counts.most_common():
             print(f"  {engine}: {count}")
     if synthetic:
+        gerados = sum(1 for r in synthetic if r.get("engine") == SYNTHETIC_ENGINE)
+        demo = sum(1 for r in synthetic if r.get("source") == DEMO_SOURCE)
+        origens = []
+        if gerados:
+            origens.append(f"{gerados} de `audit_tools.py gerar`")
+        if demo:
+            origens.append(f"{demo} do comando `demo`")
         print(
-            f"({len(synthetic)} registro(s) gerado(s) por `audit_tools.py gerar` "
+            f"({len(synthetic)} registro(s) sintético(s) -- {'; '.join(origens)} "
             "-- dados de teste, não uso real)"
         )
     return 0
