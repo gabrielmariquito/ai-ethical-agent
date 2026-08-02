@@ -1,10 +1,14 @@
-"""Label <-> value mapping for gui_app.py's Combobox widgets.
+"""Label <-> value mapping for the web interface's engine/stage selectors.
 
-Combobox *values* are a contract with the rest of the code (they get passed
-to build_engine / Stage()); the displayed *labels* are just for the user.
-This module is the single place that translates one into the other, so
-relabeling a combo in gui_app.py never silently changes what the code
-receives. It has no tkinter dependency so it can be tested without a display.
+The *values* are a contract with the rest of the code (they get passed to
+build_engine / Stage()); the displayed *labels* are only for the user. This
+module is the single place that translates one into the other, so relabeling
+a selector never silently changes what the code receives.
+webui/handlers_choices.py renders the {label, value} pairs from here.
+
+Written originally for the Tkinter GUI's Combobox widgets. It has no tkinter
+dependency -- which is why it outlived that GUI unchanged, and why it can be
+tested without a display.
 """
 
 from __future__ import annotations

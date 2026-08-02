@@ -296,6 +296,10 @@ python -m ethical_agent --engine kg   check "algum texto"     # só RelAIEO KG
 # Demo offline do pipeline completo (MockLLM, sem rede)
 python -m ethical_agent demo
 
+# Interface web local (127.0.0.1 apenas): chat, Check, Demo, Eval e /audit
+python -m ethical_agent serve
+python -m ethical_agent serve --port 9000
+
 # Processar um prompt pelo pipeline completo (guardrail + LLM), mostrando status e resposta
 python -m ethical_agent process "Por que o céu é azul?"
 python -m ethical_agent process "algum texto" --model llama3.2:3b   # escolher modelo Ollama
@@ -635,7 +639,11 @@ configuração padrão, e não como voto auxiliar
 
 ```
 pyproject.toml                   # empacotamento (pip install -e .), console script ethical-agent
-wizard_gui.py                     # instalador gráfico (Tkinter), empacotável via PyInstaller
+wizard_gui.py                    # instalador gráfico (Tkinter), empacotável via PyInstaller
+uninstall.py                     # desinstalador -- único ponto de entrada (abre a janela se houver)
+uninstall_gui.py                 # a janela do desinstalador (detalhe de uninstall.py)
+audit_tools.py                   # inspeção do log de auditoria: `resumir` e `gerar`
+AUDIT_GUIDE.pt-BR.md             # guia de auditoria passo a passo
 ethical_agent/
 ├── types.py        # Decision/Severity/Stage, ActionContext, Verdict, evidências
 ├── conditions.py   # AST simbólica de condições + registro extensível
@@ -645,11 +653,24 @@ ethical_agent/
 ├── engine.py       # PolicyEngine, RuleBasedEngine, CompositeEngine, describe_config()
 ├── kg_engine.py    # KnowledgeGraphEngine (normas + provocações RelAIEO)
 ├── agent.py        # pipeline GuardedAgent (entrada → LLM → saída)
-├── llm.py          # LLMClient, MockLLM, OllamaClient
-├── llm_judge.py    # engine experimental LLM-juiz
+├── llm.py          # LLMClient, MockLLM, OllamaClient, resolve_llm + proveniência
+├── llm_judge.py    # engine experimental LLM-juiz (fora da configuração padrão)
 ├── audit.py        # logger de auditoria JSONL (versionado por config_versions)
 ├── evaluate.py     # harness de avaliação (RQ5)
-└── __main__.py     # CLI: check | demo | process | eval (--engine rule|kg|hybrid)
+├── demo.py         # os 7 prompts do demo + respondedor MockLLM, compartilhados
+├── gui_choices.py  # rótulo ↔ valor dos seletores de engine/stage
+├── ollama_install.py    # helpers puros do passo Ollama do instalador
+├── install_progress.py  # plano de fases e aritmética da barra de progresso
+├── install_record.py    # o que o instalador fez, lido depois pelo desinstalador
+├── uninstall.py    # a lógica de desinstalação (plano + execução), sem interface
+├── _stdio.py       # stdout/stderr em UTF-8 (bug cp1252 no Windows)
+├── webui/          # interface web (`ethical-agent serve`), stdlib http.server
+│   ├── server.py httphandler.py routing.py state.py   # servidor, rotas, estado
+│   ├── engine_factory.py dto.py errors.py progress.py # construção e serialização
+│   ├── handlers_{chat,check,demo,eval,browse,choices,history,audit}.py
+│   ├── auth.py auditor_log.py audit_view.py archive.py # tela /audit e a trilha
+│   └── static/     # HTML/CSS/JS servidos ao navegador
+└── __main__.py     # CLI: check | demo | process | eval | serve (--engine rule|kg|hybrid)
 
 policies/core_policy.json        # política auditável (camada #1)
 ontologies/
@@ -660,10 +681,9 @@ ontologies/
 eval/
 ├── dataset.json                       # 47 casos in-distribution (usados para calibrar as regras)
 ├── dataset_huggingface_injections.json  # 662 casos externos (deepset/prompt-injections, HF)
-├── build_huggingface_dataset.py       # script que gera o dataset acima a partir do HF
-├── dataset_beavertails.json           # 220 casos externos (PKU-Alignment/BeaverTails, HF)
-└── build_beavertails_dataset.py       # script que gera o dataset acima a partir do HF
-tests/                                 # 74 testes (parser TTL, engines, pipeline, baseline, HF)
+└── dataset_beavertails.json           # 220 casos externos (PKU-Alignment/BeaverTails, HF)
+examples/demo.py                       # exemplo mínimo de uso da biblioteca
+tests/                                 # 600 testes (parser TTL, engines, pipeline, web, instalador)
 ```
 
 ## Registro de auditoria e versionamento de configuração

@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import List
 
 # The same 7 prompts and scripted MockLLM responder used by the CLI's
-# `ethical_agent demo` and (until it's removed) gui_app.py's Demo tab --
-# extracted here so the two stop being copy-pasted duplicates of each other
-# and so the web interface's Demo screen can reuse them too, the same way
+# `ethical_agent demo` and the web interface's Demo screen
+# (webui/handlers_demo.py) -- extracted here so the two stop being
+# copy-pasted duplicates of each other, the same way
 # audit.build_check_audit_record replaced a duplicated function.
 DEMO_CASES = [
     "Why is the sky blue?",

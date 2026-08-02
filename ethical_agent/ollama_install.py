@@ -13,10 +13,11 @@ the current working directory pytest is run from -- a bare module at the
 repo root is not reliably importable when the CWD differs from the repo
 root, which previously broke test_gui_audit.py.
 
-Pending, deliberately out of scope here: `process` can now end up answering
-from Ollama local, Ollama Cloud, or MockLLM fallback, but neither the CLI/GUI
-output nor the audit record (GuardedAgent._finish in agent.py) says which one
-actually produced a given response. That's a separate change.
+`process` can answer from Ollama local, Ollama Cloud, or the MockLLM
+fallback. Which one actually produced a given response is not left implicit:
+llm.resolve_llm classifies it, llm.describe_llm_provenance prints it, and
+GuardedAgent._finish (agent.py) stores it in every audit record under
+`llm_provenance`.
 """
 
 from __future__ import annotations

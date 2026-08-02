@@ -1,6 +1,6 @@
 """Guarantees the repo root is on sys.path so tests can import root-level
-modules (audit_tools, snapshot, comparar) directly, regardless of the
-directory or import-mode pytest is invoked with.
+modules (audit_tools, uninstall, uninstall_gui, wizard_gui) directly,
+regardless of the directory or import-mode pytest is invoked with.
 """
 import sys
 from pathlib import Path

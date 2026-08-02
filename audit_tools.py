@@ -25,8 +25,8 @@ from ethical_agent._stdio import ensure_utf8_stdio
 
 DEFAULT_AUDIT_LOG = "logs/audit.jsonl"
 SYNTHETIC_ENGINE = "SYNTHETIC-SAMPLE-DATA"
-# Matches the source="demo" GuardedAgent gets from `ethical_agent demo`,
-# gui_app.py's Demo tab, and examples/demo.py.
+# Matches the source="demo" GuardedAgent gets from `ethical_agent demo`, the
+# web interface's Demo screen, and examples/demo.py.
 DEMO_SOURCE = "demo"
 
 

@@ -25,9 +25,9 @@ from .relaieo import (
 )
 from .types import ActionContext, Stage
 
-# Same reasoning as gui_app.py's DEFAULT_MODEL: if the wizard installed a
-# local model it recorded it in <repo root>/.env (OLLAMA_MODEL=...); default
-# to that instead of a model that was never actually pulled. `parent.parent`
+# If the wizard installed a local model it recorded it in <repo root>/.env
+# (OLLAMA_MODEL=...); default to that instead of a model that was never
+# actually pulled. `parent.parent`
 # only lands on the repo root for an editable checkout (the wizard's own
 # install flow) -- for a non-editable install it resolves inside
 # site-packages, where no .env exists, so this just falls back to the

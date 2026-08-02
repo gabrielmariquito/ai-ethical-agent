@@ -33,10 +33,6 @@ def _audit_log_path(state) -> Path:
     return Path(state.initial_config.get("audit_log") or "logs/audit.jsonl")
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def _record_event(state, session_id: Optional[str], event_type: str, payload: dict) -> None:
     logger = state.auditor_logger
     if logger is None:
