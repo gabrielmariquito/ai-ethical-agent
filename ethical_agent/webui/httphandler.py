@@ -16,25 +16,38 @@ STATIC_DIR = (Path(__file__).resolve().parent / "static").resolve()
 # lives directly under static/.
 PAGES = {
     "/": "index.html",
-    "/check": "check.html",
-    "/demo": "demo.html",
-    "/eval": "eval.html",
 }
 
 # Pages and static assets that only exist when their realm is configured.
 # Deliberately NOT merged into PAGES: a separate table is a separate lookup,
 # and a separate lookup is one that cannot be reached without passing the
-# gate. Someone adding a sixth ordinary page to PAGES gets no chance to
+# gate. Someone adding another ordinary page to PAGES gets no chance to
 # accidentally add a gated one.
-GATED_PAGES = {"/audit": ("audit.html", "audit")}
+#
+# The third field is whether a *session* is also required. /audit is the one
+# entry that says False: it is the login shell itself, contains no records,
+# and something has to be reachable for the auditor to sign in through. The
+# tools have no login shell of their own, so for them "no session" and "not
+# there" are the same answer.
+GATED_PAGES = {
+    "/audit": ("audit.html", "audit", False),
+    "/check": ("check.html", "audit", True),
+    "/demo": ("demo.html", "audit", True),
+    "/eval": ("eval.html", "audit", True),
+}
 
-# ... and the same for the screen's own JS/CSS. Gating the routes and the
-# page but not the assets would leave the whole audit frontend readable in
-# chat mode, which is why every audit module lives under static/js/audit/:
-# one prefix to gate instead of nine filenames to remember.
+# ... and the same for those screens' own JS/CSS. Gating the routes and the
+# page but not the assets would leave the whole frontend readable in chat
+# mode, which is why the modules live under two prefixes: one to gate instead
+# of a dozen filenames to remember.
+#
+# js/audit/ is realm-gated but NOT session-gated, because audit.html loads it
+# to draw the login form. js/tools/ is both: nothing there is reachable
+# before signing in, so nothing there should answer before signing in.
 GATED_ASSET_PREFIXES = (
-    ("js/audit/", "audit"),
-    ("css/audit.css", "audit"),
+    ("js/audit/", "audit", False),
+    ("css/audit.css", "audit", False),
+    ("js/tools/", "audit", True),
 )
 
 AUDIT_SESSION_COOKIE = "ea_audit_session"
@@ -78,6 +91,12 @@ def make_handler(state) -> type:
             self._dispatch("POST")
 
         def _dispatch(self, method: str) -> None:
+            # Reset per REQUEST, not per instance: with HTTP/1.1 keep-alive one
+            # Handler serves several requests on the same connection, and a
+            # session cached across them would outlive the cookie that proved
+            # it.
+            self._session_resolved = False
+            self._session = None
             parsed = urllib.parse.urlsplit(self.path)
             path = urllib.parse.unquote(parsed.path)
             # Query params are merged into the same `params` dict a handler
@@ -92,7 +111,9 @@ def make_handler(state) -> type:
                 if not k.startswith(_RESERVED_PARAM_PREFIX)
             }
 
-            matched, path_params, path_known = routing.match(method, path, state.realm_enabled)
+            matched, path_params, path_known = routing.match(
+                method, path, state.realm_enabled, self._has_session
+            )
             if matched is not None:
                 params = {**query_params, **(path_params or {})}
                 if not self._authorize(matched, params):
@@ -116,12 +137,16 @@ def make_handler(state) -> type:
                 return
             gated = GATED_PAGES.get(path)
             if gated is not None:
-                filename, realm = gated
-                if state.realm_enabled(realm):
-                    # Served without a session on purpose: this is the login
-                    # shell, and it contains no records. Every data endpoint
-                    # behind it still answers 401. Documented as the one
-                    # deliberate exception to "the screen does not exist".
+                filename, realm, needs_session = gated
+                if state.realm_enabled(realm) and (
+                    not needs_session or self._has_session()
+                ):
+                    # /audit is served without a session on purpose: it is the
+                    # login shell, and it contains no records. Every data
+                    # endpoint behind it still answers 401. That is the one
+                    # deliberate exception to "the screen does not exist" --
+                    # the tool pages get no such exception, because there is
+                    # nothing for an unauthenticated caller to do on them.
                     self._serve_static(filename)
                     return
             self._not_found(method, path)
@@ -157,7 +182,20 @@ def make_handler(state) -> type:
             params["_session_token"] = session.token
             return True
 
+        def _has_session(self) -> bool:
+            """Zero-arg predicate for routing.match / the gated tables.
+            Memoized for the current request so a path that consults it twice
+            (route lookup, then _authorize) parses the cookie once."""
+            return self._resolve_session() is not None
+
         def _resolve_session(self):
+            if self._session_resolved:
+                return self._session
+            self._session_resolved = True
+            self._session = self._resolve_session_uncached()
+            return self._session
+
+        def _resolve_session_uncached(self):
             raw = self.headers.get("Cookie")
             if not raw:
                 return None
@@ -230,8 +268,12 @@ def make_handler(state) -> type:
         def _serve_static(self, rel_path: str) -> None:
             if not rel_path:
                 rel_path = "index.html"
-            for prefix, realm in GATED_ASSET_PREFIXES:
-                if rel_path.startswith(prefix) and not state.realm_enabled(realm):
+            for prefix, realm, needs_session in GATED_ASSET_PREFIXES:
+                if not rel_path.startswith(prefix):
+                    continue
+                if not state.realm_enabled(realm) or (
+                    needs_session and not self._has_session()
+                ):
                     # Must be byte-identical to the "no such static file"
                     # answer a few lines below, not to the API 404 -- a
                     # distinctive wording here would announce that the file

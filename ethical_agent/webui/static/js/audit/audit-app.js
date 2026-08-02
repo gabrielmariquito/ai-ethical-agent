@@ -73,6 +73,9 @@ async function startSession(session) {
   els.login.hidden = true;
   els.app.hidden = false;
 
+  // The session just became real, so the evaluator's tools exist now. No
+  // request needed to find that out -- being here is the answer.
+  renderNav(els.nav, "/audit", { auditEnabled: true, sessionActive: true });
   renderSessionBanner(els.sessionBanner, session);
   installTelemetry();
   sessionStarted({
@@ -94,7 +97,9 @@ async function startSession(session) {
 async function init() {
   // auditEnabled is true by definition here: this page only exists when the
   // realm is configured (httphandler's GATED_PAGES), so reaching this code
-  // at all means the item should link.
+  // at all means the item should link. sessionActive is deliberately left
+  // unset until login succeeds -- this render is the one the login form sits
+  // under, and the tools do not exist yet for whoever is looking at it.
   renderNav(els.nav, "/audit", { auditEnabled: true });
   renderCaveat(els.caveatLogin);
   createLogin(

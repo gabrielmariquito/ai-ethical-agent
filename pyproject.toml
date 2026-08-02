@@ -50,4 +50,5 @@ eval = ["*.json"]
     "static/css/*.css",
     "static/js/*.js",
     "static/js/audit/*.js",
+    "static/js/tools/*.js",
 ]

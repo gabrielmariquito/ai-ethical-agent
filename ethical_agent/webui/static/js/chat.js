@@ -1,6 +1,6 @@
 import { getJSON, postJSON, showErrorBanner, ApiError } from "./api.js";
 import { renderMarkdown, escapeHtml } from "./markdown.js";
-import { renderNav } from "./nav.js";
+import { probeSessionActive, renderNav } from "./nav.js";
 import { initConfigPanel } from "./config-panel.js";
 import { initSidebar } from "./sidebar.js";
 import { interventionKind, renderIntervention } from "./intervention-view.js";
@@ -413,8 +413,14 @@ async function init() {
   try {
     configPanel = await initConfigPanel(els.configPanel, els.configToggle);
     // Re-render now that we know whether the audit screen exists on this
-    // server (initConfigPanel already fetched /api/choices).
-    renderNav(els.nav, "/", { auditEnabled: configPanel.auditScreenEnabled });
+    // server (initConfigPanel already fetched /api/choices) and whether this
+    // browser holds an audit session. The employee's chat has neither, and
+    // renders one item; the evaluator's has both, and renders all five.
+    const sessionActive = await probeSessionActive(configPanel.auditScreenEnabled);
+    renderNav(els.nav, "/", {
+      auditEnabled: configPanel.auditScreenEnabled,
+      sessionActive,
+    });
     setStatus(statusFromConfig());
   } catch (err) {
     showErrorBanner(els.bannerHost, err);

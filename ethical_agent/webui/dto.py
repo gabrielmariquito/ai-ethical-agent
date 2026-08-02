@@ -86,6 +86,45 @@ def agent_result_summary(result: AgentResult) -> dict:
     }
 
 
+_MATCH_FIELDS_FOR_CHAT = ("rule_id", "principle", "deontic", "severity", "effect", "hard")
+
+
+def _verdict_without_evidence(verdict: Optional[dict]) -> Optional[dict]:
+    """The chat's view of a verdict: which rule, on what grounds, how grave --
+    and nothing about *how* the rule decides.
+
+    The employee is told a rule applied, its principle, its deontic force and
+    its severity. Not the excerpt that matched, not where in their text it
+    matched, not the condition. Each of those is a step of a bypass: the
+    excerpt names the trigger, the span narrows it, and the condition -- for a
+    rule with a `not` clause -- hands over the phrase that switches the rule
+    off. The evaluator's screens (Check, Demo, Eval, /audit) keep all of it,
+    which is what the audit realm now separates.
+
+    `rationale` stays: it is prose written by the policy author about why the
+    norm exists, which is what someone whose message was intervened on is
+    owed. `suppressed` goes entirely -- its `reason` carries the exception
+    text that matched, i.e. a working bypass, already found.
+
+    Applied here rather than in verdict-view.js because chat.js's "Copiar
+    registro" serializes the whole turn object to the clipboard: hiding this
+    in the renderer would leave it one Ctrl+V away. Same reason
+    _response_safe_for_display sits at this layer.
+    """
+    if verdict is None:
+        return None
+    trimmed = dict(verdict)
+    trimmed["matches"] = [
+        {
+            **{k: m.get(k) for k in _MATCH_FIELDS_FOR_CHAT},
+            "rationale": m.get("rationale"),
+        }
+        for m in verdict.get("matches") or []
+    ]
+    trimmed["suppressed"] = []
+    return trimmed
+
+
 def turn_result_to_dict(
     result: AgentResult,
     llm_provenance: dict,
@@ -93,6 +132,8 @@ def turn_result_to_dict(
     audit_notices: List[str],
 ) -> dict:
     summary = agent_result_summary(result)
+    summary["input_verdict"] = _verdict_without_evidence(summary["input_verdict"])
+    summary["output_verdict"] = _verdict_without_evidence(summary["output_verdict"])
     summary.update(
         {
             "response": _response_safe_for_display(result),

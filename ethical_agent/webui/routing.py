@@ -16,6 +16,12 @@ from typing import Callable, List, Optional, Pattern, Tuple
 # request for one is indistinguishable from a request for a path nobody ever
 # registered -- see the comment in match() for why that ordering is the whole
 # point rather than a detail.
+#
+# The "audit" realm covers more than the audit screen: the Check, Demo and
+# Eval tools live behind it too. They are the evaluator's instruments, not
+# the employee's -- Eval alone returns, per mismatched case, the content and
+# the rules that fired, which is the cheapest way to map where the policy
+# gives. One realm, not two: the axis is the role, and there is only one.
 ROUTES: List["Route"] = []
 
 _PARAM_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -28,6 +34,18 @@ class Route:
     handler: Callable
     realm: Optional[str] = None
     requires_session: bool = False
+    hidden_without_session: bool = False
+    """Answer 404 (not 401) to a caller with no session, by being skipped in
+    match() before path_known -- the same treatment a disabled realm gets.
+
+    Deliberately NOT the default for requires_session routes. /api/audit/*
+    answers 401 because /audit is a login screen: it has to tell "you are not
+    signed in" apart from "this does not exist", or it cannot decide whether
+    to show the form. Check/Demo/Eval have no login shell of their own, so
+    nothing needs that distinction and there is no reason to confirm the
+    endpoint to someone who cannot use it. The criterion is "a route with no
+    front door of its own does not announce itself", which is what makes this
+    one rule rather than two."""
 
 
 def _compile_pattern(path: str) -> Pattern[str]:
@@ -38,7 +56,13 @@ def _compile_pattern(path: str) -> Pattern[str]:
     return re.compile(f"^{regex_str}$")
 
 
-def route(method: str, path: str, realm: Optional[str] = None, requires_session: bool = False):
+def route(
+    method: str,
+    path: str,
+    realm: Optional[str] = None,
+    requires_session: bool = False,
+    hidden_without_session: bool = False,
+):
     """Decorator: @route("GET", "/api/chat/{conversation_id}") registers a
     handler with signature handler(state, params: dict, body: dict).
 
@@ -46,19 +70,32 @@ def route(method: str, path: str, realm: Optional[str] = None, requires_session:
     comment). `requires_session` asks httphandler to reject the request with
     401 unless the caller presented a valid session for that realm -- the
     check is central, in the dispatcher, so that a handler added later cannot
-    forget to perform it.
+    forget to perform it. `hidden_without_session` upgrades that rejection to
+    a 404 in match(); see Route's own docstring for when that is right.
     """
     pattern = _compile_pattern(path)
 
     def decorator(handler: Callable) -> Callable:
-        ROUTES.append(Route(method.upper(), pattern, handler, realm, requires_session))
+        ROUTES.append(
+            Route(
+                method.upper(),
+                pattern,
+                handler,
+                realm,
+                requires_session,
+                hidden_without_session,
+            )
+        )
         return handler
 
     return decorator
 
 
 def match(
-    method: str, path: str, realm_enabled: Optional[Callable[[str], bool]] = None
+    method: str,
+    path: str,
+    realm_enabled: Optional[Callable[[str], bool]] = None,
+    has_session: Optional[Callable[[], bool]] = None,
 ) -> Tuple[Optional["Route"], Optional[dict], bool]:
     """Returns (route, params, path_known). `path_known` is True if some
     route's path pattern matched regardless of method, so callers can tell
@@ -68,12 +105,18 @@ def match(
     all right now; None means "every realm is enabled" (used by tests that
     exercise the router directly).
 
-    A route in a disabled realm is skipped *before* path_known is set. That
-    ordering is load-bearing, not tidiness: if it were skipped afterwards, a
-    POST to a GET-only audit path would answer 405 instead of 404 and thereby
-    confirm the endpoint exists to anyone poking at the URL -- which is
-    exactly the thing the password is there to prevent. The whole separation
-    is only as real as this branch.
+    `has_session() -> bool` reports whether the caller presented a valid
+    session. It is a zero-argument callable rather than a bool so the
+    dispatcher can resolve the cookie lazily -- most requests never reach a
+    route that asks. None means "do not hide anything on this ground".
+
+    A route in a disabled realm -- or a hidden_without_session route reached
+    without one -- is skipped *before* path_known is set. That ordering is
+    load-bearing, not tidiness: if it were skipped afterwards, a POST to a
+    GET-only audit path would answer 405 instead of 404 and thereby confirm
+    the endpoint exists to anyone poking at the URL -- which is exactly the
+    thing the password is there to prevent. The whole separation is only as
+    real as this branch.
 
     Returns the Route (not the bare handler) so the dispatcher can read
     requires_session from one place instead of every handler re-checking it.
@@ -84,6 +127,12 @@ def match(
             candidate.realm is not None
             and realm_enabled is not None
             and not realm_enabled(candidate.realm)
+        ):
+            continue
+        if (
+            candidate.hidden_without_session
+            and has_session is not None
+            and not has_session()
         ):
             continue
         m = candidate.pattern.match(path)

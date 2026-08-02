@@ -24,6 +24,26 @@ from ethical_agent import (
 from ethical_agent.webui.server import make_server
 
 
+# The evaluator's tools (Check, Demo, Eval) live behind the audit realm and
+# require a session, so a server for them needs a password and a login. This
+# is the password those tests use; nothing depends on its value.
+TOOLS_PASSWORD = "senha-do-avaliador"
+
+
+def running_tools_server(tmp_path, **overrides):
+    """A RunningServer already signed in as the auditor, for the tool tests.
+
+    Kept here rather than repeated in three modules so that "these screens
+    need a session" is stated once. A test that wants the *unauthenticated*
+    behaviour builds a RunningServer directly and does not log in -- see
+    tests/test_webui_tools_gate.py, which is about exactly that.
+    """
+    running = RunningServer(tmp_path, audit_password=TOOLS_PASSWORD, **overrides)
+    status, body, _ = running.login_as_auditor(TOOLS_PASSWORD)
+    assert status == 200, (status, body)
+    return running
+
+
 def make_initial_config(tmp_path, engine="rule", mock=True, model="llama3.2:3b", **overrides):
     config = {
         "policy": str(default_policy_path()),

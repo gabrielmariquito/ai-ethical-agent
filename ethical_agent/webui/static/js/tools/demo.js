@@ -1,7 +1,7 @@
-import { postJSON, showErrorBanner } from "./api.js";
-import { renderNav } from "./nav.js";
-import { initConfigPanel } from "./config-panel.js";
-import { renderIntervention, interventionKind } from "./intervention-view.js";
+import { postJSON, showErrorBanner } from "../api.js";
+import { renderNav } from "../nav.js";
+import { initConfigPanel } from "../config-panel.js";
+import { renderIntervention, interventionKind } from "../intervention-view.js";
 
 const els = {
   nav: document.getElementById("ea-nav"),
@@ -78,12 +78,14 @@ els.runBtn.addEventListener("click", async () => {
 });
 
 async function init() {
-  renderNav(els.nav, "/demo");
+  // sessionActive is true by construction: this page is session-gated in
+  // httphandler's GATED_PAGES, so reaching this code means a session exists.
+  renderNav(els.nav, "/demo", { sessionActive: true });
   try {
     configPanel = await initConfigPanel(els.configPanel, els.configToggle);
     // Re-render now that we know whether the audit screen exists on this
     // server (initConfigPanel already fetched /api/choices).
-    renderNav(els.nav, "/demo", { auditEnabled: configPanel.auditScreenEnabled });
+    renderNav(els.nav, "/demo", { auditEnabled: configPanel.auditScreenEnabled, sessionActive: true });
   } catch (err) {
     showErrorBanner(els.bannerHost, err);
   }

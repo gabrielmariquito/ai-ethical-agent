@@ -22,7 +22,9 @@ import pytest
 
 STATIC_JS = Path(__file__).resolve().parent.parent / "ethical_agent" / "webui" / "static" / "js"
 NAV = STATIC_JS / "nav.js"
-SCREENS = ("chat.js", "check.js", "demo.js", "eval.js")
+# The evaluator's tools moved under js/tools/ so one prefix gates them (see
+# httphandler.GATED_ASSET_PREFIXES).
+SCREENS = ("chat.js", "tools/check.js", "tools/demo.js", "tools/eval.js")
 
 
 @pytest.fixture(scope="module")
@@ -55,15 +57,20 @@ def test_the_disabled_branch_still_looks_inert_in_both_unknown_and_false(nav):
 
 
 def test_every_screen_renders_the_nav_before_it_knows_and_again_after():
-    # The first call is intentionally optionless -- that *is* the unknown
-    # state. The second carries the answer. Losing either one is how the nav
-    # goes back to lying: without the first there is no nav during the
-    # fetch, without the second it never corrects itself.
+    # The first call renders the unknown state; the second carries the
+    # answer. Losing either one is how the nav goes back to lying: without
+    # the first there is no nav during the fetch, without the second it never
+    # corrects itself.
+    #
+    # The first call may now carry sessionActive, but never auditEnabled: on
+    # a tool screen the session is known before any request (the page is
+    # session-gated in httphandler, so being there is the answer), while
+    # whether the audit screen exists still has to be asked.
     for name in SCREENS:
         source = (STATIC_JS / name).read_text(encoding="utf-8")
         calls = re.findall(r"renderNav\(els\.nav,[^)]*\)", source)
         assert len(calls) == 2, f"{name}: esperava 2 chamadas de renderNav, achei {len(calls)}"
-        assert "auditEnabled" not in calls[0], f"{name}: a 1a chamada deve ser sem opção"
+        assert "auditEnabled" not in calls[0], f"{name}: a 1a chamada não pode afirmar auditEnabled"
         assert "configPanel.auditScreenEnabled" in calls[1], f"{name}: a 2a deve passar a resposta"
 
 
@@ -73,3 +80,45 @@ def test_no_screen_passes_a_default_of_false():
     for name in SCREENS:
         source = (STATIC_JS / name).read_text(encoding="utf-8")
         assert "auditEnabled: false" not in source, name
+
+
+# ------------------------------------ the evaluator's items are absent, not
+# ------------------------------------------------------- visibly disabled
+
+
+def test_session_gated_items_are_skipped_entirely(nav):
+    # An area that does not exist for this reader is not announced to them.
+    # `continue` -- not the disabled branch -- is what makes the item absent
+    # rather than inert-with-a-badge.
+    guard = nav[nav.index("for (const item of ITEMS)") : nav.index("const li =")]
+    assert "item.needsSession" in guard
+    assert "continue;" in guard
+
+
+def test_only_a_definite_yes_shows_them(nav):
+    # Same discipline the badge follows: undefined is not a claim. Rendering
+    # the tools while the answer is unknown would flash items that then
+    # disappear -- worse than arriving late.
+    guard = nav[nav.index("for (const item of ITEMS)") : nav.index("const li =")]
+    assert "sessionActive === true" in guard
+    assert "auditEnabled &&" in guard
+
+
+def test_the_badge_stays_exclusive_to_auditoria(nav):
+    # Four inert items would be four announcements of areas the reader
+    # cannot open. Auditoria keeps the badge because the operator has to
+    # learn the area exists and how to switch it on; the tools are found
+    # behind it, so they need no announcement of their own.
+    items = nav[nav.index("const ITEMS = [") : nav.index("];", nav.index("const ITEMS = ["))]
+    assert items.count("badge:") == 1
+    assert "badge:" in [line for line in items.splitlines() if "/audit" in line][0]
+
+
+def test_the_session_probe_reuses_the_existing_endpoint(nav):
+    # No new endpoint and no second permission axis: /api/audit/session
+    # already answers 404 / 401 / 200 for exactly the three states.
+    assert '"/api/audit/session"' in nav
+    probe = nav[nav.index("export async function probeSessionActive") :]
+    probe = probe[: probe.index("export function renderNav")]
+    assert "if (!auditEnabled) return false;" in probe, "não perguntar quando o realm está desligado"
+    assert "return undefined;" in probe, "falha de rede não é uma resposta"

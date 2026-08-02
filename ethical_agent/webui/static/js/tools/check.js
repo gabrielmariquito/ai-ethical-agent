@@ -1,7 +1,7 @@
-import { getJSON, postJSON, showErrorBanner } from "./api.js";
-import { renderNav } from "./nav.js";
-import { initConfigPanel } from "./config-panel.js";
-import { renderVerdict } from "./verdict-view.js";
+import { getJSON, postJSON, showErrorBanner } from "../api.js";
+import { renderNav } from "../nav.js";
+import { initConfigPanel } from "../config-panel.js";
+import { renderVerdict } from "../verdict-view.js";
 
 // The raw stage values ("input"/"output") stay canonical -- gui_choices.py
 // is still the single source of truth for what values exist -- but this
@@ -71,12 +71,14 @@ els.form.addEventListener("submit", async (event) => {
 });
 
 async function init() {
-  renderNav(els.nav, "/check");
+  // sessionActive is true by construction: this page is session-gated in
+  // httphandler's GATED_PAGES, so reaching this code means a session exists.
+  renderNav(els.nav, "/check", { sessionActive: true });
   try {
     configPanel = await initConfigPanel(els.configPanel, els.configToggle);
     // Re-render now that we know whether the audit screen exists on this
     // server (initConfigPanel already fetched /api/choices).
-    renderNav(els.nav, "/check", { auditEnabled: configPanel.auditScreenEnabled });
+    renderNav(els.nav, "/check", { auditEnabled: configPanel.auditScreenEnabled, sessionActive: true });
   } catch (err) {
     showErrorBanner(els.bannerHost, err);
     return;

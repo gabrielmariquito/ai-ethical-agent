@@ -5,12 +5,13 @@ import pytest
 
 from ethical_agent import Decision, Stage, build_check_audit_record
 from ethical_agent.webui.engine_factory import build_engine
-from webui_support import RunningServer
+from webui_support import running_tools_server
 
 
 @pytest.fixture
 def server(tmp_path):
-    running = RunningServer(tmp_path, engine="rule")
+    # Ferramenta do avaliador: exige sessão de auditoria.
+    running = running_tools_server(tmp_path, engine="rule")
     yield running
     running.close()
 

@@ -21,13 +21,45 @@
 // "the server says no" apart from "nobody asked yet". Undefined is its own
 // state, and it renders without the badge.
 
+// TWO kinds of gated item, and they are not treated alike.
+//
+// Auditoria is gated on *configuration*: it exists whenever the server was
+// started with a password. When it is not, the item renders disabled with a
+// badge, because the operator needs to learn the area exists and how to turn
+// it on -- see the three-state note above.
+//
+// Avaliar texto / Demo / Eval are gated on *session*: they are the
+// evaluator's instruments, and the employee running the chat is not their
+// audience. These render absent, never disabled-with-a-badge. An area that
+// does not exist for you is not announced to you; and four inert items would
+// be four announcements of areas the reader cannot open. Auditoria is the one
+// door, and one door is enough to find the rest behind it.
+//
+// Absence here is presentation, exactly as the note above says. The barrier
+// is server-side: routing.match() skips these routes without a session,
+// before path_known, so they 404 rather than 401 (see routing.Route).
 const ITEMS = [
   { path: "/", label: "Conversa" },
-  { path: "/check", label: "Avaliar texto" },
-  { path: "/demo", label: "Demo" },
-  { path: "/eval", label: "Eval" },
+  { path: "/check", label: "Avaliar texto", realm: "audit", needsSession: true },
+  { path: "/demo", label: "Demo", realm: "audit", needsSession: true },
+  { path: "/eval", label: "Eval", realm: "audit", needsSession: true },
   { path: "/audit", label: "Auditoria", realm: "audit", badge: "desativada" },
 ];
+
+// Whether the caller holds an audit session. GET /api/audit/session already
+// answers exactly the three states -- 404 without a password, 401 without a
+// session, 200 with one -- so no new endpoint and no second permission axis.
+// Only asked when the realm is on, to avoid a 401 in the log on every page
+// load of a server that has no audit screen at all.
+export async function probeSessionActive(auditEnabled) {
+  if (!auditEnabled) return false;
+  try {
+    const response = await fetch("/api/audit/session", { method: "GET" });
+    return response.ok;
+  } catch (_networkErr) {
+    return undefined; // nobody answered; not a claim either way
+  }
+}
 
 export function renderNav(navEl, activePath, options = {}) {
   // Undefined stays undefined; only an actual boolean is a claim.
@@ -35,12 +67,22 @@ export function renderNav(navEl, activePath, options = {}) {
     options.auditEnabled === undefined || options.auditEnabled === null
       ? undefined
       : Boolean(options.auditEnabled);
+  const sessionActive =
+    options.sessionActive === undefined || options.sessionActive === null
+      ? undefined
+      : Boolean(options.sessionActive);
   navEl.innerHTML = "";
   navEl.setAttribute("role", "navigation");
   const list = document.createElement("ul");
   list.className = "ea-nav__list";
 
   for (const item of ITEMS) {
+    // Session-gated items are absent unless the session is a definite yes.
+    // Undefined -- nobody has asked yet -- renders nothing, same as false:
+    // showing them and then removing them would be worse than arriving late.
+    if (item.needsSession && !(auditEnabled && sessionActive === true)) {
+      continue;
+    }
     const li = document.createElement("li");
     const isActive = item.path === activePath;
     const enabled = item.realm === "audit" ? auditEnabled : true;

@@ -4,12 +4,13 @@ from pathlib import Path
 import pytest
 
 from ethical_agent.demo import DEMO_CASES
-from webui_support import RunningServer
+from webui_support import running_tools_server
 
 
 @pytest.fixture
 def server(tmp_path):
-    running = RunningServer(tmp_path, engine="rule")
+    # Ferramenta do avaliador: exige sessão de auditoria.
+    running = running_tools_server(tmp_path, engine="rule")
     yield running
     running.close()
 

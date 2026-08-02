@@ -47,9 +47,12 @@ EXPECTED_WEBUI_FILES = {
     "ethical_agent/webui/static/css/app.css",
     "ethical_agent/webui/static/js/api.js",
     "ethical_agent/webui/static/js/chat.js",
-    "ethical_agent/webui/static/js/check.js",
-    "ethical_agent/webui/static/js/demo.js",
-    "ethical_agent/webui/static/js/eval.js",
+    # The evaluator's tools live one directory deeper (so the whole group is
+    # gated by one prefix in httphandler.GATED_ASSET_PREFIXES rather than by
+    # three filenames), which needs its own package-data line in pyproject.
+    "ethical_agent/webui/static/js/tools/check.js",
+    "ethical_agent/webui/static/js/tools/demo.js",
+    "ethical_agent/webui/static/js/tools/eval.js",
     "ethical_agent/webui/static/js/config-panel.js",
     "ethical_agent/webui/static/js/nav.js",
     "ethical_agent/webui/static/js/markdown.js",

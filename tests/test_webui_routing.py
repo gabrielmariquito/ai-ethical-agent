@@ -59,12 +59,21 @@ def test_unknown_static_file_is_404(server):
     assert status == 404
 
 
-def test_check_demo_eval_pages_are_served(server):
+def test_check_demo_eval_pages_do_not_exist_without_a_password(server):
+    # This server was started without one, so the evaluator's tools are not
+    # merely refused -- they are not there. The full barrier (both unsigned
+    # states, wrong method, assets) lives in test_webui_tools_gate.py; this
+    # is the routing-level statement that they left PAGES.
     for path in ("/check", "/demo", "/eval"):
-        status, raw, headers = server.request("GET", path)
-        assert status == 200, path
-        assert b"<title>" in raw
-        assert headers["Content-Type"].startswith("text/html")
+        status, _, _ = server.request("GET", path)
+        assert status == 404, path
+
+
+def test_the_chat_page_is_still_served_to_everyone(server):
+    status, raw, headers = server.request("GET", "/")
+    assert status == 200
+    assert b"<title>" in raw
+    assert headers["Content-Type"].startswith("text/html")
 
 
 def test_audit_paths_do_not_collide_with_each_other(tmp_path):
