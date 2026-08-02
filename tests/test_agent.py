@@ -167,6 +167,28 @@ def test_audit_log_omits_llm_provenance_when_not_given(engine, tmp_path):
     assert "llm_provenance" not in record
 
 
+def test_audit_log_records_conversation_id_and_turn_index_when_given(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=MockLLM(), audit=AuditLogger(log_path))
+    agent.process(
+        "what is the capital of Brazil?",
+        conversation_id="conv-1",
+        turn_index=1,
+    )
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert record["conversation_id"] == "conv-1"
+    assert record["turn_index"] == 1
+
+
+def test_audit_log_omits_conversation_id_and_turn_index_when_not_given(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
+    agent = GuardedAgent(engine=engine, llm=MockLLM(), audit=AuditLogger(log_path))
+    agent.process("what is the capital of Brazil?")
+    record = json.loads(log_path.read_text(encoding="utf-8").strip())
+    assert "conversation_id" not in record
+    assert "turn_index" not in record
+
+
 def test_denied_output_is_never_retained(engine, tmp_path):
     full_response = (
         "Sure, here is how to make a bomb at home: mix reagent XYZ123 with "
@@ -194,6 +216,88 @@ def test_denied_output_is_never_retained(engine, tmp_path):
     assert full_response not in record["message"]
     assert "XYZ123" not in record["message"]
     assert "QRS-detonator" not in record["message"]
+
+
+def test_no_history_produces_same_two_message_list_as_before(engine):
+    # Regression lock: calling process() without history/conversation_id/
+    # turn_index must reproduce today's exact message list, unchanged.
+    llm = MockLLM(default="Brasilia.")
+    agent = GuardedAgent(engine=engine, llm=llm)
+    agent.process("what is the capital of Brazil?")
+    assert llm.calls == [
+        [
+            {"role": "system", "content": agent.system_prompt},
+            {"role": "user", "content": "what is the capital of Brazil?"},
+        ]
+    ]
+
+
+def test_history_is_threaded_into_llm_messages(engine):
+    llm = MockLLM(responses=["Brasilia.", "Around 203 million."])
+    agent = GuardedAgent(engine=engine, llm=llm)
+    turn1 = agent.process("what is the capital of Brazil?")
+    assert turn1.status == "ok"
+    turn2 = agent.process("and what is its population?", history=[turn1])
+    assert turn2.status == "ok"
+    assert llm.calls[1] == [
+        {"role": "system", "content": agent.system_prompt},
+        {"role": "user", "content": "what is the capital of Brazil?"},
+        {"role": "assistant", "content": "Brasilia."},
+        {"role": "user", "content": "and what is its population?"},
+    ]
+
+
+def test_history_skips_input_denied_prior_turn(engine):
+    llm = MockLLM(default="ok")
+    agent = GuardedAgent(engine=engine, llm=llm)
+    turn1 = agent.process("please hack the bank")
+    assert turn1.status == "denied"
+    assert llm.calls == []  # input DENY never reached the model originally
+    turn2 = agent.process("what is the capital of Brazil?", history=[turn1])
+    assert turn2.status == "ok"
+    assert len(llm.calls) == 1
+    contents = [m["content"] for m in llm.calls[0]]
+    assert not any("hack the bank" in c for c in contents)
+
+
+def test_history_prior_output_denied_turn_leaks_nothing(engine, tmp_path):
+    full_response = (
+        "Sure, here is how to make a bomb at home: mix reagent XYZ123 with "
+        "compound ABC789 for exactly three minutes, then attach a QRS-detonator."
+    )
+    log_path = tmp_path / "audit.jsonl"
+    llm = MockLLM(responses=[full_response, "Brasilia."])
+    agent = GuardedAgent(engine=engine, llm=llm, audit=AuditLogger(log_path))
+    turn1 = agent.process("what is the capital of Brazil?")
+    assert turn1.status == "denied"
+    turn2 = agent.process("what is the capital of Brazil, again?", history=[turn1])
+    assert turn2.status == "ok"
+    for call in llm.calls:
+        for message in call:
+            assert full_response not in message["content"]
+            assert "XYZ123" not in message["content"]
+            assert "QRS-detonator" not in message["content"]
+    log_text = log_path.read_text(encoding="utf-8")
+    assert full_response not in log_text
+    assert "XYZ123" not in log_text
+    assert "QRS-detonator" not in log_text
+
+
+def test_history_prior_redacted_output_turn_leaks_nothing(engine, tmp_path):
+    log_path = tmp_path / "audit.jsonl"
+    llm = MockLLM(responses=["contact bob@example.com for help", "Brasilia."])
+    agent = GuardedAgent(engine=engine, llm=llm, audit=AuditLogger(log_path))
+    turn1 = agent.process("how do I get support?")
+    assert turn1.status == "ok"
+    assert "bob@example.com" not in turn1.message
+    turn2 = agent.process("what is the capital of Brazil?", history=[turn1])
+    assert turn2.status == "ok"
+    assert llm.calls[1][2] == {"role": "assistant", "content": turn1.message}
+    for call in llm.calls:
+        for message in call:
+            assert "bob@example.com" not in message["content"]
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "bob@example.com" not in log_text
 
 
 class _BrokenEngine(PolicyEngine):

@@ -1,0 +1,192 @@
+from __future__ import annotations
+
+import sys
+import threading
+import time
+import uuid
+from typing import Dict, List, Optional, Tuple
+
+from ethical_agent import AuditLogger
+from ethical_agent.agent import AgentResult
+
+# Only jobs that have finished (phase "done"/"error") are ever candidates for
+# GC, and only once they've sat unread for this long -- a job still in
+# "generating"/"verifying" is never swept, no matter its age, because we
+# impose no timeout on the LLM call it's waiting on (a local CPU model can
+# legitimately take several minutes).
+JOB_TERMINAL_GC_SECONDS = 300
+
+
+class _WebAuditLogger(AuditLogger):
+    """AuditLogger that fails soft, in the same spirit as __main__.py's
+    _CliAuditLogger and the former gui_app.py's _GuiAuditLogger -- a write
+    error is reported instead of crashing the request, and the first
+    successful write in the process's lifetime is disclosed once.
+
+    Unlike those two, .log() here can be called concurrently from more than
+    one request thread (ThreadingHTTPServer), and AuditLogger.log() itself
+    does an unguarded open/write/close per call -- so this serializes writes
+    with a lock shared across the whole server (see ServerState.audit_lock),
+    not one owned by this instance (a fresh instance is built per request,
+    per gui_app.py's original "never cache engine/llm/audit" behavior).
+    """
+
+    def __init__(self, path, lock: threading.Lock):
+        self._lock = lock
+        self._notice_shown = False
+        self.warning: Optional[str] = None
+        self.notice: Optional[str] = None
+        super().__init__(path)
+
+    def log(self, record: dict) -> Optional[str]:
+        with self._lock:
+            try:
+                event_id = super().log(record)
+            except Exception as exc:  # noqa: BLE001 -- mirrors the CLI/GUI loggers' own broad catch
+                self.warning = (
+                    f"[audit] could not write audit record to {self.path} "
+                    f"({exc.__class__.__name__}: {exc}); continuing without "
+                    "logging this event"
+                )
+                print(self.warning, file=sys.stderr)
+                return None
+            if not self._notice_shown:
+                self._notice_shown = True
+                self.notice = (
+                    f"[audit] writing to {self.path} (mandatory; "
+                    "see AUDIT_GUIDE.pt-BR.md)"
+                )
+                print(self.notice, file=sys.stderr)
+            return event_id
+
+
+class ConversationStore:
+    """Per-conversation history, kept only in server-process memory -- never
+    reconstructed from logs/audit.jsonl (that trail is the audit record, not
+    a conversation cache; losing this on restart is the web equivalent of
+    closing the old Tkinter window).
+
+    Each conversation has its own lock, held by the caller for the entire
+    duration of a turn (snapshot -> agent.process() -> append), so two
+    messages sent concurrently on the same conversation_id are serialized
+    instead of racing on turn_index / message order. Locking is coarse (one
+    global lock protects the dict of conversations, a second per-conversation
+    lock protects that conversation's list) but cheap -- this is a
+    single-reviewer local tool, not a multi-tenant service.
+    """
+
+    def __init__(self):
+        self._dict_lock = threading.Lock()
+        self._conversations: Dict[str, Tuple[List[AgentResult], threading.Lock]] = {}
+
+    def create(self) -> str:
+        conversation_id = uuid.uuid4().hex
+        with self._dict_lock:
+            self._conversations[conversation_id] = ([], threading.Lock())
+        return conversation_id
+
+    def exists(self, conversation_id: str) -> bool:
+        with self._dict_lock:
+            return conversation_id in self._conversations
+
+    def turn_count(self, conversation_id: str) -> Optional[int]:
+        entry = self._entry(conversation_id)
+        if entry is None:
+            return None
+        history, conv_lock = entry
+        with conv_lock:
+            return len(history)
+
+    def conversation_lock(self, conversation_id: str) -> Optional[threading.Lock]:
+        entry = self._entry(conversation_id)
+        return entry[1] if entry is not None else None
+
+    def history_list(self, conversation_id: str) -> Optional[List[AgentResult]]:
+        """Returns the *live* list object, not a copy. Caller must hold the
+        lock from conversation_lock() for the duration of any read/append."""
+        entry = self._entry(conversation_id)
+        return entry[0] if entry is not None else None
+
+    def _entry(self, conversation_id: str):
+        with self._dict_lock:
+            return self._conversations.get(conversation_id)
+
+
+class JobRegistry:
+    """Tracks in-flight/finished chat turns so the frontend can poll a
+    lightweight status instead of blocking one HTTP request for the whole
+    duration of a (possibly slow) LLM call. See webui/progress.py for how a
+    job's phase actually advances from "generating" to "verifying".
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._jobs: Dict[str, dict] = {}
+
+    def create(self) -> str:
+        job_id = uuid.uuid4().hex
+        now = time.time()
+        with self._lock:
+            self._sweep_locked(now)
+            self._jobs[job_id] = {
+                "phase": "generating",
+                "result": None,
+                "error": None,
+                "created_at": now,
+                "finished_at": None,
+            }
+        return job_id
+
+    def _sweep_locked(self, now: float) -> None:
+        stale = [
+            job_id
+            for job_id, job in self._jobs.items()
+            if job["phase"] in ("done", "error")
+            and job["finished_at"] is not None
+            and now - job["finished_at"] > JOB_TERMINAL_GC_SECONDS
+        ]
+        for job_id in stale:
+            del self._jobs[job_id]
+
+    def set_phase(self, job_id: str, phase: str) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job["phase"] = phase
+
+    def set_done(self, job_id: str, result: dict) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job["phase"] = "done"
+                job["result"] = result
+                job["finished_at"] = time.time()
+
+    def set_error(self, job_id: str, error: dict) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job["phase"] = "error"
+                job["error"] = error
+                job["finished_at"] = time.time()
+
+    def get(self, job_id: str) -> Optional[dict]:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return dict(job) if job is not None else None
+
+
+class ServerState:
+    """Everything the web server keeps for the lifetime of the process.
+    Built once in server.make_server(); handlers receive it as their first
+    argument. `initial_config` seeds the frontend's config panel (from the
+    CLI flags `ethical-agent serve` was started with) -- the browser can
+    still override every field per-request; the server never caches a built
+    engine/llm/audit between requests (see engine_factory.py).
+    """
+
+    def __init__(self, initial_config: dict):
+        self.initial_config = initial_config
+        self.conversations = ConversationStore()
+        self.jobs = JobRegistry()
+        self.audit_lock = threading.Lock()

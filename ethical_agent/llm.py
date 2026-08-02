@@ -73,7 +73,11 @@ class OllamaClient(LLMClient):
         return response.message.content or ""
 
 
-def resolve_llm(model: str, mock: bool) -> tuple[LLMClient, dict]:
+def resolve_llm(
+    model: str,
+    mock: bool,
+    responses: Union[Sequence[str], Callable[[List[dict]], str], None] = None,
+) -> tuple[LLMClient, dict]:
     """Builds the LLMClient `process` will use, and a provenance record
     identifying what actually produced (or will produce) the content: a real
     model (with its identifier and backend), a simulation the user asked for
@@ -82,10 +86,19 @@ def resolve_llm(model: str, mock: bool) -> tuple[LLMClient, dict]:
     _build_llm and the GUI's build_llm so the two front-ends cannot
     independently drift on how this is classified -- same reasoning as
     audit.build_check_audit_record.
+
+    `responses` is optional and only consulted when `mock` is True: it's
+    forwarded straight to MockLLM, letting a caller that needs varied mock
+    output (e.g. the web chat's interactive Mock mode, via
+    ethical_agent.demo.interactive_mock_response) opt into that without
+    changing behavior for every other caller. Callers that don't pass it
+    (every CLI call site) get MockLLM(None, default=...), which is exactly
+    the fixed-string MockLLM this function always built before this
+    parameter existed.
     """
     if mock:
         return (
-            MockLLM(default="[mock response: no model available]"),
+            MockLLM(responses, default="[mock response: no model available]"),
             {"kind": "mock_requested"},
         )
     try:

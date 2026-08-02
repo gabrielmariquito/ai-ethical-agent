@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Sequence
 
 from .audit import AuditLogger
 from .engine import PolicyEngine
@@ -82,7 +82,14 @@ class GuardedAgent:
                 system_error=True,
             )
 
-    def process(self, user_input: str, metadata: Optional[dict] = None) -> AgentResult:
+    def process(
+        self,
+        user_input: str,
+        metadata: Optional[dict] = None,
+        history: Optional[Sequence[AgentResult]] = None,
+        conversation_id: Optional[str] = None,
+        turn_index: Optional[int] = None,
+    ) -> AgentResult:
         if self.llm is None:
             raise RuntimeError(
                 "GuardedAgent.process requires an LLMClient; "
@@ -102,20 +109,16 @@ class GuardedAgent:
                 input_verdict=input_verdict,
                 trace=trace,
             )
-            return self._finish(result)
+            return self._finish(result, conversation_id, turn_index)
 
         safe_input = user_input
         if input_verdict.decision is Decision.REWRITE and input_verdict.rewritten_content:
             safe_input = input_verdict.rewritten_content
             trace["rewritten_input"] = safe_input
 
+        messages = self._build_messages(safe_input, history)
         try:
-            response = self.llm.chat(
-                [
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": safe_input},
-                ]
-            )
+            response = self.llm.chat(messages)
         except Exception as exc:
             trace["llm_error"] = f"{exc.__class__.__name__}: {exc}"
             result = AgentResult(
@@ -125,7 +128,7 @@ class GuardedAgent:
                 input_verdict=input_verdict,
                 trace=trace,
             )
-            return self._finish(result)
+            return self._finish(result, conversation_id, turn_index)
 
         output_verdict = self.check(response, Stage.OUTPUT, metadata)
         trace["output_verdict"] = output_verdict.to_dict()
@@ -142,7 +145,7 @@ class GuardedAgent:
                 output_verdict=output_verdict,
                 trace=trace,
             )
-            return self._finish(result)
+            return self._finish(result, conversation_id, turn_index)
 
         if not output_verdict.suppresses_raw_content:
             # A redact rule's whole purpose is scrubbing its match from the
@@ -165,7 +168,47 @@ class GuardedAgent:
             output_verdict=output_verdict,
             trace=trace,
         )
-        return self._finish(result)
+        return self._finish(result, conversation_id, turn_index)
+
+    def _build_messages(
+        self, safe_input: str, history: Optional[Sequence[AgentResult]]
+    ) -> list:
+        """Builds the message list sent to the LLM: system prompt, then one
+        user/assistant pair per prior turn in `history` (in order), then the
+        current turn's guardrail-approved input.
+
+        A prior turn whose INPUT was DENIED is omitted entirely (not even a
+        placeholder): the model never saw it -- it was never called -- and
+        re-injecting the blocked prompt into a later turn's context would
+        defeat the block. Every other prior turn (output DENY, REWRITE by
+        template, REWRITE by redaction, or plain ok) IS included: in all of
+        those cases the model already saw the user's input, and what was
+        withheld/rewritten was the *response*, not the request.
+
+        For every included turn, the assistant side is always
+        `past.message` -- never `past.trace.get("raw_response")` or any
+        other pre-suppression value. This is not a case-by-case audit of
+        "is this particular field safe" -- it's structural: `message` is,
+        by construction in `process()`, the one field that never carries
+        suppressed content (a blocked output never populates it with the
+        blocked text; a redaction REWRITE never populates it with the raw
+        value). Reusing it as the sole channel into history means this
+        method inherits those existing guarantees for free. Do NOT swap it
+        for `raw_response` (or any other trace field) to "give the model
+        more context" -- that would silently reopen exactly the leak the
+        DENY/redaction retention rules elsewhere in this file exist to
+        close, one turn later and one level removed from where the
+        original protection lives.
+        """
+        messages = [{"role": "system", "content": self.system_prompt}]
+        for past in history or []:
+            if past.input_verdict.decision is Decision.DENY:
+                continue
+            user_content = past.trace.get("rewritten_input", past.trace["input"])
+            messages.append({"role": "user", "content": user_content})
+            messages.append({"role": "assistant", "content": past.message})
+        messages.append({"role": "user", "content": safe_input})
+        return messages
 
     @staticmethod
     def _render(template: str, verdict: Verdict) -> str:
@@ -186,7 +229,12 @@ class GuardedAgent:
             text += "\n\n" + "\n".join(dict.fromkeys(notices))
         return text
 
-    def _finish(self, result: AgentResult) -> AgentResult:
+    def _finish(
+        self,
+        result: AgentResult,
+        conversation_id: Optional[str] = None,
+        turn_index: Optional[int] = None,
+    ) -> AgentResult:
         if self.audit is not None:
             record = {
                 "status": result.status,
@@ -199,5 +247,9 @@ class GuardedAgent:
                 record["source"] = self.source
             if self.llm_provenance is not None:
                 record["llm_provenance"] = self.llm_provenance
+            if conversation_id is not None:
+                record["conversation_id"] = conversation_id
+            if turn_index is not None:
+                record["turn_index"] = turn_index
             self.audit.log(record)
         return result

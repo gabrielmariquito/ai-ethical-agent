@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ethical Agent — Conversa</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6feb'/%3E%3Cpath d='M16 6 26 10.5v6.4c0 6.6-4.4 10.3-10 12.1-5.6-1.8-10-5.5-10-12.1v-6.4z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="ea-shell">
+      <aside class="ea-sidebar">
+        <button type="button" id="ea-new-conversation" class="ea-sidebar__new">+ Nova conversa</button>
+        <div id="ea-history-list" class="ea-sidebar__list"></div>
+      </aside>
+
+      <div class="ea-app-main">
+        <header class="ea-topbar">
+          <span class="ea-topbar__title">Ethical Agent</span>
+          <nav id="ea-nav"></nav>
+          <button type="button" id="ea-config-toggle" aria-expanded="false" aria-controls="ea-config-panel">
+            Configuração
+          </button>
+        </header>
+
+        <div id="ea-config-panel" hidden></div>
+        <div id="ea-banner-host"></div>
+
+        <main>
+          <div class="ea-chat-column">
+            <div id="ea-transcript" class="ea-transcript"></div>
+
+            <div id="ea-statusbar" class="ea-statusbar"></div>
+
+            <form id="ea-composer-form" class="ea-composer">
+              <textarea
+                id="ea-composer-input"
+                rows="1"
+                placeholder="Escreva uma mensagem… (Enter envia, Shift+Enter quebra linha)"
+                autocomplete="off"
+              ></textarea>
+              <button type="submit" id="ea-send-btn">Enviar</button>
+            </form>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script type="module" src="/static/js/chat.js"></script>
+  </body>
+</html>

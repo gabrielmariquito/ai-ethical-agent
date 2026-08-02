@@ -61,6 +61,27 @@ def test_resolve_llm_mock_fallback_on_failure(monkeypatch):
     assert "no server" in provenance["fallback_reason"]
 
 
+def test_resolve_llm_mock_without_responses_is_unchanged():
+    # Regression guard: every existing call site (CLI's _build_llm,
+    # cmd_process, cmd_demo) calls resolve_llm(model, mock) with no third
+    # argument, and must keep getting the exact fixed-string MockLLM this
+    # function always built before `responses` existed.
+    llm, provenance = resolve_llm("llama3.2:3b", mock=True)
+    assert isinstance(llm, MockLLM)
+    assert llm.chat([{"role": "user", "content": "anything"}]) == "[mock response: no model available]"
+    assert provenance == {"kind": "mock_requested"}
+
+
+def test_resolve_llm_mock_with_responses_uses_it():
+    def scripted(messages):
+        return f"scripted: {messages[-1]['content']}"
+
+    llm, provenance = resolve_llm("llama3.2:3b", mock=True, responses=scripted)
+    assert isinstance(llm, MockLLM)
+    assert llm.chat([{"role": "user", "content": "hello"}]) == "scripted: hello"
+    assert provenance == {"kind": "mock_requested"}
+
+
 def test_describe_llm_provenance_covers_all_kinds():
     assert "llama3.2:3b" in describe_llm_provenance(
         {"kind": "real", "model": "llama3.2:3b", "backend": "ollama_local"}

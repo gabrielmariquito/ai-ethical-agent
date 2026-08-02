@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ethical Agent — Demo</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6feb'/%3E%3Cpath d='M16 6 26 10.5v6.4c0 6.6-4.4 10.3-10 12.1-5.6-1.8-10-5.5-10-12.1v-6.4z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="ea-page">
+      <header class="ea-topbar">
+        <span class="ea-topbar__title">Ethical Agent</span>
+        <nav id="ea-nav"></nav>
+        <button type="button" id="ea-config-toggle" aria-expanded="false" aria-controls="ea-config-panel">
+          Configuração
+        </button>
+      </header>
+
+      <div id="ea-config-panel" hidden></div>
+      <div id="ea-banner-host"></div>
+
+      <main>
+        <div class="ea-chat-column ea-tool-column">
+          <p class="ea-tool-intro">
+            Roda 7 prompts fixos, escolhidos para mostrar onde o guardrail acerta e onde falha,
+            sempre com respostas simuladas (nunca chama um modelo de verdade).
+          </p>
+
+          <button type="button" id="ea-demo-run">Rodar demo</button>
+
+          <div id="ea-demo-result" class="ea-tool-result"></div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/static/js/demo.js"></script>
+  </body>
+</html>

@@ -17,6 +17,7 @@ import queue
 import sys
 import threading
 import tkinter as tk
+import uuid
 from pathlib import Path
 from tkinter import filedialog, ttk
 
@@ -26,6 +27,7 @@ sys.path.insert(0, str(ROOT))
 from ethical_agent._stdio import ensure_utf8_stdio  # noqa: E402
 from ethical_agent import (  # noqa: E402
     ActionContext,
+    AgentResult,
     AuditLogger,
     CompositeEngine,
     GuardedAgent,
@@ -540,9 +542,67 @@ class ProcessTab(ttk.Frame):
         ttk.Checkbutton(opts, text="JSON", variable=self.json_var).pack(side="left", padx=(16, 0))
         self.run_btn = ttk.Button(opts, text="Run process", command=self._run)
         self.run_btn.pack(side="right")
+        self.new_conv_btn = ttk.Button(
+            opts, text="Nova conversa", command=self._new_conversation
+        )
+        self.new_conv_btn.pack(side="right", padx=(0, 8))
 
         self.result = ResultPane(self)
         self.result.pack(fill="both", expand=True)
+
+        # Conversation state -- lives only in this tab's memory (lost on
+        # window close; the audit trail, not this list, is what survives --
+        # see AUDIT_GUIDE.pt-BR.md). GuardedAgent.process() only sees
+        # `history` as a plain sequence of AgentResult; it doesn't care that
+        # this particular caller happens to keep growing the same list
+        # across clicks.
+        self._history: list[AgentResult] = []
+        self._conversation_id: str | None = None
+        self._transcript_blocks: list[str] = []
+
+    def _new_conversation(self):
+        self._history = []
+        self._conversation_id = None
+        self._transcript_blocks = []
+        self.result.show("")
+
+    def _format_turn(self, result, llm_provenance, verbose, as_json):
+        if as_json:
+            out = json.dumps(
+                {
+                    "status": result.status,
+                    "message": result.message,
+                    "response": result.response,
+                    "llm_provenance": llm_provenance,
+                    "input_verdict": result.input_verdict.to_dict(),
+                    "output_verdict": (
+                        result.output_verdict.to_dict()
+                        if result.output_verdict is not None
+                        else None
+                    ),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        else:
+            lines = [result.message]
+            if verbose:
+                lines.append("-" * 72)
+                lines.append("Input verdict:")
+                lines.append(indent(result.input_verdict.explain()))
+                if result.output_verdict is not None:
+                    lines.append("Output verdict:")
+                    lines.append(indent(result.output_verdict.explain()))
+            out = "\n".join(lines)
+        system_error = (
+            result.status == "system_error"
+            or result.input_verdict.system_error
+            or (result.output_verdict is not None and result.output_verdict.system_error)
+        )
+        out = describe_llm_provenance(llm_provenance) + "\n\n" + out
+        out += f"\n\n[status={result.status}, system_error={system_error}]"
+        tag = "system_error" if system_error else ("error" if result.status != "ok" else None)
+        return out, tag
 
     def _run(self):
         text = self.input_text.get("1.0", "end-1c")
@@ -560,64 +620,57 @@ class ProcessTab(ttk.Frame):
 
         audit, init_warning = self.settings.build_audit()
 
+        if self._conversation_id is None:
+            self._conversation_id = uuid.uuid4().hex
+        conversation_id = self._conversation_id
+        turn_index = len(self._history) + 1
+        history = list(self._history)
+
         def job():
             engine = build_engine(policy, ontology, grounding, norms, engine_kind)
             llm, llm_provenance = build_llm(model, mock)
             agent = GuardedAgent(
                 engine=engine, llm=llm, audit=audit, llm_provenance=llm_provenance
             )
-            result = agent.process(text)
+            result = agent.process(
+                text,
+                history=history,
+                conversation_id=conversation_id,
+                turn_index=turn_index,
+            )
             return result, llm_provenance
 
         self.run_btn.config(state="disabled")
+        self.new_conv_btn.config(state="disabled")
         self.result.start()
 
         def on_done(payload):
             result, llm_provenance = payload
-            if as_json:
-                out = json.dumps(
-                    {
-                        "status": result.status,
-                        "message": result.message,
-                        "response": result.response,
-                        "llm_provenance": llm_provenance,
-                        "input_verdict": result.input_verdict.to_dict(),
-                        "output_verdict": (
-                            result.output_verdict.to_dict()
-                            if result.output_verdict is not None
-                            else None
-                        ),
-                    },
-                    indent=2,
-                    ensure_ascii=False,
-                )
-            else:
-                lines = [result.message]
-                if verbose:
-                    lines.append("-" * 72)
-                    lines.append("Input verdict:")
-                    lines.append(indent(result.input_verdict.explain()))
-                    if result.output_verdict is not None:
-                        lines.append("Output verdict:")
-                        lines.append(indent(result.output_verdict.explain()))
-                out = "\n".join(lines)
-            system_error = (
-                result.status == "system_error"
-                or result.input_verdict.system_error
-                or (result.output_verdict is not None and result.output_verdict.system_error)
-            )
-            out = describe_llm_provenance(llm_provenance) + "\n\n" + out
+            # Append first, before any formatting that could raise: on_done
+            # only runs once agent.process() has already returned (and
+            # already written the audit record, inside _finish) -- so this
+            # keeps self._history and the audit trail's turn_index 1:1
+            # regardless of what happens below.
+            self._history.append(result)
+
+            out, tag = self._format_turn(result, llm_provenance, verbose, as_json)
             notices = audit_notice_lines(audit, init_warning)
             if notices:
                 out = "\n".join(notices) + "\n\n" + out
-            out += f"\n\n[status={result.status}, system_error={system_error}]"
-            tag = "system_error" if system_error else ("error" if result.status != "ok" else None)
-            self.result.show(out, tag)
+            if as_json:
+                self.result.show(out, tag)
+            else:
+                self._transcript_blocks.append(
+                    f"===== Turn {turn_index} (conversation {conversation_id[:8]}) =====\n{out}"
+                )
+                self.result.show("\n\n".join(self._transcript_blocks), tag)
             self.run_btn.config(state="normal")
+            self.new_conv_btn.config(state="normal")
 
         def on_error(exc):
             self.result.show_error(exc)
             self.run_btn.config(state="normal")
+            self.new_conv_btn.config(state="normal")
 
         RunHandle(self, job, on_done, on_error)
 

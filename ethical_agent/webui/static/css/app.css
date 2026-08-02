@@ -1,0 +1,1092 @@
+:root {
+  --ea-bg: #ffffff;
+  --ea-bg-alt: #f5f6f8;
+  --ea-fg: #1a1d21;
+  --ea-fg-muted: #5b6270;
+  --ea-border: #dfe2e7;
+  --ea-accent: #2f6feb;
+  --ea-accent-fg: #ffffff;
+  --ea-user-bubble: #eef2ff;
+  --ea-assistant-bubble: #f5f6f8;
+  --ea-danger: #b91c1c;
+  --ea-danger-bg: #fdecec;
+  --ea-warning: #b45309;
+  --ea-warning-bg: #fff6e8;
+  --ea-rewrite: #92660a;
+  --ea-rewrite-bg: #fff8e6;
+  --ea-info: #2f6feb;
+  --ea-info-bg: #eef4ff;
+  --ea-radius: 10px;
+  --ea-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ea-bg: #1b1d21;
+    --ea-bg-alt: #24262b;
+    --ea-fg: #e7e9ec;
+    --ea-fg-muted: #9aa1ab;
+    --ea-border: #34373d;
+    --ea-accent: #6c9bff;
+    --ea-accent-fg: #0d1117;
+    --ea-user-bubble: #23283a;
+    --ea-assistant-bubble: #24262b;
+    --ea-danger: #ff8a8a;
+    --ea-danger-bg: #3a1f1f;
+    --ea-warning: #ffb454;
+    --ea-warning-bg: #3a2c14;
+    --ea-rewrite: #f0c36a;
+    --ea-rewrite-bg: #362c11;
+    --ea-info: #6c9bff;
+    --ea-info-bg: #1c2636;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Global safeguard: this bit twice already (config panel, file-browser
+   overlay) -- any element with `display` set on its own class wins over the
+   browser's built-in `[hidden] { display: none }` at equal specificity,
+   since author CSS beats user-agent CSS regardless of source order. Every
+   component-specific `.x[hidden] { display: none }` override above is now
+   redundant with this, kept only as documentation of why; new components
+   don't need to remember to add one.
+*/
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ea-fg);
+  background: var(--ea-bg);
+  overflow-x: hidden;
+}
+
+.ea-shell {
+  display: flex;
+  height: 100%;
+}
+
+/* Check/Demo/Eval have no left sidebar (there's no conversation history
+   concept for them) -- just header/config/banner/main stacked, same as the
+   chat page's own .ea-app-main column, minus the sidebar next to it. */
+.ea-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ea-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--ea-border);
+  background: var(--ea-bg-alt);
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+  gap: 0.5rem;
+  overflow-y: auto;
+}
+
+.ea-sidebar__new {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--ea-radius);
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  cursor: pointer;
+  text-align: left;
+}
+
+.ea-sidebar__new:hover {
+  border-color: var(--ea-accent);
+  color: var(--ea-accent);
+}
+
+.ea-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.ea-sidebar__empty {
+  color: var(--ea-fg-muted);
+  font-size: 0.8rem;
+  padding: 0.4rem 0.3rem;
+}
+
+.ea-sidebar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--ea-fg);
+  cursor: pointer;
+}
+
+.ea-sidebar__item:hover {
+  background: var(--ea-border);
+}
+
+.ea-sidebar__item--active,
+.ea-sidebar__item--active:hover {
+  /* :hover alone (class + pseudo-class, specificity 0,2,0) otherwise beats
+     a single .ea-sidebar__item--active (0,1,0) and the "you are here"
+     highlight disappears under the cursor. */
+  background: var(--ea-accent);
+  color: var(--ea-accent-fg);
+}
+
+.ea-sidebar__item--active .ea-sidebar__meta {
+  color: var(--ea-accent-fg);
+  opacity: 0.85;
+}
+
+.ea-sidebar__preview {
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.ea-sidebar__meta {
+  font-size: 0.7rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+a {
+  color: var(--ea-accent);
+}
+
+/* ---------------------------------------------------------------- topbar */
+
+.ea-topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--ea-border);
+  flex-wrap: wrap;
+}
+
+.ea-topbar__title {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.ea-topbar button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--ea-radius);
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg-alt);
+  color: var(--ea-fg);
+  cursor: pointer;
+}
+
+.ea-topbar button:hover {
+  border-color: var(--ea-accent);
+}
+
+/* --------------------------------------------------------------------- nav */
+
+.ea-nav__list {
+  list-style: none;
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+}
+
+.ea-nav__link,
+.ea-nav__list a {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--ea-radius);
+  text-decoration: none;
+  color: var(--ea-fg);
+  font-size: 0.9rem;
+}
+
+.ea-nav__list a:hover {
+  background: var(--ea-bg-alt);
+}
+
+.ea-nav__link--active {
+  background: var(--ea-accent);
+  color: var(--ea-accent-fg);
+}
+
+/* Disabled nav items must look inert, not merely fail to respond: no
+   pointer cursor affordance, muted, no hover reaction. */
+.ea-nav__link--disabled {
+  color: var(--ea-fg-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.ea-nav__link--disabled:hover {
+  background: none;
+}
+
+.ea-nav__badge {
+  margin-left: 0.35rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+}
+
+/* --------------------------------------------------------------- statusbar */
+
+/* Deliberately quiet: no background, no border, small type -- this is
+   ambient information (which engine/model actually answered), not a
+   headline. Sits as a thin line right above the composer, the way a "model
+   in use" footnote would in a chat product, not stacked directly under the
+   config panel where the two competed for attention. */
+.ea-statusbar {
+  padding: 0.3rem 0 0.4rem;
+  font-size: 0.72rem;
+  color: var(--ea-fg-muted);
+  text-align: center;
+  min-height: 1.2em;
+}
+
+/* ---------------------------------------------------------- config panel */
+
+/* `.hidden` alone loses to the `display` this class sets below (author CSS
+   beats the UA's built-in `[hidden] { display: none }` at equal specificity)
+   -- this combined selector is what actually makes panelEl.hidden = true
+   take effect. The panel starts closed (see config-panel.js) and must stay
+   closed until the toggle button is used. */
+.ea-config-panel[hidden] {
+  display: none;
+}
+
+.ea-config-panel {
+  border-bottom: 1px solid var(--ea-border);
+  background: var(--ea-bg-alt);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 620px;
+}
+
+.ea-config-panel__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ea-config-panel__row label {
+  font-size: 0.78rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-config-panel__row input[type="text"],
+.ea-config-panel__row select {
+  font: inherit;
+  font-size: 0.85rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+}
+
+.ea-config-panel__row input[type="text"]:focus,
+.ea-config-panel__row select:focus {
+  outline: 2px solid var(--ea-accent);
+  outline-offset: -1px;
+}
+
+.ea-config-panel__row--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ea-config-panel__row--checkbox label {
+  order: 2;
+  color: var(--ea-fg);
+  font-size: 0.85rem;
+}
+
+.ea-config-panel__input-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.ea-config-panel__input-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.ea-config-panel__browse {
+  font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg);
+  color: var(--ea-fg-muted);
+  cursor: pointer;
+}
+
+.ea-config-panel__browse:hover {
+  color: var(--ea-fg);
+  border-color: var(--ea-accent);
+}
+
+/* ------------------------------------------------------------ file browser */
+
+/* Same [hidden]-loses-to-display bug as .ea-config-panel (see its comment
+   above) -- caught this time by actually driving the page instead of just
+   reading the CSS, which is exactly why that verification step exists. */
+.ea-filebrowser-overlay[hidden] {
+  display: none;
+}
+
+.ea-filebrowser-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.ea-filebrowser {
+  width: min(560px, 90vw);
+  max-height: 80vh;
+  background: var(--ea-bg);
+  border-radius: 12px;
+  border: 1px solid var(--ea-border);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  padding: 0.9rem;
+  gap: 0.5rem;
+}
+
+.ea-filebrowser__path {
+  font-family: var(--ea-mono);
+  font-size: 0.78rem;
+  color: var(--ea-fg-muted);
+  word-break: break-all;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--ea-border);
+}
+
+.ea-filebrowser__error {
+  color: var(--ea-danger);
+  font-size: 0.8rem;
+}
+
+.ea-filebrowser__list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-height: 200px;
+}
+
+.ea-filebrowser__item {
+  text-align: left;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--ea-fg);
+  cursor: pointer;
+}
+
+.ea-filebrowser__item:hover {
+  background: var(--ea-bg-alt);
+}
+
+.ea-filebrowser__item--dir {
+  font-weight: 600;
+}
+
+.ea-filebrowser__item--up {
+  color: var(--ea-fg-muted);
+}
+
+.ea-filebrowser__footer {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ea-border);
+}
+
+.ea-filebrowser__filename {
+  flex: 1;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+}
+
+.ea-filebrowser__select,
+.ea-filebrowser__cancel {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg-alt);
+  color: var(--ea-fg);
+  cursor: pointer;
+}
+
+.ea-filebrowser__select {
+  background: var(--ea-accent);
+  border-color: var(--ea-accent);
+  color: var(--ea-accent-fg);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------- error banner */
+
+.ea-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--ea-danger-bg);
+  color: var(--ea-danger);
+  border: 1px solid currentColor;
+  border-radius: var(--ea-radius);
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.ea-error-banner__close {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Same shape as an error banner, neutral color -- used for the read-only /
+   reconciliation notices, which aren't errors and shouldn't read as one. */
+.ea-info-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--ea-info-bg);
+  color: var(--ea-info);
+  border: 1px solid currentColor;
+  border-radius: var(--ea-radius);
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+/* ----------------------------------------------------------------- main */
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The column that actually reads as "a chat": capped width, centered, with
+   margin on both sides on anything wider than a narrow window -- this is
+   the single change that most makes the page look like a conversation
+   instead of a form that happens to have messages in it. */
+.ea-chat-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.ea-transcript {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.ea-empty-state {
+  max-width: 640px;
+  margin: 2rem auto;
+  text-align: left;
+  color: var(--ea-fg-muted);
+  line-height: 1.5;
+}
+
+.ea-empty-state h1 {
+  color: var(--ea-fg);
+  font-size: 1.3rem;
+}
+
+.ea-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 82%;
+}
+
+.ea-turn--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.ea-turn--assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+  max-width: 100%;
+  width: 100%;
+}
+
+.ea-bubble {
+  border-radius: 16px;
+  padding: 0.75rem 1.05rem;
+  line-height: 1.6;
+  font-size: 0.95rem;
+  white-space: normal;
+}
+
+.ea-turn--assistant .ea-bubble {
+  max-width: 82%;
+}
+
+.ea-bubble p:first-child {
+  margin-top: 0;
+}
+
+.ea-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.ea-bubble pre {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.5rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: var(--ea-mono);
+  font-size: 0.85rem;
+}
+
+.ea-bubble code {
+  font-family: var(--ea-mono);
+  font-size: 0.9em;
+}
+
+.ea-turn--user .ea-bubble {
+  background: var(--ea-user-bubble);
+}
+
+.ea-turn--assistant .ea-bubble {
+  background: var(--ea-assistant-bubble);
+}
+
+/* ------------------------------------------------------- intervention block */
+
+.ea-intervention {
+  border-radius: var(--ea-radius);
+  border: 1px solid var(--ea-border);
+  padding: 0.6rem 0.9rem;
+  max-width: 92%;
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.ea-intervention--blocked_input,
+.ea-intervention--blocked_output {
+  border-color: var(--ea-danger);
+  background: var(--ea-danger-bg);
+}
+
+.ea-intervention--rewrite {
+  border-color: var(--ea-rewrite);
+  background: var(--ea-rewrite-bg);
+}
+
+.ea-intervention--system_error {
+  border-color: var(--ea-warning);
+  background: var(--ea-warning-bg);
+}
+
+.ea-intervention__summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ea-intervention__summary::-webkit-details-marker {
+  display: none;
+}
+
+.ea-intervention__summary::before {
+  content: "▸";
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: var(--ea-fg-muted);
+}
+
+details[open] > .ea-intervention__summary::before {
+  transform: rotate(90deg);
+}
+
+.ea-intervention__hint {
+  font-weight: 400;
+  color: var(--ea-fg-muted);
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.ea-intervention__body {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--ea-border);
+  font-size: 0.85rem;
+}
+
+/* verdict-view.js output */
+
+.ea-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--ea-bg-alt);
+  border: 1px solid var(--ea-border);
+}
+
+.ea-badge--deny {
+  color: var(--ea-danger);
+  border-color: var(--ea-danger);
+}
+
+.ea-badge--rewrite {
+  color: var(--ea-rewrite);
+  border-color: var(--ea-rewrite);
+}
+
+.ea-badge--flag,
+.ea-badge--allow {
+  color: var(--ea-fg-muted);
+}
+
+.ea-badge--hard {
+  margin-left: 0.4rem;
+  color: var(--ea-danger);
+  border-color: var(--ea-danger);
+}
+
+.ea-verdict__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-matches {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ea-match {
+  border-left: 3px solid var(--ea-border);
+  padding-left: 0.6rem;
+}
+
+.ea-match__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ea-match__meta {
+  color: var(--ea-fg-muted);
+  font-size: 0.75rem;
+}
+
+.ea-match__rationale {
+  margin: 0.25rem 0;
+}
+
+.ea-evidence {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-rewritten {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--ea-border);
+}
+
+/* --------------------------------------------------------------- copy row */
+
+/* Discreet on purpose: this is a utility for inspecting a turn, not part of
+   the conversation, so it must not compete visually with the message --
+   invisible until the turn is hovered/focused, then a small muted text
+   link, not a bordered button. */
+.ea-turn__actions {
+  display: flex;
+  gap: 0.5rem;
+  min-height: 1.3rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.ea-turn:hover .ea-turn__actions,
+.ea-turn:focus-within .ea-turn__actions,
+.ea-turn__actions:focus-within {
+  opacity: 1;
+}
+
+.ea-copy-btn {
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.2rem;
+  border: none;
+  background: none;
+  color: var(--ea-fg-muted);
+  cursor: pointer;
+}
+
+.ea-copy-btn::before {
+  content: "⧉ ";
+}
+
+.ea-copy-btn:hover {
+  color: var(--ea-accent);
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------- fallback notice */
+
+/* Always visible (not a <details>, unlike .ea-intervention) -- this is
+   infrastructure context to read *before* the simulated reply below it,
+   not something worth making someone click to discover. */
+.ea-fallback-notice {
+  border: 1px solid var(--ea-warning);
+  background: var(--ea-warning-bg);
+  color: var(--ea-warning);
+  border-radius: var(--ea-radius);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  max-width: 92%;
+  width: 100%;
+  margin-bottom: 0.4rem;
+  line-height: 1.5;
+}
+
+.ea-fallback-notice p {
+  margin: 0.35rem 0;
+}
+
+.ea-fallback-notice p:first-child {
+  margin-top: 0;
+}
+
+.ea-fallback-notice p:last-child {
+  margin-bottom: 0;
+}
+
+.ea-fallback-notice code {
+  font-family: var(--ea-mono);
+  background: rgba(0, 0, 0, 0.08);
+  padding: 0 0.3rem;
+  border-radius: 4px;
+}
+
+.ea-fallback-notice__reason {
+  font-family: var(--ea-mono);
+  font-size: 0.85em;
+  opacity: 0.85;
+}
+
+/* ------------------------------------------------------------ progress */
+
+.ea-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ea-fg-muted);
+  font-size: 0.85rem;
+  padding: 0.2rem 0.1rem;
+}
+
+.ea-progress__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: ea-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ea-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------- composer */
+
+/* A self-contained rounded input box that lives inside the chat column,
+   rather than a full-bleed top-border strip -- matches the column concept
+   instead of fighting it with a border that stops short of the page edges. */
+.ea-composer {
+  border: 1px solid var(--ea-border);
+  border-radius: 16px;
+  background: var(--ea-bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding: 0.55rem 0.6rem 0.55rem 0.9rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.ea-composer textarea {
+  flex: 1;
+  resize: none;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.4rem 0;
+  border: none;
+  background: transparent;
+  color: var(--ea-fg);
+  max-height: 12rem;
+  min-height: 2.4rem;
+  line-height: 1.5;
+}
+
+.ea-composer textarea:focus {
+  outline: none;
+}
+
+.ea-composer textarea:disabled {
+  opacity: 0.6;
+}
+
+.ea-composer button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  border: none;
+  background: var(--ea-accent);
+  color: var(--ea-accent-fg);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ea-composer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ea-reconcile-banner {
+  margin: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--ea-radius);
+  border: 1px solid var(--ea-warning);
+  background: var(--ea-warning-bg);
+  color: var(--ea-warning);
+  font-size: 0.85rem;
+}
+
+/* ------------------------------------------------------- tool pages */
+/* Shared by check.html/demo.html/eval.html -- each explains itself in
+   running text (per spec: "cada uma se explica em texto corrido"), then a
+   small form, then a result area. No sidebar (there's no conversation
+   history concept for these), just the header/config/banner/main stack. */
+
+.ea-tool-column {
+  padding-top: 1.25rem;
+  padding-bottom: 2rem;
+  overflow-y: auto;
+}
+
+.ea-tool-intro {
+  color: var(--ea-fg-muted);
+  line-height: 1.6;
+  max-width: 640px;
+}
+
+.ea-tool-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 640px;
+  margin-bottom: 1.5rem;
+}
+
+.ea-tool-form label {
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+  margin-top: 0.4rem;
+}
+
+.ea-tool-form textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--ea-radius);
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  resize: vertical;
+}
+
+.ea-tool-form select,
+.ea-tool-form input[type="text"] {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--ea-border);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+}
+
+.ea-tool-form button[type="submit"],
+#ea-demo-run {
+  align-self: flex-start;
+  margin-top: 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--ea-radius);
+  border: none;
+  background: var(--ea-accent);
+  color: var(--ea-accent-fg);
+  cursor: pointer;
+}
+
+.ea-tool-form button[type="submit"]:disabled,
+#ea-demo-run:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ea-tool-notices {
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+  margin-bottom: 0.5rem;
+}
+
+.ea-tool-summary {
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.ea-tool-result {
+  max-width: 780px;
+}
+
+.ea-demo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ea-demo-case {
+  border-bottom: 1px solid var(--ea-border);
+  padding-bottom: 1.25rem;
+}
+
+.ea-demo-case__prompt {
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+}
+
+.ea-demo-case__message {
+  color: var(--ea-fg-muted);
+  margin: 0 0 0.5rem;
+}
+
+.ea-demo-note {
+  color: var(--ea-fg-muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.ea-eval-report {
+  font-family: var(--ea-mono);
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  background: var(--ea-bg-alt);
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+}

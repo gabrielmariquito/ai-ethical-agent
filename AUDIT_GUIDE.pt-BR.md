@@ -173,6 +173,96 @@ deliberada, não esquecimento:
 | `message` | ❌ | ✅ | ✅ | `check` avalia conteúdo mas não gera mensagem para ninguém — forçar o campo seria um valor vazio/repetitivo, não sinal |
 | `source` | ❌ | ❌ | ✅ | Marca especificamente dados sintéticos de demonstração (ver `audit_tools.py resumir`); `process` é uso real, não leva a marca |
 
+### `conversation_id` / `turn_index` — conversas de múltiplos turnos
+
+`GuardedAgent.process()` pode receber o histórico de turnos anteriores da
+mesma conversa (para o **modelo** continuar de onde parou) junto de um
+`conversation_id`/`turn_index` (para a **trilha** poder ser remontada
+depois). Só a aba **Process** da GUI (`gui_app.py`) usa isso hoje — a CLI
+continua turno único, sem esses dois campos. Quando presentes, o registro
+traz:
+
+```jsonc
+{"conversation_id": "3f9a2b7c1e4d4a9f8b21...", "turn_index": 2}
+```
+
+`conversation_id` identifica a conversa; `turn_index` (a partir de 1) dá a
+posição do turno dentro dela. Para reconstruir uma conversa em ordem:
+
+```bash
+python -c "
+import json
+records = [json.loads(l) for l in open('logs/audit.jsonl', encoding='utf-8')]
+turns = sorted(
+    (r for r in records if r.get('conversation_id') == 'SEU_ID_AQUI'),
+    key=lambda r: r['turn_index'],
+)
+for r in turns:
+    print(r['turn_index'], r['status'], r['message'][:80])"
+```
+
+Ambos os campos são omitidos (não aparecem como `null`) quando a chamada não
+faz parte de uma conversa com histórico — mesmo padrão de `llm_provenance`,
+acima.
+
+**O histórico da GUI vive só na memória do processo** — fechar a janela
+perde a conversa em curso. Isso não afeta a trilha: cada turno já foi
+gravado em `logs/audit.jsonl` no momento em que aconteceu. Reconstruir uma
+conversa depois do fato é feito lendo o arquivo (comando acima), não
+reabrindo a interface — a GUI não recarrega nem retoma conversas antigas.
+
+**O que o modelo recebe de um turno anterior que foi bloqueado ou
+reescrito** — nunca o conteúdo bruto, sempre `message` (o texto que o
+usuário de fato recebeu naquele turno):
+
+| O que aconteceu no turno anterior | O que entra no histórico enviado ao modelo | Por quê |
+|---|---|---|
+| `input` foi `DENY` | **Nada** — o turno inteiro é omitido do histórico | O modelo nunca chegou a ver esse pedido (nem foi chamado); reintroduzi-lo depois anularia o bloqueio |
+| `output` foi `DENY` | O texto de recusa (`message`) | O modelo viu o pedido do usuário — o que foi barrado foi a resposta dele, não o pedido |
+| `output` foi `REWRITE` (redação, ex. PII) | A versão redigida (`message`) | O valor original nunca chega ao modelo, mesma garantia que já protege a trilha (Passo 1, "O que não dá para auditar") |
+| `output` foi `REWRITE` (template) | A versão reescrita com aviso (`message`) | Igual acima, sem valor a redigir |
+| Turno correu normalmente (`ok`) | A resposta entregue (`message`) | É o que de fato aconteceu na conversa do ponto de vista do usuário |
+
+A entrada `DENY` de input e a `DENY` de output recebem tratamento diferente
+de propósito, não por descuido: no primeiro caso o modelo nunca processou o
+pedido; no segundo, ele processou e gerou uma resposta que foi barrada
+depois — são situações diferentes.
+
+A garantia por trás da coluna "o que entra no histórico" não é "cada campo
+foi auditado caso a caso" — é estrutural: `message` é, por construção em
+`GuardedAgent.process()`, o único campo que nunca carrega conteúdo
+suprimido (uma `DENY` de saída nunca o preenche com o que foi bloqueado; uma
+`REWRITE` por redação nunca o preenche com o valor bruto — é exatamente o
+que os testes `test_denied_output_is_never_retained` e
+`test_redacted_output_raw_response_not_retained_in_trace` já garantem, em
+`tests/test_agent.py`). Usar `message` como único canal para o histórico
+herda essas garantias já existentes, em vez de abrir uma superfície de
+vazamento nova.
+
+**Decisão de desenho, deliberada**: o guardrail avalia **só o turno novo** —
+o `input` da vez e a `output` gerada para ele — nunca a conversa acumulada.
+Por quê:
+
+- Preserva a auditabilidade por decisão: cada registro continua explicável
+  isoladamente, sem precisar reconstruir a conversa inteira para saber por
+  que aquele turno específico foi liberado, bloqueado ou reescrito.
+- Mantém válidos os números publicados de `eval` (Passo 7) — `eval` avalia
+  turnos isolados direto contra a engine; se o guardrail passasse a depender
+  de contexto acumulado, esses números deixariam de refletir o
+  comportamento real numa conversa.
+- Evita que uma mensagem bloqueada uma vez volte a disparar em todo turno
+  seguinte só por estar sentada no histórico.
+
+**Limite conhecido que essa decisão cria**: um ataque distribuído em vários
+turnos individualmente inofensivos **não é detectado** por este desenho —
+nada acumula entre turnos na avaliação do guardrail. Ver também a linha
+correspondente em "O que não dá para auditar", abaixo.
+
+**Nota**: turnos da mesma `conversation_id` podem legitimamente ter
+`engine`/`config_versions`/`llm_provenance` diferentes entre si (a GUI
+permite trocar modelo/engine entre turnos) — isso não é uma inconsistência a
+investigar, é o comportamento esperado.
+
 ### Dois campos que mudam a leitura
 
 **`system_error: true`** não é julgamento ético — é erro de execução que virou
@@ -394,6 +484,7 @@ texto. É por ali que se investiga um erro específico.
 | **`ALLOW` por falta de regra ≠ `ALLOW` por julgamento** | Os dois aparecem como `matches: []`. Com 12 entradas de política, a maior parte dos `ALLOW` é do primeiro tipo. Ausência de bloqueio raramente significa "foi julgado seguro" |
 | 7 das 9 regras têm `scopes: ["input"]` | Uma resposta nociva gerada pelo modelo passa mesmo usando o vocabulário exato de uma regra. É lacuna estrutural, não lexical |
 | O léxico cobre 8 dos 154 conceitos | A maior parte da ontologia está carregada mas inerte. `hate_speech` tem termos e nenhuma norma o referencia — ativá-lo não faz nada |
+| Ataque distribuído em vários turnos, cada um individualmente inofensivo | O guardrail avalia só o turno novo (input + output da vez), nunca a conversa acumulada — ver `conversation_id`/`turn_index` no Passo 2. Um objetivo nocivo montado por partes ao longo de vários turnos não é detectado por desenho |
 | Não distingue polaridade nem intenção |
 
 ---

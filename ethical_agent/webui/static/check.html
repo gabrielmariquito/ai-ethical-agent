@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ethical Agent — Avaliar texto</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6feb'/%3E%3Cpath d='M16 6 26 10.5v6.4c0 6.6-4.4 10.3-10 12.1-5.6-1.8-10-5.5-10-12.1v-6.4z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/static/css/app.css" />
+  </head>
+  <body>
+    <div class="ea-page">
+      <header class="ea-topbar">
+        <span class="ea-topbar__title">Ethical Agent</span>
+        <nav id="ea-nav"></nav>
+        <button type="button" id="ea-config-toggle" aria-expanded="false" aria-controls="ea-config-panel">
+          Configuração
+        </button>
+      </header>
+
+      <div id="ea-config-panel" hidden></div>
+      <div id="ea-banner-host"></div>
+
+      <main>
+        <div class="ea-chat-column ea-tool-column">
+          <p class="ea-tool-intro">
+            Avalia um único texto direto pelo guardrail, sem chamar nenhum modelo — serve para
+            testar se uma regra dispara, sem gastar uma chamada real. A distinção abaixo importa
+            porque as regras declaram em qual dessas duas situações se aplicam.
+          </p>
+
+          <form id="ea-check-form" class="ea-tool-form">
+            <label for="ea-check-input">Texto</label>
+            <textarea id="ea-check-input" rows="6" placeholder="Cole ou escreva o texto a avaliar…"></textarea>
+
+            <label for="ea-check-stage">Estágio</label>
+            <select id="ea-check-stage"></select>
+
+            <button type="submit" id="ea-check-submit">Avaliar</button>
+          </form>
+
+          <div id="ea-check-result" class="ea-tool-result"></div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/static/js/check.js"></script>
+  </body>
+</html>
