@@ -210,7 +210,23 @@ DEFAULT_WEB_PORT = 8765
 def cmd_serve(args: argparse.Namespace) -> int:
     # Lazy import: webui/ is only needed for this one subcommand, so the
     # other subcommands (check/eval/demo/process) don't pay its import cost.
+    from .webui.auth import (
+        ENV_PASSWORD_VAR,
+        AuditPasswordError,
+        dotenv_password_present,
+        load_audit_password,
+    )
     from .webui.server import make_server
+
+    try:
+        audit_password, password_source, password_warnings = load_audit_password(
+            args.audit_password_file
+        )
+    except AuditPasswordError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    for warning in password_warnings:
+        print(warning, file=sys.stderr)
 
     initial_config = {
         "policy": args.policy,
@@ -229,11 +245,44 @@ def cmd_serve(args: argparse.Namespace) -> int:
         # to notice and turn off manually.
         "mock": False,
     }
-    server = make_server(args.port, initial_config)
+    # The password goes in as its own argument, never through initial_config:
+    # handlers_choices.py serves that dict verbatim to the chat screen.
+    server = make_server(
+        args.port,
+        initial_config,
+        audit_password=audit_password,
+        auditor_session_log=args.auditor_session_log,
+        change_requests_log=args.change_requests_log,
+    )
     print(
         f"Serving at http://127.0.0.1:{args.port} "
         "(127.0.0.1 apenas -- não acessível pela rede). Ctrl+C to stop"
     )
+    if audit_password:
+        # The source, never the value.
+        print(f"Auditoria: habilitada em /audit (senha de {password_source})")
+        # .env sits at the bottom of the precedence chain, so a stale
+        # `export` in a shell profile can outrank the password the installer
+        # wrote -- silently, and with the two being different, confusingly.
+        # Naming the loser is what makes that visible at startup instead of
+        # at the login prompt that keeps rejecting the "right" password.
+        if password_source != f".env ({ENV_PASSWORD_VAR})" and dotenv_password_present():
+            print(
+                f"           atenção: o .env também tem uma senha, e não é a "
+                f"que está valendo ({password_source} tem precedência)"
+            )
+        print(f"           sessões do auditor em {args.auditor_session_log}")
+        print(
+            "           a senha separa papéis; não é segurança "
+            "(ver AUDIT_GUIDE.pt-BR.md, Passo 8)"
+        )
+    else:
+        print(
+            "Auditoria: desabilitada (/audit não existe). Para habilitar, rode "
+            "o instalador (python wizard_gui.py) e preencha o campo de senha, "
+            "ou use --audit-password-file ARQUIVO, ou defina "
+            "ETHICAL_AGENT_AUDIT_PASSWORD"
+        )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -332,6 +381,36 @@ def main(argv=None) -> int:
         type=int,
         default=DEFAULT_WEB_PORT,
         help=f"port to listen on, 127.0.0.1 only (default: {DEFAULT_WEB_PORT})",
+    )
+    p_serve.add_argument(
+        "--audit-password-file",
+        help=(
+            "file whose contents are the password for the /audit screen. "
+            "Highest precedence of three sources: this flag, then "
+            "$ETHICAL_AGENT_AUDIT_PASSWORD, then ETHICAL_AGENT_AUDIT_PASSWORD "
+            "in .env (what the graphical installer writes); with none of them "
+            "the audit screen does not exist. There is deliberately no "
+            "--audit-password VALUE flag: it would land in the process list "
+            "and shell history"
+        ),
+    )
+    p_serve.add_argument(
+        "--auditor-session-log",
+        default="logs/auditor_sessions.jsonl",
+        help=(
+            "where the auditor's own session is recorded (default: "
+            "logs/auditor_sessions.jsonl); must not be the same file as "
+            "--audit-log, which is the agent's trail"
+        ),
+    )
+    p_serve.add_argument(
+        "--change-requests-log",
+        default="logs/policy_change_requests.jsonl",
+        help=(
+            '"this rule should be different" markings made from the audit '
+            "screen (default: logs/policy_change_requests.jsonl); read by the "
+            "policy-editing change, writes nothing to policies/ today"
+        ),
     )
     p_serve.set_defaults(func=cmd_serve)
 

@@ -175,10 +175,11 @@ em tempo de execução).
 
 > Se o alvo for especificamente usuários Windows e você quiser a UI nativa
 > de instalador (tela de boas-vindas/licença, atalho no menu iniciar,
-> desinstalador — o estilo Inno Setup), o caminho é: gerar o `.exe` acima
-> num Windows real (ou via `windows-latest` no GitHub Actions) e escrever um
-> script `.iss` do Inno Setup que embrulha esse `.exe`. Não incluído aqui
-> porque o Inno Setup só compila em Windows.
+> registro em "Aplicativos instalados" — o estilo Inno Setup), o caminho é:
+> gerar o `.exe` acima num Windows real (ou via `windows-latest` no GitHub
+> Actions) e escrever um script `.iss` do Inno Setup que embrulha esse
+> `.exe`. Não incluído aqui porque o Inno Setup só compila em Windows. A
+> desinstalação em si não depende disso — ver "Desinstalação" abaixo.
 
 ### Instalação manual
 
@@ -216,6 +217,73 @@ Isso expõe tanto `python -m ethical_agent ...` quanto um script de console
 > repositório, não fazem parte do pacote instalado, e continuam exigindo rodar
 > a partir de um clone (ou `pip install -e .`, que é o que `wizard_gui.py` usa
 > ao montar seu próprio venv).
+
+### Desinstalação
+
+Contraparte do instalador, num único ponto de entrada:
+[`uninstall.py`](uninstall.py).
+
+```bash
+py -3 uninstall.py              # (Windows)     abre a janela
+python3 uninstall.py            # (macOS/Linux) idem
+python3 uninstall.py --dry-run  # lista tudo no terminal, sem apagar nada
+python3 uninstall.py --cli      # modo texto interativo: uma pergunta por item
+```
+
+Sem argumentos e havendo sessão gráfica, ele abre uma interface no mesmo
+estilo do wizard. Sem sessão gráfica (servidor, SSH, CI), com `--cli`, ou com
+qualquer das flags de remoção, ele roda no terminal. As duas formas são cascas
+finas sobre [`ethical_agent/uninstall.py`](ethical_agent/uninstall.py) e
+mostram exatamente a mesma lista.
+
+**Rode com o Python do sistema, não com o do `.venv`.** No Windows um
+executável em execução não pode ser apagado, então o `.venv` não consegue
+apagar a si mesmo; é também por isso que isto é um script de raiz e não um
+subcomando `ethical-agent uninstall`, que viveria dentro do venv que ele
+apaga. O programa detecta e recusa, explicando o conserto.
+
+O princípio é que **o desinstalador não pode ser mais confiante do que o
+instalador foi**:
+
+| | O quê |
+|---|---|
+| Removido sem perguntar | `.venv/` e artefatos de build (`build/`, `*.egg-info/`, `__pycache__/`, `.pytest_cache/`) |
+| Exige confirmação separada, **desmarcado por padrão** | a trilha de auditoria (`logs/*.jsonl`), o servidor Ollama, o modelo baixado, o `.env` |
+| Nunca removido | o repositório, o código, `policies/`, `ontologies/`, `eval/`, `tests/`, a documentação |
+
+Detalhes que importam:
+
+- **A trilha de auditoria** é o objeto de estudo do projeto e pode conter dados
+  de uma avaliação com participantes. A pergunta diz quantos registros e que
+  período se perdem, e exige **uma confirmação à parte** de escolher o item —
+  uma segunda caixa na janela, uma segunda pergunta no modo texto, idênticas nas
+  duas: escolher não é o mesmo que confirmar. Também oferece `--move-logs-to DIR`
+  para **mover em vez de apagar** — move-ou-falha, os originais nunca são
+  apagados antes de a cópia dar certo.
+- **O servidor Ollama** pode ter sido instalado antes e ser usado por outros
+  projetos. O desinstalador só roda o desinstalador oficial se encontrar
+  exatamente um e a **assinatura digital** for válida — o mesmo teste que o
+  instalador aplica antes de executar o `OllamaSetup.exe` que baixa. Caso
+  contrário mostra os passos manuais e não executa nada. `~/.ollama` (o armazém
+  de modelos, compartilhado) nunca é tocado.
+- **O modelo** só é oferecido quando está nomeado em `OLLAMA_MODEL` no `.env`
+  **e** aparece no `ollama list` — nunca por padrão embutido, porque numa
+  instalação em modo Ollama Cloud o `.env` não tem `OLLAMA_MODEL` nenhum e o
+  modelo padrão pertenceria a outra coisa.
+- Falha em remover um item **não aborta o resto**: cada item é isolado e o
+  relatório final diz o que falhou. Arquivo em uso é comum no Windows, então o
+  programa detecta antes se a interface web ou o Ollama estão rodando, avisa que
+  a remoção do `.venv` vai falhar parcialmente e diz como pará-los.
+- Se você instalou com `pip install -e .` fora do `.venv`, o desinstalador não
+  toca nessa instalação — ele avisa para rodar `pip uninstall ai-ethical-agent`
+  no ambiente correspondente.
+
+A partir desta versão o instalador grava `.ethical-agent-install.json` na raiz
+(gitignored) com o que **observou** ao instalar — em especial se já havia um
+Ollama na máquina antes dele agir. Isso só serve para o desinstalador ser mais
+cauteloso ou mais informado; nenhuma pergunta é pulada por causa dele, e
+instalações feitas antes desta versão (sem o arquivo) continuam funcionando,
+com o desinstalador perguntando como perguntaria sem registro.
 
 ## Início rápido
 
@@ -643,6 +711,101 @@ A mesma regra vale para `check --stage output` na CLI e na interface web, que co
 registro manualmente (não passa por `GuardedAgent`) mas reproduz a mesma
 lógica. Ver `tests/test_agent.py::test_denied_output_is_never_retained` e
 `tests/test_main.py::test_check_output_stage_denied_content_not_retained`.
+
+**Uma assimetria deliberada, dentro dessa mesma regra.** O `matched_text` da
+evidência de uma constraint `DENY` **carrega o trecho casado do conteúdo
+bloqueado** (ex.: `'build a pipe bomb'`), e isso é intencional: sem o excerto
+o auditor não consegue julgar se o bloqueio foi correto — que é exatamente a
+tarefa dele. Regras com `redact: true` continuam limpando o próprio
+`matched_text` (`Evidence.without_matched_text`, aplicada em
+`ethical_agent/engine.py`), porque uma regra de redação existe justamente para
+remover aquele valor. O critério é o *motivo* da intervenção: bloquear
+conteúdo proibido precisa ser conferível, então o excerto fica; remover um
+dado pessoal precisa remover o dado, então o excerto sai. O `span` permanece
+nos dois casos. A tela de auditoria explica essa assimetria no ponto em que o
+auditor esbarra nela, em vez de deixá-la parecer inconsistência.
+
+### Tela de auditoria (`/audit`)
+
+A interface web tem uma tela de leitura da trilha, voltada a **auditores não
+técnicos** — outra pessoa, depois do fato, sobre decisões que não são dela.
+Cada registro é apresentado em três camadas: o que a pessoa pediu, o que o
+sistema fez e por quê, em linguagem comum e sempre visível; depois, sob um
+clique, a norma que disparou com `rationale` e evidências; e por fim a
+proveniência (`config_versions`, `llm_provenance`, `conversation_id`,
+`turn_index`). Registros de uma mesma conversa são navegáveis em sequência,
+porque uma decisão só é julgável em contexto.
+
+A tela **só existe quando há uma senha configurada para ela**. A forma mais
+simples é o instalador gráfico: `python wizard_gui.py` tem um campo de senha na
+tela de Opções, e o que for digitado ali vai para o `.env` da raiz (já ignorado
+pelo git) — depois disso, `ethical-agent serve` sem flag nenhuma já sobe com a
+auditoria habilitada. Deixar o campo em branco mantém a auditoria desativada.
+
+Pela linha de comando, as outras duas fontes continuam valendo:
+
+```bash
+ethical-agent serve --audit-password-file ~/.ethical-agent-audit-password
+# ou:  ETHICAL_AGENT_AUDIT_PASSWORD=... ethical-agent serve
+```
+
+**Precedência**, da mais forte para a mais fraca:
+
+1. `--audit-password-file ARQUIVO`
+2. `$ETHICAL_AGENT_AUDIT_PASSWORD`
+3. `ETHICAL_AGENT_AUDIT_PASSWORD=` no `.env` da raiz (o que o instalador grava)
+4. nenhuma — a tela não existe
+
+Variável de ambiente acima do `.env` é a convenção do `python-dotenv` e é como
+`OLLAMA_API_KEY` já se resolve neste projeto: a variável é o override pontual, o
+`.env` é a configuração persistente. A consequência é que um `export` esquecido
+no perfil do shell pode sobrepor a senha que o instalador gravou — por isso o
+banner de inicialização **nomeia a origem da senha que está valendo** e avisa
+explicitamente quando o `.env` também tinha uma e perdeu. Nem o banner nem
+qualquer log imprimem o valor.
+
+Sem senha, `/audit`, os endpoints `/api/audit/*` e os próprios arquivos
+estáticos da tela respondem o mesmo `404` de uma rota inexistente, para
+qualquer método — a separação é estrutural, não visual (esconder o link não
+adiantaria: o servidor é local e qualquer um chega ao endereço pela barra do
+navegador). Não existe `--audit-password VALOR`: um valor de argumento apareceria
+na lista de processos e no histórico do shell.
+
+> [!IMPORTANT]
+> **Isto é uma barreira, não segurança.** A senha existe para separar dois
+> papéis — quem conversa com o agente e quem audita as decisões — não para
+> resistir a um atacante. O servidor roda em `127.0.0.1`, sem HTTPS e sem
+> infraestrutura de autenticação: a senha e o código de sessão trafegam em
+> texto claro pelo loopback, o código de sessão vive apenas na memória do
+> processo (reiniciar o servidor invalida todas as sessões), e qualquer pessoa
+> com acesso ao computador onde o servidor roda pode ler `logs/audit.jsonl`
+> diretamente, sem passar por esta tela. O cookie é `HttpOnly`, o que impede o
+> JavaScript da página de lê-lo; não impede que alguém sentado na máquina o
+> veja nas ferramentas do navegador. O que a senha garante é que a trilha não
+> abre por acidente, por curiosidade, ou porque alguém digitou `/audit` na
+> barra de endereços — que, num estudo com papéis separados, é exatamente o que
+> precisa valer. Não trate isto como controle de acesso a dado sensível.
+
+**A sessão do auditor é instrumentada, e ele é avisado disso.** Quais registros
+foram abertos, quanto tempo permaneceu em cada um, quais camadas expandiu e em
+que ordem, se voltou a um já visto e a sequência de navegação vão para
+`logs/auditor_sessions.jsonl` (`--auditor-session-log`) — **arquivo separado**
+de `logs/audit.jsonl`, e o servidor se recusa a iniciar se os dois apontarem
+para o mesmo lugar. Misturar comportamento do auditor com decisão do agente
+corromperia a trilha, que é o objeto de estudo; é o mesmo raciocínio que fez os
+registros de demo ganharem `source="demo"`. Não há identificação pessoal: nem
+nome, nem endereço de rede, nem identificação do navegador — só um código de
+sessão anônimo gerado no servidor. A tela mostra isso antes de pedir a senha,
+mantém um aviso permanente enquanto o auditor trabalha, lista cada tipo de
+evento que pode ser gravado, e deixa o auditor ler os próprios eventos (leitura
+que também é registrada). Numa aplicação sobre transparência, instrumentar sem
+avisar seria contraditório.
+
+A tela também tem o botão **"isso deveria ser diferente"**, ancorado num
+registro e numa norma, com motivo opcional; grava em
+`logs/policy_change_requests.jsonl` e **não altera política nenhuma** — é
+registro de intenção. A edição efetiva das regras, com versionamento e
+histórico, é a mudança seguinte.
 
 ## Limitações conhecidas (intencionais, nesta fase)
 

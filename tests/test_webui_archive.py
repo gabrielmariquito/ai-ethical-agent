@@ -3,6 +3,8 @@ import json
 from ethical_agent.webui.archive import (
     _iter_lines_reverse,
     build_readonly_transcript,
+    iter_lines_reverse_offsets,
+    iter_records_reverse,
     summarize_conversations,
 )
 
@@ -91,6 +93,59 @@ def test_iter_lines_reverse_tolerates_crlf(tmp_path):
     # AuditLogger.log()'s actual output, not assumed.
     path = _write_raw(tmp_path, "a\r\nb\r\nc\r\n")
     assert list(_iter_lines_reverse(path)) == ["c", "b", "a"]
+
+
+# --------------------------------------------------------- byte offsets
+# The audit screen pages backward with a byte offset as its cursor and jumps
+# straight to one record without rescanning, so an offset that is off by even
+# one byte silently returns the wrong record.
+
+
+def test_offsets_point_at_the_first_byte_of_each_line(tmp_path):
+    path = _write_raw(tmp_path, "aaa\nbb\nc\n")
+    raw = path.read_bytes()
+    for offset, line in iter_lines_reverse_offsets(path):
+        assert raw[offset : offset + len(line.encode("utf-8"))] == line.encode("utf-8")
+
+
+def test_offsets_are_exact_under_crlf(tmp_path):
+    # The real trail on Windows is CRLF, and the offset has to point past the
+    # previous line's "\r\n", not just its "\n".
+    path = _write_raw(tmp_path, "aaa\r\nbb\r\nc\r\n")
+    raw = path.read_bytes()
+    offsets = list(iter_lines_reverse_offsets(path))
+    assert [line for _, line in offsets] == ["c", "bb", "aaa"]
+    for offset, line in offsets:
+        assert raw[offset : offset + len(line)] == line.encode("utf-8")
+
+
+def test_offsets_are_exact_across_chunk_boundaries_and_multibyte_utf8(tmp_path):
+    # A chunk boundary landing mid-line is the case the chunked reverse read
+    # exists to handle; accented text makes byte length differ from character
+    # length, which is where a naive offset would drift.
+    path = _write_raw(tmp_path, "acentuação\nsegunda linha\nterceira\n")
+    raw = path.read_bytes()
+    for chunk in (3, 7, 11, 65536):
+        for offset, line in iter_lines_reverse_offsets(path, chunk_size=chunk):
+            encoded = line.encode("utf-8")
+            assert raw[offset : offset + len(encoded)] == encoded, (chunk, offset, line)
+
+
+def test_end_offset_continues_from_where_a_previous_page_stopped(tmp_path):
+    path = _write_raw(tmp_path, "um\ndois\ntres\nquatro\n")
+    everything = list(iter_lines_reverse_offsets(path))
+    resumed = list(iter_lines_reverse_offsets(path, end_offset=everything[1][0]))
+    # Scanning [0, cursor) picks up exactly where the first page left off --
+    # no repeats, no gap.
+    assert [line for _, line in resumed] == [line for _, line in everything[2:]]
+
+
+def test_iter_records_reverse_surfaces_unparseable_lines_as_none(tmp_path):
+    # Not skipped: a reader for auditors should be able to say "there is
+    # something unreadable here" rather than quietly shortening the trail.
+    path = _write_raw(tmp_path, '{"a": 1}\nnao e json\n{"b": 2}\n')
+    parsed = [record for _, record in iter_records_reverse(path)]
+    assert parsed == [{"b": 2}, None, {"a": 1}]
 
 
 # ---------------------------------------------------- summarize_conversations

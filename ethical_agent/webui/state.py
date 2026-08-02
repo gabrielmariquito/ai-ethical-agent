@@ -183,10 +183,39 @@ class ServerState:
     CLI flags `ethical-agent serve` was started with) -- the browser can
     still override every field per-request; the server never caches a built
     engine/llm/audit between requests (see engine_factory.py).
+
+    NOTE for anyone adding configuration: handlers_choices.py serves
+    dict(initial_config) verbatim to the chat screen, unauthenticated. A
+    secret must therefore never be put in it -- the audit password lives in
+    audit_auth and nowhere else. There is a test for exactly this.
     """
 
-    def __init__(self, initial_config: dict):
+    def __init__(
+        self,
+        initial_config: dict,
+        audit_auth=None,
+        auditor_logger=None,
+        change_request_logger=None,
+    ):
+        from .auth import AuditAuth  # local import: keeps state.py importable standalone
+
         self.initial_config = initial_config
         self.conversations = ConversationStore()
         self.jobs = JobRegistry()
         self.audit_lock = threading.Lock()
+        # A lock of its own, never audit_lock: the auditor's trail and the
+        # agent's trail are different files with different writers, and
+        # sharing a lock would make one wait on the other for no reason.
+        self.auditor_lock = threading.Lock()
+        self.audit_auth = audit_auth if audit_auth is not None else AuditAuth(None)
+        self.auditor_logger = auditor_logger
+        self.change_request_logger = change_request_logger
+
+    def realm_enabled(self, realm: str) -> bool:
+        """Whether a named group of routes exists at all right now. Passed to
+        routing.match(), which skips a disabled realm's routes before it
+        decides whether the path is known -- see the comment there for why
+        that ordering carries the whole access separation."""
+        if realm == "audit":
+            return self.audit_auth.enabled
+        return True

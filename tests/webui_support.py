@@ -40,13 +40,33 @@ def make_initial_config(tmp_path, engine="rule", mock=True, model="llama3.2:3b",
 
 
 class RunningServer:
-    def __init__(self, tmp_path, **config_overrides):
+    def __init__(
+        self,
+        tmp_path,
+        audit_password=None,
+        auditor_session_log=None,
+        change_requests_log=None,
+        **config_overrides,
+    ):
         self.initial_config = make_initial_config(tmp_path, **config_overrides)
-        self.server = make_server(0, self.initial_config)
+        self.auditor_session_log = auditor_session_log or str(tmp_path / "auditor_sessions.jsonl")
+        self.change_requests_log = change_requests_log or str(tmp_path / "change_requests.jsonl")
+        self.server = make_server(
+            0,
+            self.initial_config,
+            audit_password=audit_password,
+            auditor_session_log=self.auditor_session_log,
+            change_requests_log=self.change_requests_log,
+        )
         self.port = self.server.server_address[1]
         self._thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self._thread.start()
         self.base_url = f"http://127.0.0.1:{self.port}"
+        # urllib has no cookie handling of its own, and the audit session is
+        # a cookie (chosen so navigator.sendBeacon can carry it at page-hide
+        # time). Holding it here keeps the tests exercising the same
+        # credential flow a browser would.
+        self.cookies: dict = {}
 
     @property
     def audit_log_path(self):
@@ -61,13 +81,32 @@ class RunningServer:
     def request(self, method: str, path: str, body=None, host: str | None = None):
         data = json.dumps(body).encode("utf-8") if body is not None else None
         headers = {"Content-Type": "application/json; charset=utf-8"} if data is not None else {}
+        if self.cookies:
+            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items())
         base = f"http://{host}:{self.port}" if host else self.base_url
         req = urllib.request.Request(base + path, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=5) as resp:
+                self._store_cookies(resp.headers)
                 return resp.status, resp.read(), dict(resp.headers)
         except urllib.error.HTTPError as exc:
+            self._store_cookies(exc.headers)
             return exc.code, exc.read(), dict(exc.headers)
+
+    def _store_cookies(self, headers) -> None:
+        for raw in headers.get_all("Set-Cookie") or []:
+            morsel = raw.split(";", 1)[0]
+            if "=" not in morsel:
+                continue
+            name, value = morsel.split("=", 1)
+            if value == "":
+                self.cookies.pop(name, None)
+            else:
+                self.cookies[name] = value
+
+    def login_as_auditor(self, password: str):
+        status, body, headers = self.post("/api/audit/login", {"password": password})
+        return status, body, headers
 
     def get(self, path: str):
         status, raw, headers = self.request("GET", path)

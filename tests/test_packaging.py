@@ -57,6 +57,21 @@ EXPECTED_WEBUI_FILES = {
     "ethical_agent/webui/static/js/intervention-view.js",
     "ethical_agent/webui/static/js/sidebar.js",
     "ethical_agent/webui/static/js/file-browser.js",
+    # The audit screen. Its modules live one directory deeper (so the whole
+    # screen can be gated by a single static-path prefix when no audit
+    # password is configured), which needs its own package-data glob --
+    # "static/js/*.js" does not recurse.
+    "ethical_agent/webui/static/audit.html",
+    "ethical_agent/webui/static/css/audit.css",
+    "ethical_agent/webui/static/js/audit/audit-app.js",
+    "ethical_agent/webui/static/js/audit/audit-auth.js",
+    "ethical_agent/webui/static/js/audit/audit-layers.js",
+    "ethical_agent/webui/static/js/audit/audit-list.js",
+    "ethical_agent/webui/static/js/audit/audit-record.js",
+    "ethical_agent/webui/static/js/audit/audit-conversation.js",
+    "ethical_agent/webui/static/js/audit/audit-telemetry.js",
+    "ethical_agent/webui/static/js/audit/audit-session-banner.js",
+    "ethical_agent/webui/static/js/audit/audit-change-request.js",
 }
 
 
@@ -198,6 +213,7 @@ def test_webui_server_importable_and_static_dir_reachable_from_clean_install(tmp
             "from ethical_agent.webui.httphandler import STATIC_DIR;"
             "assert (STATIC_DIR / 'index.html').is_file(), STATIC_DIR;"
             "assert (STATIC_DIR / 'js' / 'chat.js').is_file(), STATIC_DIR;"
+            "assert (STATIC_DIR / 'js' / 'audit' / 'audit-app.js').is_file(), STATIC_DIR;"
             "print('OK')",
         ],
         capture_output=True, text=True, cwd=empty_cwd,

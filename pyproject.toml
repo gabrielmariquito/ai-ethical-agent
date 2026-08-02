@@ -45,4 +45,9 @@ packages = ["ethical_agent", "ethical_agent.webui", "policies", "ontologies", "e
 policies = ["*.json"]
 ontologies = ["*.ttl", "*.json", "*.md"]
 eval = ["*.json"]
-"ethical_agent.webui" = ["static/*.html", "static/css/*.css", "static/js/*.js"]
+"ethical_agent.webui" = [
+    "static/*.html",
+    "static/css/*.css",
+    "static/js/*.js",
+    "static/js/audit/*.js",
+]

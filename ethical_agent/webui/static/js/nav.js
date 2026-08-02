@@ -1,20 +1,26 @@
-// Top navigation, shared by every screen. Auditoria is the next screen
-// (comes in a later change); it renders here already, disabled, so the nav
-// structure doesn't have to be invented later -- a disabled item must
-// *look* inert, not just fail to respond to a click, so this sets
-// aria-disabled + tabindex="-1" (no keyboard focus stop) instead of just
-// omitting href, and app.css keys off [aria-disabled="true"] for the
-// cursor/opacity/no-hover treatment.
+// Top navigation, shared by every screen. Auditoria only exists when the
+// server was started with a password for it (`serve --audit-password-file`);
+// otherwise the whole screen -- page, endpoints and assets -- 404s, and the
+// item renders disabled here to say so rather than linking somewhere that
+// isn't there. A disabled item must *look* inert, not just fail to respond
+// to a click, so this sets aria-disabled + tabindex="-1" (no keyboard focus
+// stop) instead of just omitting href, and app.css keys off
+// [aria-disabled="true"] for the cursor/opacity/no-hover treatment.
+//
+// This is presentation only: hiding the link was never what keeps the trail
+// separate (anyone can type the URL). The real barrier is server-side, in
+// routing.match() -- see webui/auth.py.
 
 const ITEMS = [
-  { path: "/", label: "Conversa", enabled: true },
-  { path: "/check", label: "Avaliar texto", enabled: true },
-  { path: "/demo", label: "Demo", enabled: true },
-  { path: "/eval", label: "Eval", enabled: true },
-  { path: "/audit", label: "Auditoria", enabled: false, badge: "em breve" },
+  { path: "/", label: "Conversa" },
+  { path: "/check", label: "Avaliar texto" },
+  { path: "/demo", label: "Demo" },
+  { path: "/eval", label: "Eval" },
+  { path: "/audit", label: "Auditoria", realm: "audit", badge: "desativada" },
 ];
 
-export function renderNav(navEl, activePath) {
+export function renderNav(navEl, activePath, options = {}) {
+  const auditEnabled = Boolean(options.auditEnabled);
   navEl.innerHTML = "";
   navEl.setAttribute("role", "navigation");
   const list = document.createElement("ul");
@@ -23,8 +29,9 @@ export function renderNav(navEl, activePath) {
   for (const item of ITEMS) {
     const li = document.createElement("li");
     const isActive = item.path === activePath;
+    const enabled = item.realm === "audit" ? auditEnabled : true;
 
-    if (item.enabled) {
+    if (enabled) {
       const a = document.createElement("a");
       a.href = item.path;
       a.textContent = item.label;

@@ -21,13 +21,25 @@ function effectLabel(effect) {
   return EFFECT_LABELS[effect] || escapeHtml(effect);
 }
 
-function renderEvidence(evidence) {
+// `redacted` is the match's flag, not the evidence's: a rule with
+// redact=true scrubs its own matched_text (Evidence.without_matched_text, in
+// engine.py), so the field arrives null by design. Rendering that as silence
+// -- description straight to span, no mention -- makes the rule working look
+// like the record failing, and leaves the audit screen's note about it
+// pointing at nothing. The absence is stated where it happens.
+function renderEvidence(evidence, redacted) {
   if (!evidence || evidence.length === 0) return "";
   const items = evidence
     .map((ev) => {
       const parts = [];
       if (ev.description) parts.push(escapeHtml(ev.description));
-      if (ev.matched_text) parts.push(`trecho: “${escapeHtml(ev.matched_text)}”`);
+      if (ev.matched_text) {
+        parts.push(`trecho: “${escapeHtml(ev.matched_text)}”`);
+      } else if (redacted) {
+        parts.push(
+          '<span class="ea-evidence__redacted">trecho: removido pela própria redação</span>'
+        );
+      }
       if (ev.span) parts.push(`posição ${ev.span[0]}–${ev.span[1]}`);
       return `<li>${parts.join(" — ")}</li>`;
     })
@@ -46,7 +58,7 @@ function renderMatch(match) {
       </div>
       <div class="ea-match__meta">${escapeHtml(match.principle)} · ${escapeHtml(match.deontic)} · severidade ${escapeHtml(match.severity)}</div>
       ${match.rationale ? `<p class="ea-match__rationale">${escapeHtml(match.rationale)}</p>` : ""}
-      ${renderEvidence(match.evidence)}
+      ${renderEvidence(match.evidence, match.redacted)}
     </li>`;
 }
 

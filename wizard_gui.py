@@ -26,7 +26,7 @@ import urllib.request
 import venv
 import webbrowser
 from pathlib import Path
-from tkinter import ttk
+from tkinter import font as tkfont, ttk
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
@@ -41,19 +41,43 @@ sys.path.insert(0, str(ROOT))
 
 from ethical_agent._stdio import ensure_utf8_stdio  # noqa: E402
 from ethical_agent.__main__ import DEFAULT_WEB_PORT  # noqa: E402
+from ethical_agent.install_record import (  # noqa: E402
+    InstallRecord,
+    read_record,
+    write_record,
+)
 from ethical_agent.ollama_install import (  # noqa: E402
     DEFAULT_LOCAL_MODEL,
+    DEFAULT_OLLAMA_HOST,
     download_file,
     estimate_model_size_text,
     find_ollama_exe,
     installer_plan_for_platform,
     iter_stream_chunks,
     model_already_pulled,
+    read_env_var,
+    remove_env_var,
+    start_ollama_server,
     verify_windows_signature,
     wait_for_server,
     write_env_api_key,
+    write_env_audit_password,
     write_env_model,
 )
+
+# The one .env key the audit screen looks for. Duplicated from
+# webui/auth.ENV_PASSWORD_VAR rather than imported: this installer runs on the
+# *system* Python, before the project has been pip-installed into the venv, so
+# it can only import modules that are importable from a bare checkout --
+# ollama_install is (stdlib only), webui/auth is not guaranteed to be.
+AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
+
+# A server that is already up answers the first probe right away, so keep it
+# short -- the common Windows case is "installed but stopped", and spending
+# the full default timeout there only delays the `ollama serve` attempt.
+# Starting cold is slower than answering, hence the wider second budget.
+OLLAMA_PROBE_TIMEOUT = 3.0
+OLLAMA_START_TIMEOUT = 30.0
 
 # Escape hatch: skip auto-launching the interface after install, via either
 # `wizard_gui.py --no-launch` or this environment variable.
@@ -89,7 +113,11 @@ FINISH_TEXT = (
     "AUDIT_GUIDE.pt-BR.md.\n\n"
     "Ao clicar em Concluir, a interface web abre automaticamente no "
     "navegador (a menos que este instalador tenha sido iniciado com "
-    "--no-launch). Veja o README.md para a documentação completa."
+    "--no-launch). Veja o README.md para a documentação completa.\n\n"
+    "Para desinstalar depois: `python uninstall.py`. Ele abre uma janela e "
+    "mostra tudo o que seria removido antes de remover qualquer coisa; "
+    "`python uninstall.py --dry-run` faz a mesma listagem no terminal. Rode "
+    "com o Python do sistema, não com o do .venv."
 )
 
 # Os mesmos casos mostrados na seção "Casos onde funciona bem / onde falha"
@@ -213,8 +241,38 @@ class WizardApp(tk.Tk):
         self.llm_mode = tk.StringVar(value="local")
         self.ollama_model_var = tk.StringVar(value=DEFAULT_LOCAL_MODEL)
         self.ollama_api_key_var = tk.StringVar(value="")
+        # Audit screen. Independent of the LLM choice above -- the audit trail
+        # is written on every run, with or without a real model.
+        self.audit_password_var = tk.StringVar(value="")
+        # Starts unchecked, always: this is the only way to make an existing
+        # password disappear, so it has to be an act, never a default.
+        self.remove_audit_password = tk.BooleanVar(value=False)
         self.install_ok = False
         self.llm_ready = False
+        # Snapshot das escolhas com que a instalação REALMENTE rodou, tirado
+        # em ProgressPage.on_show (thread principal). Serve a dois propósitos:
+        #
+        #  1. Variáveis Tk pertencem à thread do mainloop -- lê-las da thread
+        #     de instalação levanta "main thread is not in main loop", que
+        #     cairia no `except Exception` de _run_install e viraria uma falha
+        #     intermitente e sem diagnóstico no primeiro contato de quem for
+        #     avaliar o projeto. Estes são atributos Python comuns, seguros de
+        #     ler de qualquer thread.
+        #  2. O botão Voltar continua habilitado durante a instalação, então a
+        #     pessoa pode voltar às Opções e mexer nas caixas com o pip
+        #     rodando. Sem o snapshot, o rótulo de status e a tela final
+        #     descreveriam uma instalação diferente da que de fato rodou -- e
+        #     esse rótulo é a única coisa que ela lê no fim.
+        self.chosen_want_llm = False
+        self.chosen_llm_mode = "local"
+        self.chosen_model = DEFAULT_LOCAL_MODEL
+        self.chosen_api_key = ""
+        self.chosen_audit_password = ""
+        self.chosen_remove_audit_password = False
+        # Whether an audit password exists *after* the install ran, from any
+        # of the three cases (typed one, kept the old one, removed it). It is
+        # what FinishPage reports on.
+        self.audit_enabled = False
         self.llm_warning: str | None = None
         self.auto_launch = auto_launch
 
@@ -371,6 +429,23 @@ def _autowrap(widget: tk.Widget, container: tk.Widget, padding: int = 48) -> Non
     widget.after_idle(_update)
 
 
+def _mono_font(bold: bool = False) -> object:
+    """A fonte fixa que o Tk garante existir no sistema em que está rodando.
+
+    Um family fixo é um palpite que falha calado: "Menlo" não existe no
+    Windows, o Tk cai no font padrão -- proporcional --, e o widget deixa de
+    ser monoespaçado sem que nada acuse. Importa onde a saída só lê alinhada:
+    o log do pip e do `ollama pull` aqui, o plano e o relatório do
+    desinstalador do outro lado.
+
+    Exige um root já criado, então isto é chamado de dentro dos construtores
+    de widget, nunca no import.
+    """
+    font = tkfont.nametofont("TkFixedFont").copy()
+    font.configure(size=10, weight="bold" if bold else "normal")
+    return font
+
+
 class _Page(tk.Frame):
     subtitle = ""
     next_label = "Próximo >"
@@ -438,18 +513,36 @@ class OptionsPage(_Page):
         venv_label.pack(padx=24, pady=(24, 12), anchor="w")
         _autowrap(venv_label, self)
 
-        llm_check = tk.Checkbutton(
+        # ttk e não tk, e com rótulo curto: o Checkbutton clássico desenha o
+        # próprio indicador, e em tela com escala fracionária (`tk scaling`
+        # 1.33 aqui) ele sai cortado -- um traço e meia caixinha, que se lê
+        # como terceiro estado. O ttk desenha pelo tema nativo do Windows e
+        # acerta em qualquer escala. Em troca ele não tem wraplength, então o
+        # texto longo que era rótulo virou a explicação logo abaixo -- que é
+        # onde ele já deveria estar.
+        llm_check = ttk.Checkbutton(
             self,
-            text="Configurar `ethical-agent process` com um modelo real via "
-            "Ollama (instala ollama/python-dotenv e, conforme a opção "
-            "abaixo, também o servidor Ollama + um modelo, ou uma chave de "
-            "API da Ollama Cloud)",
+            text="Configurar `ethical-agent process` com um modelo real via Ollama",
             variable=app.want_llm,
-            justify="left",
             command=lambda: self._sync_visibility(),
         )
         llm_check.pack(padx=24, pady=(8, 4), anchor="w")
-        _autowrap(llm_check, self)
+        # Um ttk.Checkbutton nasce em "alternate" -- o terceiro estado, um
+        # traço -- até alguém dizer o contrário. A variável já vale False, mas
+        # o widget não olha para ela sozinho.
+        llm_check.state(["!alternate"])
+
+        self.llm_explain = tk.Label(
+            self,
+            text="Instala ollama/python-dotenv e, conforme a opção abaixo, "
+            "também o servidor Ollama + um modelo, ou uma chave de API da "
+            "Ollama Cloud. Sem essa opção, o comando `process --mock` "
+            "continua funcionando (resposta fixa, sem rede).",
+            fg="#6b7280",
+            justify="left",
+        )
+        self.llm_explain.pack(padx=24, pady=(0, 4), anchor="w")
+        _autowrap(self.llm_explain, self)
 
         self.llm_frame = tk.Frame(self)
 
@@ -509,21 +602,80 @@ class OptionsPage(_Page):
         cloud_note.pack(anchor="w", pady=(2, 0))
         _autowrap(cloud_note, self.cloud_detail, padding=8)
 
+        # -- audit screen ---------------------------------------------------
+        #
+        # Its own section, outside llm_frame: the audit trail is written on
+        # every run regardless of the LLM choice, and hiding this behind that
+        # checkbox is how someone ends up never learning the screen exists.
+        audit_frame = tk.Frame(self)
+        audit_frame.pack(padx=24, pady=(16, 0), anchor="w", fill="x")
+
+        audit_row = tk.Frame(audit_frame)
+        audit_row.pack(anchor="w", fill="x")
+        tk.Label(audit_row, text="Senha da tela de auditoria (opcional):").pack(side="left")
+        tk.Entry(
+            audit_row, textvariable=app.audit_password_var, width=32, show="*"
+        ).pack(side="left", padx=(6, 0))
+
+        # Says what the password is and what it is not, in the same terms as
+        # README.md and AUDIT_GUIDE.pt-BR.md. Promising more than a role
+        # barrier here would be the one place the project contradicts itself,
+        # in the very screen where someone decides how much to trust it.
+        audit_note = tk.Label(
+            audit_frame,
+            text="A interface web tem uma tela em /audit para revisar as "
+            "decisões registradas. A senha separa dois papéis -- quem "
+            "conversa com o agente e quem audita -- e não é segurança: quem "
+            "tem acesso a este computador lê logs/audit.jsonl direto, sem "
+            "passar por ela. Gravada no mesmo .env da raiz (já ignorado pelo "
+            "git).",
+            fg="#6b7280",
+            justify="left",
+        )
+        audit_note.pack(anchor="w", pady=(2, 0))
+        _autowrap(audit_note, audit_frame, padding=8)
+
+        # Filled by on_show, which is the only place that knows whether a
+        # password is already configured.
+        self.audit_state_label = tk.Label(audit_frame, fg="#6b7280", justify="left")
+        self.audit_state_label.pack(anchor="w", pady=(2, 0))
+        _autowrap(self.audit_state_label, audit_frame, padding=8)
+
+        # Only shown when there is something to remove. The label names the
+        # consequence, not the action: losing the screen, not just a credential.
+        self.audit_remove_check = tk.Checkbutton(
+            audit_frame,
+            text="Remover a senha e desativar a tela de auditoria",
+            variable=app.remove_audit_password,
+            justify="left",
+        )
+
         self.validation_label = tk.Label(self, fg="#b91c1c", justify="left")
         self.validation_label.pack(padx=24, anchor="w")
         _autowrap(self.validation_label, self)
 
-        mock_label = tk.Label(
-            self,
-            text="Sem essa opção, o comando `process --mock` continua "
-            "funcionando (resposta fixa, sem rede).",
-            fg="#6b7280",
-            justify="left",
-        )
-        mock_label.pack(padx=24, pady=(4, 0), anchor="w")
-        _autowrap(mock_label, self)
-
         self._sync_visibility()
+
+    def on_show(self) -> None:
+        # Re-read on every visit: the page can be revisited with Back, and a
+        # reinstall over an existing setup is the whole reason this branch
+        # exists.
+        self._existing_audit_password = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+        if self._existing_audit_password:
+            self.audit_state_label.config(
+                text="Já existe uma senha configurada. Deixe o campo em branco "
+                "para mantê-la, ou digite outra para trocar."
+            )
+            self.audit_remove_check.pack(anchor="w", pady=(4, 0))
+        else:
+            self.audit_state_label.config(
+                text="Em branco: a auditoria fica desativada e /audit não "
+                "existe (é o comportamento atual)."
+            )
+            self.audit_remove_check.pack_forget()
+            # Nothing to remove, so the flag must not survive from an earlier
+            # visit where there was.
+            self.app.remove_audit_password.set(False)
 
     def _sync_visibility(self) -> None:
         # pack()ing a widget that was pack_forget()'d re-appends it at the
@@ -531,7 +683,13 @@ class OptionsPage(_Page):
         # local_detail/cloud_detail must be re-inserted right after their
         # own radio button each time, or they'd drift below both radios.
         if self.app.want_llm.get():
-            self.llm_frame.pack(padx=40, pady=(4, 0), anchor="w", fill="x")
+            # after=llm_explain pelo mesmo motivo dos detalhes abaixo: sem
+            # isso o frame reaparecia no FIM da página, jogando os rádios de
+            # local/cloud para baixo do campo de senha -- longe da caixa que
+            # os liga.
+            self.llm_frame.pack(
+                padx=40, pady=(4, 0), anchor="w", fill="x", after=self.llm_explain
+            )
             if self.app.llm_mode.get() == "local":
                 self.cloud_detail.pack_forget()
                 self.local_detail.pack(
@@ -560,6 +718,15 @@ class OptionsPage(_Page):
                     '"Ollama local", ou desmarque a opção acima.'
                 )
                 return False
+        # "Set this password" and "remove the password" are contradictory
+        # instructions, and silently picking one of them is exactly the kind
+        # of quiet resolution this field is supposed to avoid.
+        if self.app.remove_audit_password.get() and self.app.audit_password_var.get().strip():
+            self.validation_label.config(
+                text="Escolha uma coisa só: ou digite uma senha nova para a "
+                "auditoria, ou marque a remoção -- não os dois."
+            )
+            return False
         self.validation_label.config(text="")
         return True
 
@@ -576,7 +743,7 @@ class ProgressPage(_Page):
         self.progress = ttk.Progressbar(self, mode="indeterminate")
         self.progress.pack(fill="x", padx=24, pady=(20, 8))
 
-        self.log = tk.Text(self, height=14, font=("Menlo", 10), state="disabled")
+        self.log = tk.Text(self, height=14, font=_mono_font(), state="disabled")
         self.log.pack(fill="both", expand=True, padx=24, pady=8)
 
         self.status_label = tk.Label(self, justify="left")
@@ -590,6 +757,15 @@ class ProgressPage(_Page):
         self.app.set_next_enabled(False)
         self.progress.start(12)
         self._append(f"Criando/reaproveitando venv em {VENV_DIR} ...\n")
+        # As variáveis Tk são lidas AQUI, na thread principal. Daqui em
+        # diante -- thread de trabalho, rótulo de status e tela final -- todo
+        # mundo lê o snapshot, nunca a variável ao vivo.
+        self.app.chosen_want_llm = self.app.want_llm.get()
+        self.app.chosen_llm_mode = self.app.llm_mode.get()
+        self.app.chosen_model = self.app.ollama_model_var.get().strip() or DEFAULT_LOCAL_MODEL
+        self.app.chosen_api_key = self.app.ollama_api_key_var.get().strip()
+        self.app.chosen_audit_password = self.app.audit_password_var.get().strip()
+        self.app.chosen_remove_audit_password = self.app.remove_audit_password.get()
         threading.Thread(target=self._run_install, daemon=True).start()
         self.after(80, self._poll_queue)
 
@@ -611,7 +787,7 @@ class ProgressPage(_Page):
                 LOGS_DIR.mkdir(parents=True, exist_ok=True)
             self._queue.put(f"Diretório de log de auditoria pronto em {LOGS_DIR}\n")
 
-            extras = "llm,dev" if self.app.want_llm.get() else "dev"
+            extras = "llm,dev" if self.app.chosen_want_llm else "dev"
             cmd = _pip_cmd(VENV_DIR) + ["install", "-e", f".[{extras}]"]
             self._queue.put("Rodando: " + " ".join(cmd) + "\n")
 
@@ -633,7 +809,14 @@ class ProgressPage(_Page):
                 return
             self._queue.put("\nInstalação do projeto concluída com sucesso.\n")
 
-            if self.app.want_llm.get():
+            # O registro existe a partir daqui mesmo que a fase de LLM
+            # adiante avise ou falhe -- é o desinstalador que o lê depois,
+            # e "instalei o projeto e mais nada" também é informação.
+            write_record(ROOT, InstallRecord())
+
+            self._apply_audit_password()
+
+            if self.app.chosen_want_llm:
                 self._run_llm_setup()
 
             self._queue.put("__DONE__")
@@ -641,9 +824,55 @@ class ProgressPage(_Page):
             self._queue.put(f"\nErro inesperado: {exc}\n")
             self._queue.put("__FAILED__")
 
+    def _apply_audit_password(self) -> None:
+        """Three cases, and doing nothing is one of them.
+
+        A blank field never erases an existing password: the only way to lose
+        one is the explicit checkbox. Nothing here ever puts the value into
+        the progress log -- only the path of the file it went to, the same
+        rule _run_llm_setup_cloud follows for the Ollama key.
+        """
+        password = self.app.chosen_audit_password
+        if self.app.chosen_remove_audit_password:
+            env_path = remove_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
+            if env_path is not None:
+                self._queue.put(
+                    f"Senha da auditoria removida de {env_path} -- /audit deixa de existir.\n"
+                )
+            self.app.audit_enabled = False
+            return
+
+        if password:
+            env_path = write_env_audit_password(ROOT, password)
+            self._queue.put(f"Senha da tela de auditoria gravada em {env_path}\n")
+            self._record_env_key(AUDIT_PASSWORD_ENV_VAR)
+            self.app.audit_enabled = True
+            return
+
+        # Left blank. Whether audit ends up enabled depends on whether a
+        # password was already there, which is what FinishPage has to report.
+        self.app.audit_enabled = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+        if self.app.audit_enabled:
+            self._queue.put("Senha da auditoria já configurada -- mantida como estava.\n")
+
+    def _record_env_key(self, key: str) -> None:
+        """Adds `key` to the install record's env_keys without dropping the
+        ones already there.
+
+        write_record merges field by field, but env_keys is a whole-field
+        replace (install_record.write_record): passing just this key would
+        erase an OLLAMA_API_KEY recorded by the LLM step, and vice versa. The
+        record is what the uninstaller reads to say what it would remove, so
+        losing an entry there means silently under-reporting.
+        """
+        existing = read_record(ROOT)
+        keys = tuple(existing.env_keys) if existing else ()
+        if key not in keys:
+            write_record(ROOT, InstallRecord(env_keys=keys + (key,)))
+
     def _run_llm_setup(self) -> None:
         try:
-            if self.app.llm_mode.get() == "cloud":
+            if self.app.chosen_llm_mode == "cloud":
                 self._run_llm_setup_cloud()
             else:
                 self._run_llm_setup_local()
@@ -651,15 +880,25 @@ class ProgressPage(_Page):
             self._fail_llm(f"erro inesperado configurando o LLM: {exc}")
 
     def _run_llm_setup_cloud(self) -> None:
-        key = self.app.ollama_api_key_var.get().strip()
+        key = self.app.chosen_api_key
         env_path = write_env_api_key(ROOT, key)
         self._queue.put(f"Chave da Ollama Cloud gravada em {env_path}\n")
+        # Union, not replace -- the audit-password step ran before this one
+        # and may have put its own key in the record.
+        self._record_env_key("OLLAMA_API_KEY")
         self._queue.put("__LLM_OK__")
 
     def _run_llm_setup_local(self) -> None:
-        model = self.app.ollama_model_var.get().strip() or DEFAULT_LOCAL_MODEL
+        model = self.app.chosen_model
 
         ollama_exe = find_ollama_exe()
+        # Este é o único instante em que "havia um Ollama aqui antes?" é
+        # observável, e é o que decide, numa desinstalação futura, se remover
+        # o servidor é seguro. Gravado já, e não no fim: se o pull falhar
+        # adiante e a função retornar cedo, a observação continua valendo --
+        # e uma instalação que falhou no meio é justamente quando alguém vai
+        # querer desinstalar.
+        write_record(ROOT, InstallRecord(ollama_was_present_before=ollama_exe is not None))
         if ollama_exe is None:
             ollama_exe = self._install_ollama_server()
             if ollama_exe is None:
@@ -668,22 +907,68 @@ class ProgressPage(_Page):
             self._queue.put(f"Ollama já está instalado em {ollama_exe} -- pulando instalação.\n")
 
         self._queue.put("Aguardando o servidor Ollama responder...\n")
-        if not wait_for_server():
-            self._fail_llm(
-                "o servidor Ollama não respondeu em http://127.0.0.1:11434 "
-                "a tempo (instalado, mas não iniciou)."
-            )
-            return
+        if not wait_for_server(timeout=OLLAMA_PROBE_TIMEOUT):
+            if not self._start_ollama_server(ollama_exe):
+                return
 
+        pulled_now = False
         if model_already_pulled(ollama_exe, model):
             self._queue.put(f"Modelo {model} já baixado -- pulando.\n")
         elif not self._pull_model(ollama_exe, model):
             return
+        else:
+            pulled_now = True
 
         self._queue.put(f"Modelo real ({model}) pronto para uso.\n")
         env_path = write_env_model(ROOT, model)
         self._queue.put(f"Modelo padrão gravado em {env_path} (OLLAMA_MODEL={model}).\n")
+        # model_pulled só quando o pull rodou de fato -- um modelo que já
+        # estava na máquina não é nosso para remover depois.
+        write_record(
+            ROOT,
+            InstallRecord(
+                ollama_exe=str(ollama_exe),
+                model_pulled=model if pulled_now else None,
+                env_keys=("OLLAMA_MODEL",),
+            ),
+        )
         self._queue.put("__LLM_OK__")
+
+    def _start_ollama_server(self, ollama_exe: Path) -> bool:
+        """Last resort before degrading: nothing has started the server yet.
+
+        On Windows the Ollama app only comes up as a login item, so "installed
+        but stopped" is the usual state -- and the old code went straight from
+        a timed-out probe to the "modelo real não configurado" warning with
+        nothing actually missing.
+        """
+        self._queue.put(
+            "O servidor não respondeu -- tentando iniciar `ollama serve` em segundo plano...\n"
+        )
+        proc = start_ollama_server(ollama_exe)
+        if proc is None:
+            self._fail_llm(f"não foi possível iniciar `{ollama_exe} serve` em segundo plano.")
+            return False
+
+        if not wait_for_server(timeout=OLLAMA_START_TIMEOUT):
+            # `ollama serve` exits immediately when port 11434 is already
+            # taken by something else -- that exit code is the one thing that
+            # tells the user what to look at.
+            code = proc.poll()
+            detail = (
+                f" (o processo `ollama serve` terminou com código {code} -- "
+                "a porta pode estar ocupada por outro processo)"
+                if code is not None
+                else ""
+            )
+            self._fail_llm(
+                f"o servidor Ollama não respondeu em {DEFAULT_OLLAMA_HOST} a tempo, "
+                f"mesmo após tentar iniciá-lo{detail}."
+            )
+            return False
+
+        self._queue.put("Servidor Ollama iniciado.\n")
+        return True
 
     def _install_ollama_server(self) -> Path | None:
         plan = installer_plan_for_platform()
@@ -720,6 +1005,11 @@ class ProgressPage(_Page):
         except Exception as exc:  # noqa: BLE001
             self._fail_llm(f"não foi possível baixar o instalador do Ollama: {exc}")
             return None
+
+        # Este arquivo fica para trás em %TEMP% e ninguém o apaga. O
+        # desinstalador não o remove (está fora do diretório do projeto), mas
+        # com o caminho registrado ele consegue ao menos avisar que existe.
+        write_record(ROOT, InstallRecord(installer_download=str(dest)))
 
         self._queue.put("Verificando a assinatura digital do instalador...\n")
         if not verify_windows_signature(dest):
@@ -815,7 +1105,7 @@ class ProgressPage(_Page):
         return True
 
     def _fail_llm(self, reason: str) -> None:
-        model = self.app.ollama_model_var.get().strip() or DEFAULT_LOCAL_MODEL
+        model = self.app.chosen_model
         manual = (
             "\nO modelo real não foi configurado: " + reason + "\n\n"
             "Para completar manualmente mais tarde:\n"
@@ -863,14 +1153,14 @@ class ProgressPage(_Page):
                 text="Instalação do projeto FALHOU -- veja o log acima.",
                 fg="#b91c1c",
             )
-        elif app.want_llm.get() and not app.llm_ready:
+        elif app.chosen_want_llm and not app.llm_ready:
             self.status_label.config(
                 text="Projeto instalado. Modelo real NÃO configurado -- veja "
                 "o aviso e as instruções manuais no log acima. "
                 "`process --mock` continua funcionando.",
                 fg="#b91c1c",
             )
-        elif app.want_llm.get() and app.llm_ready:
+        elif app.chosen_want_llm and app.llm_ready:
             self.status_label.config(
                 text="Projeto instalado. Modelo real configurado e pronto.",
                 fg="#15803d",
@@ -898,11 +1188,11 @@ class DemoPage(_Page):
         heading.pack(padx=24, pady=(16, 4), anchor="w")
         _autowrap(heading, self)
 
-        self.text = tk.Text(self, height=17, font=("Menlo", 10), state="disabled")
+        self.text = tk.Text(self, height=17, font=_mono_font(), state="disabled")
         self.text.pack(fill="both", expand=True, padx=24, pady=8)
         self.text.tag_config("ok", foreground="#15803d")
         self.text.tag_config("fail", foreground="#b91c1c")
-        self.text.tag_config("header", font=("Menlo", 10, "bold"))
+        self.text.tag_config("header", font=_mono_font(bold=True))
 
     def on_show(self) -> None:
         if self._shown:
@@ -1003,18 +1293,40 @@ class FinishPage(_Page):
         self.label.pack(padx=24, pady=24, anchor="w")
 
     def on_show(self) -> None:
+        # Whoever set a password has to be told there is a screen and where
+        # it is -- not knowing the screen exists is the problem this field
+        # was added to solve, and it would survive a successful install.
+        if self.app.audit_enabled:
+            audit_text = (
+                "\n\nAuditoria: HABILITADA. A tela fica em "
+                f"http://127.0.0.1:{DEFAULT_WEB_PORT}/audit e pede a senha que "
+                "você definiu no instalador. Ela separa dois papéis (quem "
+                "conversa com o agente e quem audita) e não é segurança: quem "
+                "tem acesso a este computador lê logs/audit.jsonl direto. Para "
+                "trocar ou remover a senha, rode o instalador de novo."
+            )
+        else:
+            audit_text = (
+                "\n\nAuditoria: desativada. Existe uma tela em /audit para "
+                "revisar as decisões registradas, mas ela só aparece quando há "
+                "uma senha configurada. Para habilitar, rode este instalador de "
+                "novo e preencha o campo de senha na tela de Opções."
+            )
+
         if not self.app.install_ok:
             self.label.config(
                 text="A instalação não terminou com sucesso -- volte e "
                 "confira o log na tela de Progresso.\n\n" + FINISH_TEXT
             )
-        elif self.app.want_llm.get() and not self.app.llm_ready:
+        elif self.app.chosen_want_llm and not self.app.llm_ready:
             self.label.config(
                 text="Projeto instalado, mas o modelo real NÃO foi "
                 "configurado -- volte e confira o aviso e as instruções "
                 "manuais no log da tela de Progresso. `process --mock` "
-                "continua funcionando.\n\n" + FINISH_TEXT
+                "continua funcionando.\n\n" + FINISH_TEXT + audit_text
             )
+        else:
+            self.label.config(text=FINISH_TEXT + audit_text)
 
 
 def main(argv: list[str] | None = None) -> int:

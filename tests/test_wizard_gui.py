@@ -50,6 +50,23 @@ def test_progress_page_never_fails_project_install_because_of_llm_phase():
     assert "def _fail_llm" in SOURCE
 
 
+def test_stopped_server_is_started_before_degrading_to_the_warning():
+    # On Windows the Ollama app is a login item, so "installed but stopped" is
+    # the common state; the wizard used to go straight from a timed-out probe
+    # to the "modelo real não configurado" warning with nothing missing.
+    assert "start_ollama_server(ollama_exe)" in SOURCE
+    # A short probe first (an already-running server answers at once), then
+    # the launch, then a wider budget for the cold start.
+    assert "wait_for_server(timeout=OLLAMA_PROBE_TIMEOUT)" in SOURCE
+    assert "wait_for_server(timeout=OLLAMA_START_TIMEOUT)" in SOURCE
+    # The launch attempt is added before the degrade path, not instead of it.
+    assert "def _start_ollama_server" in SOURCE
+    body = SOURCE[
+        SOURCE.index("def _start_ollama_server") : SOURCE.index("def _install_ollama_server")
+    ]
+    assert "_fail_llm" in body
+
+
 def test_failure_path_offers_manual_instructions():
     assert "ollama pull" in SOURCE
     assert "ollama serve" in SOURCE
@@ -80,3 +97,202 @@ def test_streamed_subprocess_output_is_decoded_as_utf8():
 
 def test_imports_ollama_install_helpers_from_ethical_agent_package():
     assert "from ethical_agent.ollama_install import" in SOURCE
+
+
+def test_installer_records_what_it_did_for_the_uninstaller():
+    # Without a record the uninstaller has to ask about Ollama in the dark:
+    # nothing on disk distinguishes "this project installed it" from "it was
+    # already here", and that is the distinction that decides whether
+    # removing it is safe.
+    assert "from ethical_agent.install_record import" in SOURCE
+    assert "write_record(ROOT" in SOURCE
+
+
+def test_ollama_presence_is_recorded_as_an_observation_not_an_inference():
+    # find_ollama_exe() only checks PATH plus one known location, and both
+    # OllamaSetup.exe and install.sh happily run as an upgrade -- so "I
+    # installed Ollama" is a claim the wizard cannot support. What it can
+    # observe, at one exact moment, is whether one was findable beforehand.
+    assert "ollama_was_present_before=ollama_exe is not None" in SOURCE
+    # And it is written right there, not at the end: an install that failed
+    # halfway is exactly when someone wants to uninstall.
+    local = SOURCE[
+        SOURCE.index("def _run_llm_setup_local") : SOURCE.index("def _start_ollama_server")
+    ]
+    assert local.index("ollama_was_present_before") < local.index("self._install_ollama_server")
+
+
+def test_model_is_recorded_as_pulled_only_when_the_pull_actually_ran():
+    # A model that was already on the machine is not ours to remove later.
+    assert "pulled_now" in SOURCE
+    assert "model_pulled=model if pulled_now else None" in SOURCE
+
+
+def test_background_thread_never_reads_tk_variables():
+    # Tk widgets and variables belong to the thread running mainloop. Reading
+    # a tk.BooleanVar from the install thread can raise "main thread is not in
+    # main loop", and _run_install's `except Exception` would swallow that
+    # into a generic "Erro inesperado" -- an installer that fails
+    # intermittently with no usable diagnosis, on the first contact of whoever
+    # is evaluating the project. The options are snapshotted on the main
+    # thread in on_show instead, and the worker only sees plain attributes.
+    assert "self.app.chosen_want_llm = self.app.want_llm.get()" in SOURCE
+    assert "self.app.chosen_llm_mode = self.app.llm_mode.get()" in SOURCE
+
+    worker = SOURCE[
+        SOURCE.index("# -- runs on the background thread")
+        : SOURCE.index("# -- runs on the main thread")
+    ]
+    # Sanity-check the slice really is the worker half before trusting it.
+    assert "def _run_install" in worker
+    assert "def _run_llm_setup_local" in worker
+    assert "def _fail_llm" in worker
+    assert not re.search(r"self\.app\.\w+\.get\(\)", worker)
+
+
+def test_options_snapshot_is_taken_before_the_thread_starts():
+    # Snapshotting after the thread launch would be the same race with extra
+    # steps.
+    on_show = SOURCE[SOURCE.index("    def on_show(self) -> None:\n        if self._started:") :]
+    on_show = on_show[: on_show.index("    def _append")]
+    assert on_show.index("self.app.chosen_want_llm") < on_show.index("threading.Thread")
+
+
+def test_only_the_options_page_reads_the_live_tk_variables():
+    # Back stays enabled during the install, so someone can return to the
+    # options and toggle a checkbox while pip is running. Everything that
+    # describes what *ran* -- the status label and the finish screen, which
+    # is the one thing the person actually reads -- has to report the
+    # snapshot, or it would describe a different install than the one that
+    # happened. OptionsPage itself is the page that owns the variables, so it
+    # is the only place allowed to read them live.
+    for match in re.finditer(r"self\.app\.(\w+)\.get\(\)", SOURCE):
+        line_start = SOURCE.rfind("\n", 0, match.start())
+        enclosing = SOURCE.rfind("class ", 0, match.start())
+        class_name = SOURCE[enclosing : SOURCE.index("(", enclosing)].removeprefix("class ")
+        assert class_name in ("OptionsPage", "ProgressPage"), (
+            f"{class_name} lê uma variável Tk ao vivo em "
+            f"{SOURCE[line_start:match.end()].strip()!r} -- use o snapshot"
+        )
+
+
+def test_status_label_and_finish_page_report_what_actually_ran():
+    assert "app.chosen_want_llm and not app.llm_ready" in SOURCE
+    assert "self.app.chosen_want_llm and not self.app.llm_ready" in SOURCE
+
+
+# -- audit password --------------------------------------------------------
+
+
+def test_audit_password_field_is_masked_like_the_ollama_key():
+    # The installer must not echo the password on screen. The Ollama Cloud
+    # key already established the pattern.
+    assert "audit_password_var" in SOURCE
+    assert SOURCE.count('show="*"') == 2
+
+
+def test_audit_password_section_is_outside_the_llm_frame():
+    # The audit trail is written on every run, with or without a real model.
+    # Nesting this inside llm_frame would hide it from exactly the person who
+    # declined the LLM step -- and never learning the screen exists is the
+    # problem the field was added to solve.
+    section = SOURCE[SOURCE.index("# -- audit screen") :]
+    section = section[: section.index("self.validation_label")]
+    assert "audit_frame = tk.Frame(self)" in section
+    assert "self.llm_frame" not in section
+
+
+def _options_audit_section() -> str:
+    section = SOURCE[SOURCE.index("# -- audit screen") :]
+    return section[: section.index("self.validation_label")]
+
+
+def test_audit_note_says_what_the_password_is_not():
+    # Same terms as README.md and AUDIT_GUIDE.pt-BR.md. Promising more than a
+    # role barrier here would be the one place the project contradicts
+    # itself, in the very screen where someone decides to trust it.
+    #
+    # Scoped to the options section on purpose: asserting against the whole
+    # file let this pass while the note had been deleted, because FinishPage
+    # happens to use the same phrases.
+    section = _options_audit_section()
+    assert "separa dois papéis" in section
+    assert "não é segurança" in section
+    assert "logs/audit.jsonl direto" in section
+
+
+def test_widgets_that_on_show_configures_are_created_in_init():
+    # OptionsPage.on_show configures audit_state_label; if the widget is not
+    # built in __init__, showing the page raises AttributeError and the
+    # installer is dead on arrival. Source-text tests cannot see that, so
+    # this at least pins the pairing.
+    section = _options_audit_section()
+    assert "self.audit_state_label = tk.Label(" in section
+    assert "self.audit_remove_check = tk.Checkbutton(" in section
+
+    on_show = SOURCE[SOURCE.index("    def on_show(self) -> None:\n        # Re-read on every visit") :]
+    on_show = on_show[: on_show.index("    def _sync_visibility")]
+    for attr in re.findall(r"self\.(audit_\w+)", on_show):
+        assert f"self.{attr} = " in section, f"on_show usa self.{attr}, que __init__ não cria"
+
+
+def test_removal_checkbox_starts_unchecked_and_names_the_consequence():
+    # This is the only way an existing password can disappear, so it has to
+    # be an act rather than a default -- and the label has to say that the
+    # screen goes away, not merely that a credential does.
+    assert "self.remove_audit_password = tk.BooleanVar(value=False)" in SOURCE
+    assert "Remover a senha e desativar a tela de auditoria" in SOURCE
+
+
+def test_blank_field_never_erases_an_existing_password():
+    body = SOURCE[SOURCE.index("def _apply_audit_password") :]
+    body = body[: body.index("def _record_env_key")]
+    # The only remove_env_var call sits under the explicit checkbox...
+    assert body.count("remove_env_var(") == 1
+    assert body.index("chosen_remove_audit_password") < body.index("remove_env_var(")
+    # ...and the blank branch reads the existing password rather than writing.
+    assert "read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None" in body
+
+
+def test_install_record_env_keys_are_unioned_not_replaced():
+    # write_record merges field by field, but env_keys is a whole-field
+    # replace: the cloud step used to pass just ("OLLAMA_API_KEY",), which
+    # would erase the audit key written moments earlier and make the
+    # uninstaller under-report what it would remove.
+    assert 'InstallRecord(env_keys=("OLLAMA_API_KEY",))' not in SOURCE
+    assert 'self._record_env_key("OLLAMA_API_KEY")' in SOURCE
+    assert "self._record_env_key(AUDIT_PASSWORD_ENV_VAR)" in SOURCE
+    assert "keys + (key,)" in SOURCE
+
+
+def test_the_password_value_never_reaches_the_progress_log():
+    # Every _queue.put in the audit step may name the file, never the value.
+    body = SOURCE[SOURCE.index("def _apply_audit_password") :]
+    body = body[: body.index("def _record_env_key")]
+    for match in re.finditer(r"self\._queue\.put\(([^)]*)\)", body, re.S):
+        assert "password" not in match.group(1), match.group(1)
+
+
+def test_finish_page_tells_the_person_the_audit_screen_exists():
+    # Configuring a password and never being told there is a screen would
+    # leave the original problem exactly where it was.
+    assert "self.app.audit_enabled" in SOURCE
+    assert "/audit" in SOURCE
+    assert "Auditoria: HABILITADA" in SOURCE
+
+
+def test_finish_page_reports_audit_from_the_snapshot_not_the_live_variable():
+    # Same reasoning as the LLM status: Back stays enabled during the
+    # install, so the live variable can describe a different run.
+    finish = SOURCE[SOURCE.index("class FinishPage") :]
+    assert "self.app.audit_password_var" not in finish
+
+
+def test_finish_page_points_to_the_uninstaller():
+    # The installer used to be a one-way door; it now says where the way
+    # back is -- naming exactly one entry point. uninstall_gui.py is an
+    # implementation detail that uninstall.py loads when there is a display;
+    # making the user choose between two scripts is a step they should not
+    # have to take.
+    assert "uninstall.py" in SOURCE
+    assert "uninstall_gui.py" not in SOURCE

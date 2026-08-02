@@ -332,6 +332,39 @@ texto: We are building a tool to detect and avoid bias in our hiring model.
 A alegação foi verificada contra o dado, sem confiar no sistema. É isso que
 torna a decisão auditável.
 
+### Por que às vezes o trecho aparece e às vezes não
+
+Conferindo vários registros, você vai encontrar duas situações que parecem
+contraditórias e não são:
+
+| Situação | `matched_text` | `span` |
+|---|---|---|
+| Constraint `DENY` (ex.: `R-INJ-001`, `N-REL-005`) | **presente** — o trecho exato do conteúdo bloqueado | presente |
+| Regra com `redact: true` (ex.: `R-PRIV-002`) | `null` | presente |
+
+É uma política só, com um critério só: **o motivo da intervenção**.
+
+Bloquear conteúdo proibido precisa ser conferível. Se o registro de um
+`DENY` não guardasse o excerto, você não teria como decidir se o bloqueio foi
+correto — que é justamente a tarefa desta auditoria. Por isso a evidência de
+uma constraint `DENY` retém o trecho casado de propósito, mesmo quando ele é
+desagradável de ler (`'build a pipe bomb'`). Não é vazamento: o resto do
+conteúdo bloqueado continua não sendo guardado (ver "O que **não** dá para
+auditar").
+
+Remover um dado pessoal precisa remover o dado. Uma regra de redação existe
+para tirar um e-mail ou um CPF de circulação; guardá-lo no `matched_text` da
+evidência anularia a própria regra. Por isso `Evidence.without_matched_text()`
+(aplicada em `ethical_agent/engine.py`) limpa o campo quando `rule.redact` é
+verdadeiro — e, no mesmo movimento, `raw_response` não é gravado
+(`Verdict.suppresses_raw_content`).
+
+O `span` fica nos dois casos, então você sempre sabe **onde** no texto a regra
+casou, mesmo quando não pode ver **o quê**.
+
+A tela de auditoria (Passo 8) explica essa assimetria no ponto exato em que
+você a encontra, em vez de esperar que você tenha lido este parágrafo antes.
+
 ---
 
 ## Passo 4 — Achar a regra no arquivo
@@ -481,11 +514,131 @@ texto. É por ali que se investiga um erro específico.
 
 ---
 
+## Passo 8 — A tela de auditoria
+
+Tudo até aqui é feito na linha de comando. Existe também uma tela de leitura da
+trilha, pensada para quem **não** vai rodar `python -c`: um auditor não técnico,
+depois do fato, sobre decisões que não são dele.
+
+```bash
+ethical-agent serve --audit-password-file ~/.ethical-agent-audit-password
+# ou:  ETHICAL_AGENT_AUDIT_PASSWORD=... ethical-agent serve
+```
+
+Depois, `http://127.0.0.1:8765/audit`.
+
+### O registro em três camadas
+
+A tela não mostra o registro inteiro de uma vez — mostrar tudo afoga quem não é
+técnico, mostrar pouco impede o julgamento. A gradação é:
+
+| Camada | Conteúdo | Estado |
+|---|---|---|
+| 1 | O que a pessoa pediu, o que o sistema fez, e por quê — em linguagem comum, sem identificador de regra e sem span | sempre visível |
+| 2 | A norma que disparou, o `rationale` (que já traz a provocação RelAIEO), as evidências com trecho e posição, e o que foi afastado por exceção (`suppressed`) | um clique |
+| 3 | Proveniência: `config_versions`, `llm_provenance`, `conversation_id`, `turn_index` | um clique |
+
+Registros de uma mesma conversa são navegáveis em ordem — uma decisão só é
+julgável em contexto. A assimetria do `matched_text` (Passo 3) é explicada
+dentro da camada 2, colada à evidência que provoca a pergunta.
+
+A lista marca as intervenções distinguindo **bloqueio** de **reescrita** — um
+`DENY` e uma redação de e-mail têm gravidade bem diferente. O filtro padrão
+mostra só conversas reais da web; demo, `check` e dados sintéticos ficam atrás
+de "mostrar tudo", e a tela sempre diz quantos registros o filtro está
+escondendo e quantas linhas da trilha varreu.
+
+### A senha: o que ela é e o que não é
+
+> [!CAUTION]
+> **Isto é uma barreira, não segurança.** A senha existe para separar dois
+> papéis — quem conversa com o agente e quem audita as decisões — não para
+> resistir a um atacante. O servidor roda em `127.0.0.1`, sem HTTPS e sem
+> infraestrutura de autenticação: a senha e o código de sessão trafegam em texto
+> claro pelo loopback, o código de sessão vive apenas na memória do processo, e
+> qualquer pessoa com acesso ao computador onde o servidor roda pode ler
+> `logs/audit.jsonl` diretamente, sem passar por esta tela. O cookie é
+> `HttpOnly`, o que impede o JavaScript da página de lê-lo; não impede que
+> alguém sentado na máquina o veja nas ferramentas do navegador. O que a senha
+> garante é que a trilha não abre por acidente, por curiosidade, ou porque
+> alguém digitou `/audit` na barra de endereços. Não trate isto como controle de
+> acesso a dado sensível.
+
+A separação é estrutural, não visual: **sem senha configurada, a tela não
+existe**. `/audit`, os endpoints `/api/audit/*` e os arquivos estáticos da tela
+respondem o mesmo `404` de uma rota inexistente, para qualquer método —
+esconder o link não bastaria, porque o servidor é local e qualquer um chega ao
+endereço pela barra do navegador ou pelo devtools.
+
+Não use `--audit-password VALOR` (não existe): um valor de argumento apareceria
+na lista de processos e no histórico do shell. Também não guarde a senha num
+arquivo dentro do repositório — o servidor avisa no `stderr` se você fizer isso,
+porque é um `git add -A` de distância de ser commitada.
+
+Reiniciar o servidor invalida todas as sessões (elas vivem só na memória do
+processo). É comportamento documentado, não defeito: persistir um token de
+sessão em disco seria gravar uma credencial ao lado da trilha que ela abre.
+
+### A sessão do auditor é registrada — e ele é avisado
+
+Numa aplicação sobre transparência, instrumentar sem avisar seria contraditório.
+A tela avisa antes de pedir a senha, mantém um aviso permanente enquanto o
+auditor trabalha, lista cada tipo de evento que pode gravar, e permite que ele
+leia os próprios eventos (leitura que também é registrada).
+
+```
+logs/auditor_sessions.jsonl        --auditor-session-log
+logs/policy_change_requests.jsonl  --change-requests-log
+```
+
+**Nenhum dos dois é `logs/audit.jsonl`, e o servidor se recusa a iniciar se
+apontarem para o mesmo arquivo.** Misturar comportamento do auditor com decisão
+do agente corromperia a trilha, que é o objeto de estudo — o mesmo raciocínio
+que fez os registros de demo ganharem `source="demo"`.
+
+O que é gravado: qual registro foi aberto, quanto tempo permaneceu nele
+(`dwell_ms` e `visible_dwell_ms`, este só enquanto a aba está visível e com
+foco — uma aba esquecida aberta a noite toda não vira "oito horas de leitura"),
+quais camadas expandiu e em que ordem, se voltou a um registro já visto, e a
+sequência de navegação.
+
+O que **não** é gravado: nome, e-mail, endereço de rede, identificação do
+navegador. O único identificador é um código de sessão anônimo gerado no
+servidor; o vínculo entre sessão e participante, se existir, fica fora do
+sistema. Para apagar o histórico de sessões, basta remover o arquivo — ele não
+faz parte da trilha do agente.
+
+Para inspecionar:
+
+```bash
+python -c "
+import json
+for line in open('logs/auditor_sessions.jsonl', encoding='utf-8'):
+    e = json.loads(line)
+    print(e['timestamp'], e['session_id'][:8], e['type'], e.get('record_event_id',''), e.get('dwell_ms',''))"
+```
+
+### "Isso deveria ser diferente"
+
+Cada norma que disparou tem um botão para marcar que ela deveria ser outra,
+ancorado em `(event_id, rule_id)`, com motivo **opcional de verdade** (forçar
+justificativa produziria justificativas sobre ter sido perguntado). A marcação
+vai para `logs/policy_change_requests.jsonl` com `"applied": false`.
+
+**Nada muda na política.** É registro de intenção; a edição efetiva das regras,
+com versionamento e histórico, é a mudança seguinte. A tela diz isso no
+formulário e na confirmação, porque um auditor que acredita ter corrigido uma
+regra passaria a julgar os registros seguintes contra uma política que não se
+moveu.
+
+---
+
 ## O que **não** dá para auditar
 
 | Limite | Consequência |
 |--------|--------------|
 | Conteúdo bloqueado no `stage=output` (via `process`/`demo`, ou `check --stage output`) | É descartado antes de chegar ao log. Ver `tests/test_agent.py::test_denied_output_is_never_retained` e o equivalente de CLI em `tests/test_main.py::test_check_output_stage_denied_content_not_retained` |
+| A senha da tela `/audit` | Não é controle de acesso: barra o acesso casual, não quem tem acesso ao computador — que lê `logs/audit.jsonl` direto. Ver Passo 8 |
 | Casos de `eval` | `ethical_agent eval` roda os casos sintéticos direto contra a engine e nunca grava no audit log, por desenho |
 | **`ALLOW` por falta de regra ≠ `ALLOW` por julgamento** | Os dois aparecem como `matches: []`. Com 12 entradas de política, a maior parte dos `ALLOW` é do primeiro tipo. Ausência de bloqueio raramente significa "foi julgado seguro" |
 | 7 das 9 regras têm `scopes: ["input"]` | Uma resposta nociva gerada pelo modelo passa mesmo usando o vocabulário exato de uma regra. É lacuna estrutural, não lexical |
@@ -506,6 +659,7 @@ texto. É por ali que se investiga um erro específico.
 - [ ] Abri a regra no JSON e li o `when` / `condition`, o `scopes` e as `exceptions`
 - [ ] Rodei nas três engines para saber qual camada decidiu
 - [ ] Reproduzi e anotei as `config_versions`
+- [ ] Se o `matched_text` veio `null`, confirmei que a regra tem `redact: true` (e não que a evidência sumiu) — Passo 3
 
 **Auditando o sistema:**
 

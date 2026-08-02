@@ -15,6 +15,14 @@ def get_choices(state, params, body):
     return {
         "engines": [{"label": label, "value": engine_value(label)} for label in ENGINE_LABELS],
         "stages": [{"label": label, "value": stage_value(label)} for label in STAGE_LABELS],
+        # CAREFUL: this is initial_config verbatim, served unauthenticated to
+        # every screen. Nothing secret may ever be put in that dict -- the
+        # audit password is deliberately kept out of it, in AuditAuth (see
+        # server.make_server), and a test asserts it never appears here.
         "defaults": dict(state.initial_config),
         "dataset_default": default_dataset_path(),
+        # Whether the audit screen exists at all, so nav.js can render its
+        # item as a link or as disabled. Reveals only that a password was
+        # configured, never the password.
+        "audit_screen_enabled": state.realm_enabled("audit"),
     }

@@ -780,6 +780,12 @@ details[open] > .ea-intervention__summary::before {
   color: var(--ea-fg-muted);
 }
 
+/* An excerpt a redaction rule removed on purpose. Italic and not quoted, so
+   it cannot be misread as the matched text itself. */
+.ea-evidence__redacted {
+  font-style: italic;
+}
+
 .ea-rewritten {
   margin-top: 0.5rem;
   padding-top: 0.5rem;

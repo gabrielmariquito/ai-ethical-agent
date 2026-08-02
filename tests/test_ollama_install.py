@@ -7,15 +7,22 @@ import pytest
 from ethical_agent.ollama_install import (
     DEFAULT_LOCAL_MODEL,
     InstallerPlan,
+    _WIN_BREAKAWAY,
+    _WIN_NEW_GROUP,
+    _WIN_NO_WINDOW,
     download_file,
     estimate_model_size_text,
     find_ollama_exe,
     installer_plan_for_platform,
     iter_stream_chunks,
     model_already_pulled,
+    start_ollama_server,
+    read_env_var,
+    remove_env_var,
     verify_windows_signature,
     wait_for_server,
     write_env_api_key,
+    write_env_audit_password,
 )
 
 
@@ -133,6 +140,74 @@ def test_write_env_api_key_replaces_existing_key_without_duplicating(tmp_path):
     assert "OTHER_VAR=keep" in content
 
 
+def test_read_env_var_returns_none_for_missing_file_key_or_empty_value(tmp_path):
+    assert read_env_var(tmp_path, "ANYTHING") is None
+
+    (tmp_path / ".env").write_text(
+        "OTHER_VAR=keep\nBLANK=\nBLANK_SPACES=   \n", encoding="utf-8"
+    )
+    assert read_env_var(tmp_path, "MISSING") is None
+    # Present but empty is "not configured" -- the audit-password loader
+    # depends on this, so an empty key never enables a screen with a blank
+    # password.
+    assert read_env_var(tmp_path, "BLANK") is None
+    assert read_env_var(tmp_path, "BLANK_SPACES") is None
+    assert read_env_var(tmp_path, "OTHER_VAR") == "keep"
+
+
+def test_read_env_var_keeps_everything_after_the_first_equals(tmp_path):
+    # A password is not a tidy identifier: "=" and "#" are ordinary
+    # characters in one, and neither may truncate the value.
+    (tmp_path / ".env").write_text(
+        "ETHICAL_AGENT_AUDIT_PASSWORD=a=b#c d\n", encoding="utf-8"
+    )
+    assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") == "a=b#c d"
+
+
+def test_write_env_audit_password_strips_so_write_and_read_agree(tmp_path):
+    # Stored with surrounding spaces, the reader would strip them and the
+    # login check would compare two different strings forever.
+    write_env_audit_password(tmp_path, "  senha  ")
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == (
+        "ETHICAL_AGENT_AUDIT_PASSWORD=senha\n"
+    )
+    assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") == "senha"
+
+
+def test_remove_env_var_drops_only_its_own_line(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "OLLAMA_MODEL=llama3.2:3b\n"
+        "ETHICAL_AGENT_AUDIT_PASSWORD=segredo\n"
+        "OLLAMA_API_KEY=abc123\n",
+        encoding="utf-8",
+    )
+
+    assert remove_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") == env_path
+
+    content = env_path.read_text(encoding="utf-8")
+    assert "ETHICAL_AGENT_AUDIT_PASSWORD" not in content
+    assert "OLLAMA_MODEL=llama3.2:3b" in content
+    assert "OLLAMA_API_KEY=abc123" in content
+
+
+def test_remove_env_var_reports_when_there_was_nothing_to_remove(tmp_path):
+    # None means "no change", which is what lets the wizard stay quiet in the
+    # progress log instead of claiming it removed something.
+    assert remove_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") is None
+
+    (tmp_path / ".env").write_text("OLLAMA_MODEL=llama3.2:3b\n", encoding="utf-8")
+    assert remove_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") is None
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == "OLLAMA_MODEL=llama3.2:3b\n"
+
+
+def test_remove_env_var_on_the_only_line_leaves_a_valid_empty_file(tmp_path):
+    (tmp_path / ".env").write_text("ETHICAL_AGENT_AUDIT_PASSWORD=segredo\n", encoding="utf-8")
+    remove_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD")
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == ""
+    assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") is None
+
+
 def test_verify_windows_signature_valid():
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="Valid\r\n")
@@ -172,6 +247,85 @@ def test_wait_for_server_times_out_when_unreachable():
         raise OSError("connection refused")
 
     assert wait_for_server(urlopen=always_fails, poll=0.01, timeout=0.05) is False
+
+
+class _RecordingPopen:
+    """Stands in for subprocess.Popen, recording every launch attempt.
+
+    `fail_first` reproduces a job object whose policy forbids
+    CREATE_BREAKAWAY_FROM_JOB -- Windows raises OSError there, and the
+    launcher has to retry without that flag instead of giving up.
+    """
+
+    def __init__(self, fail_first: int = 0):
+        self.calls: list[tuple[list[str], dict]] = []
+        self._fail_first = fail_first
+
+    def __call__(self, cmd, **kwargs):
+        self.calls.append((cmd, kwargs))
+        if len(self.calls) <= self._fail_first:
+            raise OSError("breakaway not permitted")
+        return self
+
+
+def test_start_ollama_server_runs_serve_detached_without_a_console():
+    popen = _RecordingPopen()
+
+    exe = Path("C:/ollama.exe")
+    proc = start_ollama_server(exe, popen=popen, platform="win32")
+
+    assert proc is popen
+    cmd, kwargs = popen.calls[0]
+    assert cmd == [str(exe), "serve"]
+    # DEVNULL, not PIPE: nobody reads these, and a filled pipe buffer would
+    # wedge the server the wizard just started.
+    assert kwargs["stdout"] is subprocess.DEVNULL
+    assert kwargs["stderr"] is subprocess.DEVNULL
+    assert kwargs["stdin"] is subprocess.DEVNULL
+    assert "creationflags" in kwargs
+
+
+def test_start_ollama_server_retries_without_breakaway_flag_on_oserror():
+    popen = _RecordingPopen(fail_first=1)
+
+    proc = start_ollama_server(Path("C:/ollama.exe"), popen=popen, platform="win32")
+
+    assert proc is popen
+    assert len(popen.calls) == 2
+    first_flags = popen.calls[0][1]["creationflags"]
+    second_flags = popen.calls[1][1]["creationflags"]
+    # Compared against the module's constants rather than subprocess's, which
+    # only define these on Windows -- this test drives the win32 branch with
+    # an injected platform and must pass everywhere.
+    assert first_flags == _WIN_NEW_GROUP | _WIN_NO_WINDOW | _WIN_BREAKAWAY
+    assert second_flags == _WIN_NEW_GROUP | _WIN_NO_WINDOW
+
+
+def test_start_ollama_server_returns_none_when_every_attempt_fails():
+    popen = _RecordingPopen(fail_first=2)
+
+    assert start_ollama_server(Path("C:/ollama.exe"), popen=popen, platform="win32") is None
+    assert len(popen.calls) == 2
+
+
+def test_start_ollama_server_uses_a_new_session_on_posix():
+    popen = _RecordingPopen()
+
+    exe = Path("/usr/local/bin/ollama")
+    proc = start_ollama_server(exe, popen=popen, platform="linux")
+
+    assert proc is popen
+    cmd, kwargs = popen.calls[0]
+    assert cmd == [str(exe), "serve"]
+    assert kwargs["start_new_session"] is True
+    assert "creationflags" not in kwargs
+
+
+def test_start_ollama_server_returns_none_on_posix_failure():
+    popen = _RecordingPopen(fail_first=1)
+
+    assert start_ollama_server(Path("/usr/local/bin/ollama"), popen=popen, platform="linux") is None
+    assert len(popen.calls) == 1
 
 
 def test_download_file_writes_content_and_reports_progress(tmp_path, monkeypatch):

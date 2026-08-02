@@ -196,6 +196,58 @@ def wait_for_server(
         time.sleep(poll)
 
 
+# Read via getattr because these constants only exist on Windows builds of
+# subprocess -- naming them unconditionally keeps the win32 branch below
+# importable (and testable with an injected platform) on Linux/macOS.
+_WIN_NEW_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+_WIN_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_WIN_BREAKAWAY = getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0)
+
+
+def start_ollama_server(
+    ollama_exe: Path,
+    popen: Callable[..., "subprocess.Popen"] = subprocess.Popen,
+    platform: Optional[str] = None,
+) -> Optional["subprocess.Popen"]:
+    """Starts `ollama serve` detached, so it outlives the wizard.
+
+    On Windows the Ollama app registers itself as a login item: it comes up
+    when the user logs in, not when an installer invokes it. So "installed
+    but not running" is the common state, and nothing else in this project
+    ever starts the server -- without this, wait_for_server() times out on a
+    machine where nothing is actually missing.
+
+    Detaching mirrors wizard_gui's _launch_interface: the server has to stay
+    up for the model pull and for the app afterwards, so it is deliberately
+    never waited on or killed. CREATE_NO_WINDOW because ollama.exe is a
+    console app and the wizard is a GUI -- otherwise a console window flashes.
+    """
+    platform = platform if platform is not None else sys.platform
+    cmd = [str(ollama_exe), "serve"]
+    kwargs = dict(
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+    )
+    if platform == "win32":
+        flags = _WIN_NEW_GROUP | _WIN_NO_WINDOW
+        try:
+            # CREATE_BREAKAWAY_FROM_JOB lets the server survive even if the
+            # wizard runs under a job object; some job policies forbid
+            # breakaway, so fall back to the plain flags.
+            return popen(cmd, creationflags=flags | _WIN_BREAKAWAY, **kwargs)
+        except OSError:
+            pass
+        try:
+            return popen(cmd, creationflags=flags, **kwargs)
+        except OSError:
+            return None
+    try:
+        return popen(cmd, start_new_session=True, **kwargs)
+    except OSError:
+        return None
+
+
 def _normalize_tag(tag: str) -> str:
     return tag[: -len(":latest")] if tag.endswith(":latest") else tag
 
@@ -240,6 +292,30 @@ def _upsert_env_var(root: Path, key: str, value: str) -> Path:
     return env_path
 
 
+def remove_env_var(root: Path, key: str) -> Optional[Path]:
+    """Drops every `key=` line from `.env`, leaving the other lines exactly
+    as they were. Returns None when there was nothing to remove -- no file,
+    or a file that never had the key.
+
+    The counterpart to _upsert_env_var, which can only add or replace. A
+    caller that wants a setting *gone* (rather than set to empty) needs this:
+    `KEY=` with an empty value and no `KEY=` line at all are the same thing
+    to the readers here, but only the second one keeps .env honest about
+    what is configured -- and it is what the uninstaller's key listing
+    (uninstall.env_keys_present) reports on.
+    """
+    env_path = root / ".env"
+    if not env_path.exists():
+        return None
+    prefix = f"{key}="
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    kept = [line for line in lines if not line.startswith(prefix)]
+    if len(kept) == len(lines):
+        return None
+    env_path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+    return env_path
+
+
 def write_env_api_key(root: Path, key: str) -> Path:
     return _upsert_env_var(root, "OLLAMA_API_KEY", key)
 
@@ -248,16 +324,52 @@ def write_env_model(root: Path, model: str) -> Path:
     return _upsert_env_var(root, "OLLAMA_MODEL", model)
 
 
-def read_env_model(root: Path, default: str) -> str:
-    """Reads `OLLAMA_MODEL=` from `root`/.env, without requiring
-    python-dotenv to be installed -- this has to work even when the `llm`
-    extra (which pulls in python-dotenv) was never installed."""
+def write_env_audit_password(root: Path, password: str) -> Path:
+    """Persists the audit-screen password so `serve` finds it with no flag.
+
+    Stripped before writing because read_env_var strips on the way out: a
+    password stored with a trailing space would silently never match what
+    the reader hands to the login check.
+    """
+    return _upsert_env_var(root, "ETHICAL_AGENT_AUDIT_PASSWORD", password.strip())
+
+
+def read_env_var(root: Path, key: str) -> Optional[str]:
+    """Reads `key=` from `root`/.env, or None when it isn't set.
+
+    Deliberately hand-rolled rather than python-dotenv: that package only
+    arrives with the `llm` extra, and both callers here -- the uninstaller
+    and the audit-password loader in webui/auth.py -- have to work on an
+    install that never opted into a real model.
+    """
     env_path = root / ".env"
     if env_path.exists():
-        prefix = "OLLAMA_MODEL="
+        prefix = f"{key}="
         for line in env_path.read_text(encoding="utf-8").splitlines():
             if line.startswith(prefix):
                 value = line[len(prefix):].strip()
                 if value:
                     return value
-    return default
+    return None
+
+
+def read_env_model_optional(root: Path) -> Optional[str]:
+    """Reads `OLLAMA_MODEL=` from `root`/.env, or None when it isn't set.
+
+    Separate from read_env_model below because the difference between "not
+    configured" and "configured to the default" matters for a *destructive*
+    decision. In cloud mode the wizard writes only OLLAMA_API_KEY
+    (_run_llm_setup_cloud), never an OLLAMA_MODEL line -- so a defaulting
+    reader would report llama3.2:3b as this project's model on a machine
+    where this project never pulled a model at all, and the uninstaller
+    would offer to delete someone else's.
+    """
+    return read_env_var(root, "OLLAMA_MODEL")
+
+
+def read_env_model(root: Path, default: str) -> str:
+    """Reads `OLLAMA_MODEL=` from `root`/.env, without requiring
+    python-dotenv to be installed -- this has to work even when the `llm`
+    extra (which pulls in python-dotenv) was never installed."""
+    model = read_env_model_optional(root)
+    return model if model is not None else default

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional, Tuple
 
 from ethical_agent.llm import describe_llm_provenance
 
@@ -38,18 +38,35 @@ LIST_LIMIT = 50
 MAX_SCAN_LINES = 20_000
 
 
-def _iter_lines_reverse(path: Path, chunk_size: int = 65536) -> Iterator[str]:
-    """Yields lines from the end of the file backward (most recent line
-    first), reading in fixed-size chunks rather than loading the whole file.
-    Blank lines are skipped; a trailing "\\r" is stripped from every line so
-    a CRLF-written trail (AuditLogger.log() opens the file in default text
-    mode, which translates "\\n" to os.linesep -- "\\r\\n" on Windows) parses
-    the same as an LF-only one.
+def iter_lines_reverse_offsets(
+    path: Path, chunk_size: int = 65536, end_offset: Optional[int] = None
+) -> Iterator[Tuple[int, str]]:
+    """Yields (byte_offset, line) from the end of the file backward (most
+    recent line first), reading in fixed-size chunks rather than loading the
+    whole file. Blank lines are skipped; a trailing "\\r" is stripped from
+    every line so a CRLF-written trail (AuditLogger.log() opens the file in
+    default text mode, which translates "\\n" to os.linesep -- "\\r\\n" on
+    Windows) parses the same as an LF-only one.
+
+    `byte_offset` is the position of the line's first byte, which stays valid
+    for the life of an append-only file -- that is what lets the audit
+    screen page backward with a cursor and jump straight to one record
+    without rescanning (see handlers_audit.py). It is computed from the raw
+    bytes, so it is correct under CRLF too.
+
+    `end_offset` limits the scan to bytes [0, end_offset), i.e. "continue
+    from where the previous page stopped".
     """
     with path.open("rb") as handle:
-        handle.seek(0, os.SEEK_END)
-        position = handle.tell()
+        if end_offset is None:
+            handle.seek(0, os.SEEK_END)
+            position = handle.tell()
+        else:
+            position = max(0, end_offset)
+        # Offset of the first byte of `trailing`, i.e. of the partial line
+        # carried over from the chunk we have not read yet.
         trailing = b""
+        trailing_offset = position
         while position > 0:
             read_size = min(chunk_size, position)
             position -= read_size
@@ -57,13 +74,39 @@ def _iter_lines_reverse(path: Path, chunk_size: int = 65536) -> Iterator[str]:
             data = handle.read(read_size) + trailing
             parts = data.split(b"\n")
             trailing = parts[0]
-            for part in reversed(parts[1:]):
+            trailing_offset = position
+            # parts[i] starts after all preceding parts plus their "\n".
+            offset = position + len(parts[0]) + 1
+            starts = []
+            for part in parts[1:]:
+                starts.append(offset)
+                offset += len(part) + 1
+            for part, start in zip(reversed(parts[1:]), reversed(starts)):
                 stripped = part.rstrip(b"\r")
                 if stripped:
-                    yield stripped.decode("utf-8", errors="replace")
+                    yield start, stripped.decode("utf-8", errors="replace")
         stripped = trailing.rstrip(b"\r")
         if stripped:
-            yield stripped.decode("utf-8", errors="replace")
+            yield trailing_offset, stripped.decode("utf-8", errors="replace")
+
+
+def _iter_lines_reverse(path: Path, chunk_size: int = 65536) -> Iterator[str]:
+    """Lines only, newest first -- the original API, kept because the sidebar
+    functions below have no use for offsets and reading them without the
+    extra tuple is clearer."""
+    for _offset, line in iter_lines_reverse_offsets(path, chunk_size):
+        yield line
+
+
+def iter_records_reverse(
+    path: Path, end_offset: Optional[int] = None
+) -> Iterator[Tuple[int, Optional[dict]]]:
+    """Yields (byte_offset, record_or_None), newest first. A None record is a
+    line that would not parse -- surfaced rather than skipped, because a
+    reader for auditors should be able to say "there is something unreadable
+    here" instead of quietly shortening the trail."""
+    for offset, line in iter_lines_reverse_offsets(path, end_offset=end_offset):
+        yield offset, _parse_line(line)
 
 
 def _is_web_chat_turn(record: dict) -> bool:

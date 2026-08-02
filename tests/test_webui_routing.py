@@ -65,3 +65,35 @@ def test_check_demo_eval_pages_are_served(server):
         assert status == 200, path
         assert b"<title>" in raw
         assert headers["Content-Type"].startswith("text/html")
+
+
+def test_audit_paths_do_not_collide_with_each_other(tmp_path):
+    # Same hazard handlers_chat.py:26-33 documents: the router matches in
+    # registration order with no literal-over-wildcard precedence, so a
+    # single-segment wildcard sharing a level with a literal would swallow
+    # it. /api/audit/records/{event_id} and
+    # /api/audit/conversations/{conversation_id} each sit one segment deeper
+    # than their sibling literals, and session/events is a literal pair --
+    # this asserts that stays true.
+    running = RunningServer(tmp_path, audit_password="senha-de-teste")
+    try:
+        status, _, _ = running.login_as_auditor("senha-de-teste")
+        assert status == 200
+
+        # GET-only paths must 405 on POST, i.e. still resolve to themselves
+        # rather than being captured by a wildcard sibling.
+        for path in ("/api/audit/records", "/api/audit/session"):
+            status, body, _ = running.post(path, {})
+            assert status == 405, (path, body)
+
+        # POST-only paths must 405 on GET for the same reason.
+        for path in ("/api/audit/login", "/api/audit/logout", "/api/audit/telemetry"):
+            status, body, _ = running.get(path)
+            assert status == 405, (path, body)
+
+        # session/events is a real route, not "events" read as a parameter.
+        status, body, _ = running.get("/api/audit/session/events")
+        assert status == 200, body
+        assert "events" in body
+    finally:
+        running.close()

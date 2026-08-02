@@ -1,0 +1,859 @@
+/* Audit screen. Loaded only by audit.html, and served only when the audit
+   realm is configured (httphandler.GATED_ASSET_PREFIXES) -- in chat mode
+   this file 404s like any other missing static file.
+
+   Every colour here is an existing --ea-* token from app.css, so the screen
+   inherits both themes for free and an auditor who saw a red intervention
+   block in the chat recognises the same red here. */
+
+/* ---- login shell */
+
+.ea-audit-login {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem 4rem;
+  overflow-y: auto;
+}
+
+.ea-audit-login__card {
+  width: 100%;
+  max-width: 44rem;
+}
+
+.ea-audit-login__card h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.ea-audit-login__lead {
+  margin: 0 0 1.25rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-notice {
+  border: 1px solid var(--ea-border);
+  border-left: 4px solid var(--ea-info);
+  background: var(--ea-info-bg);
+  border-radius: var(--ea-radius);
+  padding: 0.9rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.ea-audit-notice h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.ea-audit-notice p {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ea-audit-notice p:last-child {
+  margin-bottom: 0;
+}
+
+.ea-audit-notice__file code {
+  font-family: var(--ea-mono);
+  font-size: 0.85em;
+}
+
+.ea-audit-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.ea-audit-login__form label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ea-audit-login__form input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  font: inherit;
+}
+
+.ea-audit-login__form button {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  padding: 0.5rem 1.2rem;
+  border: none;
+  border-radius: var(--ea-radius);
+  background: var(--ea-accent);
+  color: var(--ea-accent-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ea-audit-login__form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ea-audit-login__error {
+  margin: 0 0 1rem;
+  color: var(--ea-danger);
+  font-size: 0.9rem;
+}
+
+.ea-audit-caveat__short {
+  margin: 1.25rem 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--ea-fg-muted);
+  line-height: 1.5;
+}
+
+.ea-audit-caveat__short code,
+.ea-audit-session__trail code {
+  font-family: var(--ea-mono);
+}
+
+.ea-audit-caveat > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--ea-accent);
+}
+
+.ea-audit-caveat__body p {
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-caveat__body p:first-child {
+  font-weight: 600;
+  color: var(--ea-fg);
+}
+
+/* ---- session strip (non-dismissible on purpose) */
+
+.ea-audit-session {
+  border-bottom: 1px solid var(--ea-border);
+  background: var(--ea-info-bg);
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.ea-audit-session__line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ea-audit-session__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--ea-danger);
+  flex-shrink: 0;
+}
+
+.ea-audit-session__counter,
+.ea-audit-session__id {
+  color: var(--ea-fg-muted);
+  font-weight: 500;
+}
+
+.ea-audit-session__id {
+  font-family: var(--ea-mono);
+  font-size: 0.8em;
+}
+
+.ea-audit-session__details > summary {
+  cursor: pointer;
+  color: var(--ea-accent);
+  margin-top: 0.35rem;
+}
+
+.ea-audit-session__details p {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.ea-audit-session__events {
+  margin: 0.35rem 0 0.75rem;
+  padding-left: 1.2rem;
+  line-height: 1.6;
+}
+
+.ea-audit-session__events code {
+  font-family: var(--ea-mono);
+  font-size: 0.85em;
+}
+
+.ea-audit-session__view {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ea-audit-session__viewout {
+  margin-top: 0.5rem;
+}
+
+.ea-audit-session__trail {
+  margin: 0.35rem 0 0;
+  color: var(--ea-fg-muted);
+  font-family: var(--ea-mono);
+  font-size: 0.75rem;
+}
+
+/* ---- two-pane layout */
+
+.ea-audit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ea-audit__layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.ea-audit__list-pane {
+  width: 24rem;
+  flex-shrink: 0;
+  border-right: 1px solid var(--ea-border);
+  background: var(--ea-bg-alt);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ea-audit__record-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.ea-audit-record {
+  padding: 1.25rem 1.5rem 4rem;
+  max-width: 52rem;
+}
+
+.ea-audit-record__empty {
+  color: var(--ea-fg-muted);
+}
+
+/* On a narrow window the two panes stack rather than squeezing the record
+   text to an unreadable column. */
+@media (max-width: 900px) {
+  .ea-audit__layout {
+    flex-direction: column;
+  }
+
+  .ea-audit__list-pane {
+    width: auto;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid var(--ea-border);
+  }
+}
+
+/* ---- filter chips */
+
+.ea-audit-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--ea-border);
+}
+
+.ea-audit-filter__label {
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+  margin-right: 0.15rem;
+}
+
+.ea-audit-chip {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--ea-border);
+  border-radius: 999px;
+  background: var(--ea-bg);
+  color: var(--ea-fg-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ea-audit-chip--on {
+  border-color: var(--ea-accent);
+  background: var(--ea-info-bg);
+  color: var(--ea-fg);
+  font-weight: 600;
+}
+
+.ea-audit-chip--all {
+  margin-left: auto;
+  color: var(--ea-accent);
+}
+
+/* ---- list */
+
+.ea-audit-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ea-audit-list__empty,
+.ea-audit-list__footer {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-list__footer {
+  border-top: 1px solid var(--ea-border);
+}
+
+.ea-audit-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--ea-border);
+  /* The gravity rail. Transparent by default so every row keeps the same
+     text origin -- otherwise marked and unmarked rows would misalign and the
+     eye would read indentation instead of severity. */
+  border-left: 4px solid transparent;
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ea-audit-row:hover {
+  border-color: var(--ea-accent);
+}
+
+.ea-audit-row--selected {
+  outline: 2px solid var(--ea-accent);
+  outline-offset: -1px;
+}
+
+/* DENY and REWRITE differ on three independent channels -- rail colour,
+   badge weight (filled vs outlined) and the word itself -- so the
+   distinction survives a colour-blind reader, a greyscale print and a
+   screenshot. Hue alone would have been the easy version and the wrong one:
+   a block and an e-mail redaction are not the same event. */
+.ea-audit-row--deny {
+  border-left-color: var(--ea-danger);
+  background: var(--ea-danger-bg);
+}
+
+.ea-audit-row--rewrite {
+  border-left-color: var(--ea-rewrite);
+  background: var(--ea-rewrite-bg);
+}
+
+.ea-audit-row--error {
+  border-left-color: var(--ea-warning);
+  border-left-style: dashed;
+  background: var(--ea-warning-bg);
+}
+
+.ea-audit-row__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.2rem;
+}
+
+.ea-audit-row__when,
+.ea-audit-row__kind,
+.ea-audit-row__meta {
+  font-size: 0.72rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-row__kind {
+  border: 1px solid var(--ea-border);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+}
+
+.ea-audit-row__preview {
+  font-size: 0.85rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ea-audit-row__preview--absent {
+  color: var(--ea-fg-muted);
+  font-style: italic;
+}
+
+.ea-audit-row__meta {
+  margin-top: 0.2rem;
+}
+
+/* ---- gravity badge */
+
+.ea-audit-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+/* Filled: the heavier event reads heavier. */
+.ea-audit-badge--deny {
+  background: var(--ea-danger);
+  color: var(--ea-bg);
+}
+
+/* Outlined: present, distinct, deliberately lighter than a block. */
+.ea-audit-badge--rewrite {
+  background: transparent;
+  border-color: var(--ea-rewrite);
+  color: var(--ea-rewrite);
+}
+
+.ea-audit-badge--error {
+  background: transparent;
+  border-color: var(--ea-warning);
+  color: var(--ea-warning);
+}
+
+.ea-audit-badge--none {
+  background: transparent;
+  border-color: var(--ea-border);
+  color: var(--ea-fg-muted);
+}
+
+/* ---- scan honesty line */
+
+.ea-audit-scan {
+  margin: 0.35rem 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-scan--warn {
+  color: var(--ea-warning);
+}
+
+.ea-audit-scan--hint {
+  font-style: italic;
+}
+
+.ea-audit-more {
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+/* ---- layer 1 */
+
+.ea-audit-layer1__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.ea-audit-layer1__when,
+.ea-audit-layer1__kind {
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-block {
+  margin-bottom: 1.5rem;
+}
+
+.ea-audit-block h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-layer1__what {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.ea-audit-layer1__pointer {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-quote {
+  margin: 0.25rem 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid var(--ea-border);
+  background: var(--ea-bg-alt);
+  border-radius: 0 var(--ea-radius) var(--ea-radius) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.ea-audit-label {
+  margin: 0.75rem 0 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ea-fg-muted);
+}
+
+/* Something the record structurally does not contain -- said, not left
+   blank, so its absence is legible as a decision rather than a gap. */
+.ea-audit-absent {
+  margin: 0.35rem 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px dashed var(--ea-border);
+  border-radius: var(--ea-radius);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-hint {
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+  line-height: 1.45;
+}
+
+/* ---- layers 2 and 3 */
+
+.ea-audit-layer {
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  margin-bottom: 0.6rem;
+  background: var(--ea-bg);
+}
+
+.ea-audit-layer__summary {
+  cursor: pointer;
+  padding: 0.6rem 0.8rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ea-audit-layer__hint {
+  font-size: 0.8rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-layer > *:not(summary) {
+  padding: 0 0.8rem 0.8rem;
+}
+
+.ea-audit-verdict-title {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.85rem;
+}
+
+.ea-audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.ea-audit-table th,
+.ea-audit-table td {
+  text-align: left;
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  border-bottom: 1px solid var(--ea-border);
+  vertical-align: top;
+}
+
+.ea-audit-table th {
+  font-weight: 500;
+  color: var(--ea-fg-muted);
+  white-space: nowrap;
+  width: 45%;
+}
+
+.ea-audit-table td {
+  font-family: var(--ea-mono);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.ea-audit-pre {
+  margin: 0.35rem 0;
+  padding: 0.6rem 0.8rem;
+  background: var(--ea-bg-alt);
+  border-radius: var(--ea-radius);
+  font-family: var(--ea-mono);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- the asymmetry explanations */
+
+.ea-audit-note {
+  margin: 0.5rem 0;
+  border: 1px solid var(--ea-border);
+  border-left: 3px solid var(--ea-info);
+  border-radius: var(--ea-radius);
+  background: var(--ea-info-bg);
+  padding: 0.5rem 0.7rem;
+}
+
+.ea-audit-note > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ea-audit-note p {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.ea-audit-note__hint {
+  font-weight: 400;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-note--original {
+  border-left-color: var(--ea-rewrite);
+  background: var(--ea-rewrite-bg);
+}
+
+/* ---- the policy-editing seam */
+
+.ea-audit-seam {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ea-border);
+}
+
+.ea-audit-seam h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.ea-audit-cr {
+  margin-bottom: 0.5rem;
+}
+
+.ea-audit-cr__open {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.ea-audit-cr__form {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ea-audit-cr__about {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* The "nothing changed yet" warning is the load-bearing sentence in this
+   form: an auditor who believes a rule was just fixed will judge every
+   later record against a policy that did not move. */
+.ea-audit-cr__warning {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid var(--ea-warning);
+  background: var(--ea-warning-bg);
+  border-radius: 0 var(--ea-radius) var(--ea-radius) 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.ea-audit-cr__form label {
+  font-size: 0.82rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-cr__form textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  font: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+
+.ea-audit-cr__recorded {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-cr__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.ea-audit-cr__actions button {
+  padding: 0.35rem 0.9rem;
+  border: none;
+  border-radius: var(--ea-radius);
+  background: var(--ea-accent);
+  color: var(--ea-accent-fg);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.ea-audit-cr__cancel {
+  background: transparent !important;
+  color: var(--ea-fg-muted) !important;
+  border: 1px solid var(--ea-border) !important;
+}
+
+.ea-audit-cr__status {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ea-audit-cr__status--ok {
+  color: var(--ea-fg-muted);
+}
+
+/* ---- conversation sequence */
+
+.ea-audit-conversation {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ea-border);
+}
+
+.ea-audit-conversation h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.ea-audit-conversation__where {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--ea-fg-muted);
+}
+
+.ea-audit-conversation__turns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ea-audit-turn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--ea-border);
+  border-left: 4px solid transparent;
+  border-radius: var(--ea-radius);
+  background: var(--ea-bg);
+  color: var(--ea-fg);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ea-audit-turn--deny {
+  border-left-color: var(--ea-danger);
+  background: var(--ea-danger-bg);
+}
+
+.ea-audit-turn--rewrite {
+  border-left-color: var(--ea-rewrite);
+  background: var(--ea-rewrite-bg);
+}
+
+.ea-audit-turn--error {
+  border-left-color: var(--ea-warning);
+  border-left-style: dashed;
+  background: var(--ea-warning-bg);
+}
+
+.ea-audit-turn--current {
+  outline: 2px solid var(--ea-accent);
+  outline-offset: -1px;
+  cursor: default;
+}
+
+.ea-audit-turn__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.ea-audit-turn__preview {
+  display: block;
+  color: var(--ea-fg-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

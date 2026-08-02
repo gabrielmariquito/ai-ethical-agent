@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ethical Agent — Auditoria</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6feb'/%3E%3Cpath d='M16 6 26 10.5v6.4c0 6.6-4.4 10.3-10 12.1-5.6-1.8-10-5.5-10-12.1v-6.4z' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <link rel="stylesheet" href="/static/css/audit.css" />
+  </head>
+  <body>
+    <div class="ea-page">
+      <header class="ea-topbar">
+        <span class="ea-topbar__title">Ethical Agent</span>
+        <nav id="ea-nav"></nav>
+      </header>
+
+      <div id="ea-banner-host"></div>
+
+      <!-- Login shell. Served without a session on purpose: it contains no
+           records, and every data endpoint behind it still answers 401. -->
+      <main id="ea-audit-login" class="ea-audit-login" hidden>
+        <div class="ea-audit-login__card">
+          <h1>Auditoria</h1>
+          <p class="ea-audit-login__lead">
+            Esta tela mostra os registros de decisão do agente para quem vai julgá-los depois
+            do fato. É separada da tela de conversa.
+          </p>
+
+          <!-- Told before the password is typed, not after: consenting to be
+               recorded after already being recorded is not consenting. -->
+          <section class="ea-audit-notice ea-audit-notice--recording">
+            <h2>Esta sessão será registrada</h2>
+            <p>
+              Para a pesquisa, o sistema registra <strong>o que você faz nesta tela</strong>:
+              quais registros você abre, quanto tempo permanece em cada um, quais camadas de
+              detalhe expande e em que ordem, se volta a um registro já visto, e a sequência
+              de navegação.
+            </p>
+            <p>
+              <strong>Não</strong> são coletados nome, e-mail, endereço de rede ou identificação
+              do navegador. O único identificador é um código de sessão anônimo, gerado no
+              momento em que você entra.
+            </p>
+            <p class="ea-audit-notice__file">
+              Arquivo: <code id="ea-audit-login-logpath">logs/auditor_sessions.jsonl</code> —
+              separado da trilha do agente, que este registro nunca toca.
+            </p>
+          </section>
+
+          <form id="ea-audit-login-form" class="ea-audit-login__form">
+            <label for="ea-audit-password">Senha</label>
+            <input
+              type="password"
+              id="ea-audit-password"
+              autocomplete="current-password"
+              required
+            />
+            <button type="submit" id="ea-audit-login-submit">Entrar</button>
+          </form>
+
+          <p id="ea-audit-login-error" class="ea-audit-login__error" role="alert" hidden></p>
+
+          <p class="ea-audit-caveat__short">
+            Esta senha separa papéis; não é segurança. O servidor é local, sem HTTPS, e quem
+            tem acesso a este computador lê <code>logs/audit.jsonl</code> direto, sem passar
+            por aqui.
+          </p>
+          <details class="ea-audit-caveat">
+            <summary>O que esta senha protege (e o que não protege)</summary>
+            <div class="ea-audit-caveat__body" id="ea-audit-caveat-login"></div>
+          </details>
+        </div>
+      </main>
+
+      <!-- The screen proper. -->
+      <main id="ea-audit-app" class="ea-audit" hidden>
+        <div id="ea-audit-session-banner"></div>
+
+        <div class="ea-audit__layout">
+          <section class="ea-audit__list-pane" aria-label="Registros da trilha">
+            <div id="ea-audit-filter" class="ea-audit-filter"></div>
+            <div id="ea-audit-list" class="ea-audit-list"></div>
+            <div id="ea-audit-list-footer" class="ea-audit-list__footer"></div>
+          </section>
+
+          <section class="ea-audit__record-pane" aria-label="Registro selecionado">
+            <div id="ea-audit-record" class="ea-audit-record">
+              <p class="ea-audit-record__empty">
+                Escolha um registro à esquerda para examiná-lo.
+              </p>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/static/js/audit/audit-app.js"></script>
+  </body>
+</html>

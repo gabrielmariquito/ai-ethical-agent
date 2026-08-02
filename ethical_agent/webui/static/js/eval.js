@@ -66,6 +66,9 @@ async function init() {
   renderNav(els.nav, "/eval");
   try {
     configPanel = await initConfigPanel(els.configPanel, els.configToggle);
+    // Re-render now that we know whether the audit screen exists on this
+    // server (initConfigPanel already fetched /api/choices).
+    renderNav(els.nav, "/eval", { auditEnabled: configPanel.auditScreenEnabled });
   } catch (err) {
     showErrorBanner(els.bannerHost, err);
     return;

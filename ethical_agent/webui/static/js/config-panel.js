@@ -134,5 +134,9 @@ export async function initConfigPanel(panelEl, toggleBtn) {
     getConfig() {
       return Object.assign({}, config);
     },
+    // Passed straight to renderNav so the Auditoria item links somewhere
+    // real instead of 404ing. Piggybacks on the /api/choices call this panel
+    // already makes rather than adding a second request per screen.
+    auditScreenEnabled: Boolean(choices.audit_screen_enabled),
   };
 }
