@@ -1389,12 +1389,19 @@ class DemoPage(_Page):
 
         eval_dir = ROOT / "eval"
         dataset_files = sorted(eval_dir.glob("*.json"))
-        self._append("\nRecall real (calculado agora):\n", "header")
+        # "conjunto inteiro" dito por extenso: esta tela avalia cada dataset
+        # sem dividir, e um recall sem a metade nomeada ao lado é afirmação sem
+        # procedência -- a regra de reporte do README. Aqui a metade é `full`, e
+        # é isso que o rótulo declara.
+        self._append("\nRecall real (calculado agora, conjunto inteiro):\n", "header")
         try:
             for path in dataset_files:
                 cases = load_dataset(path)
                 recall = evaluate_engine(engine, cases)["binary"]["recall"]
-                self._append(f"  {path.name}: {recall:.3f} ({len(cases)} casos)\n")
+                self._append(
+                    f"  {path.name} [conjunto inteiro]: {recall:.3f} "
+                    f"({len(cases)} casos)\n"
+                )
                 self.update_idletasks()
             if len(dataset_files) > 1:
                 self._append(

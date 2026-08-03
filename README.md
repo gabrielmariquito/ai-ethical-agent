@@ -440,11 +440,101 @@ o BeaverTails encontrou falsos positivos reais (ver abaixo).
 
 ## Resultados da avaliação
 
-`python -m ethical_agent eval [--dataset ...]`, execução real em 2026-08-03
-(política v0.5.0, dataset in-distribution v0.5.0, RelAIEO com grounding v0.2.0
-/ normas v0.2.0):
+### Como avaliar
 
-### `eval/dataset.json` — 72 casos, in-distribution
+```bash
+python -m ethical_agent eval --dataset eval/dataset_beavertails.json --half tune
+python -m ethical_agent eval --dataset eval/dataset_beavertails.json --half holdout
+python -m ethical_agent eval --dataset eval/dataset.json            # inteiro, sempre
+```
+
+Os dois datasets **externos** são divididos meio a meio em `tune` e `holdout`
+pela receita `divisao/v1` (ver `ethical_agent/evaluate.py`, onde ela está
+escrita por extenso). A atribuição é por caso, derivada do `id`: acrescentar
+casos ao dataset **acrescenta**, nunca move ninguém de metade, e por isso um
+número de `holdout` publicado hoje continua comparável com um de amanhã.
+
+`eval/dataset.json` **não é dividido**, e pedir `--half tune` para ele falha com
+código 2 em vez de devolver o conjunto inteiro em silêncio.
+
+### A regra de reporte
+
+> [!IMPORTANT]
+> - **Os três datasets são reportados separadamente. Nunca em média, nunca
+>   somados.** São populações diferentes, com proporções DENY/ALLOW diferentes;
+>   uma média entre eles não é grandeza de nada.
+> - **Números de `tune` não são resultado, são instrumento de ajuste.** O léxico
+>   pode ser ajustado contra `tune` à vontade. O que se publica é `holdout`.
+> - **`eval/dataset.json` é in-distribution**, escrito pelo autor das próprias
+>   regras que ele testa. Seu F1 de 0.980 mede que defeitos catalogados foram
+>   fechados — **não é evidência de generalização**, e não deve ser citado como
+>   tal. Para isso servem os dois conjuntos externos.
+> - **Todo número sai com a metade nomeada ao lado**, inclusive `full`. A CLI
+>   imprime o bloco `Divisão` antes de qualquer métrica e um `metade-id`
+>   reproduzível: duas execuções que reportam o mesmo identificador leram a
+>   mesma metade. Um recall sem a metade nomeada é afirmação sem procedência.
+> - **Entre metades, compara-se recall — não acurácia nem F1.** Recall é
+>   invariante à mistura DENY/ALLOW; acurácia e F1 não são, e o desequilíbrio
+>   residual da divisão já explica ~2 pontos de acurácia nos dois datasets
+>   externos (ver a tabela abaixo). A CLI avisa quando isso vale.
+> - **Recall sai com o erro-padrão ao lado.** Um recall sem o piso de ruído é
+>   afirmação sem escala — ver a coluna `e.p.` abaixo.
+
+### A divisão, medida
+
+Execução real, receita `divisao/v1`:
+
+| dataset | metade | casos | DENY/ALLOW | prop. DENY | N_DENY | e.p. do recall | metade-id |
+|---|---|---|---|---|---|---|---|
+| BeaverTails | `tune` | 117 | 65/52 | 0.556 | 65 | 0.029 | `7a5bbfa62589…` |
+| BeaverTails | `holdout` | 103 | 55/48 | 0.534 | 55 | 0.032 | `48adcaf986b8…` |
+| injections | `tune` | 323 | 133/190 | 0.412 | 133 | 0.017 | `fae20622ea3a…` |
+| injections | `holdout` | 339 | 130/209 | 0.384 | 130 | 0.017 | `25de58b3e96e…` |
+
+(`e.p.` calculado no recall de hoje: 0.058 no BeaverTails, 0.038 nas injeções.)
+
+> [!WARNING]
+> **O gap de proporção DENY entre as metades é 0.0216 (BeaverTails) e 0.0283
+> (injeções), e os dois estouram o limite de comparabilidade de 0.02.** A
+> derivação do limite está em `ethical_agent/evaluate.py`; em resumo, com o
+> recall tão baixo a acurácia é sensível quase 1:1 à mistura, então esse gap
+> sozinho já produz ~2 pontos de acurácia — tanto quanto o espalhamento entre
+> as três engines. **Acurácia e F1 não são comparáveis entre `tune` e
+> `holdout`** em nenhum dos dois. Recall é.
+>
+> Isto **não** é motivo para trocar a semente. Re-semear para consertar a
+> proporção é reembaralhar, e a segunda semente seria escolhida contra os dados
+> — que é exatamente o defeito que a divisão existe para impedir. O remédio
+> registrado é restringir a comparação, não refazer a partição.
+
+> [!CAUTION]
+> **No `holdout` do BeaverTails o recall de hoje (0.058) é menor que o próprio
+> intervalo de confiança (±0.062, de 55 positivos).** Um ganho abaixo de ~0.06
+> ali não é distinguível de ruído, por mais cuidadoso que seja o léxico. Quem
+> for reportar melhoria nesse conjunto precisa ou de um efeito maior que isso,
+> ou de mais casos DENY, ou de dizer que o resultado é indistinguível de zero.
+
+### Os números abaixo são do **conjunto inteiro**
+
+As três tabelas a seguir são anteriores à divisão e medem cada dataset por
+inteiro (`--half full`). Ficam como estão porque é o que elas são; nenhuma delas
+é um número de `holdout`.
+
+`python -m ethical_agent eval [--dataset ...]`, execução real em 2026-08-03
+(**política v0.6.0**, dataset in-distribution v0.5.0, RelAIEO com grounding
+v0.2.0 / normas v0.2.0):
+
+> [!NOTE]
+> **A linha de procedência dizia `política v0.5.0` e a política está em
+> `0.6.0`.** As três tabelas foram **remedidas** nesta leva, sob `0.6.0`, e
+> saem idênticas até a terceira casa — nenhum número mudou; só o rótulo estava
+> velho. O fato informativo é justamente esse: a política andou de `0.5.0` para
+> `0.6.0` **sem mover nenhuma destas métricas**, o que é a lição 1 da
+> `DIVIDA-TECNICA` outra vez — o benchmark não enxerga o que aquelas levas
+> mudaram. Um rótulo de versão errado ao lado de um número é a mesma classe de
+> defeito que um recall sem a metade nomeada.
+
+### `eval/dataset.json` — 72 casos, in-distribution (não dividido)
 
 Os casos `REL-*` e `FAIR-A-*` exigem a camada de knowledge-graph do RelAIEO e
 são o ganho mensurável do item #2 nesse dataset — note o salto do recall da
@@ -506,7 +596,7 @@ de discriminar e não só a palavra:
 > afirmativa, relato de discriminação, proibição negada), com passagem
 > esperada, para que cobri-las depois seja ato deliberado.
 
-### `eval/dataset_huggingface_injections.json` — 662 casos, externo (deepset/prompt-injections)
+### `eval/dataset_huggingface_injections.json` — 662 casos, externo (deepset/prompt-injections), **conjunto inteiro**
 
 Mesmas três engines, dataset de terceiros do Hugging Face convertido por
 `eval/build_huggingface_dataset.py`, só com os princípios `security`
@@ -544,7 +634,7 @@ medição de quão estreito é o vocabulário de `R-INJ-001` fora do que
 `eval/dataset.json` cobre. `tests/test_eval_huggingface.py` mantém o
 relatório reproduzível, também sem piso de acurácia.
 
-### `eval/dataset_beavertails.json` — 220 casos, externo (PKU-Alignment/BeaverTails)
+### `eval/dataset_beavertails.json` — 220 casos, externo (PKU-Alignment/BeaverTails), **conjunto inteiro**
 
 Amostra estratificada (100 benignos + 40 por princípio em `privacy`,
 `fairness`, `non_maleficence`), avaliando `response` no `stage=output`:

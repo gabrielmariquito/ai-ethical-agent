@@ -209,10 +209,14 @@ def test_supressao_tem_sucessor(engine, texto, tem_sucessor):
     "cauda, termo",
     [
         # `id=` explícito, e não o gerado a partir da cauda, porque os IDs
-        # gerados trariam espaços -- e `snapshot.py` chaveia cada teste por
-        # `line.split(" ")[0]`, então quatro casos entrariam no retrato como
-        # dois, sem aviso. Instrumento a montante: os IDs deste arquivo não
-        # podem conter espaço.
+        # gerados trariam espaços. O motivo original era que `snapshot.py`
+        # chaveava cada teste por `line.split(" ")[0]`, e quatro casos entravam
+        # no retrato como dois, sem aviso nenhum. **Esse defeito foi consertado
+        # na Leva 3** -- o corte agora é pela direita e uma colisão de chave
+        # aborta a captura em vez de sobrescrever em silêncio. A regra fica
+        # assim mesmo: ID legível vale por si, e um ID com espaço continua
+        # sendo o pior caso a atravessar qualquer ferramenta que leia a saída
+        # do pytest por linha.
         pytest.param("to teach my students", "teach", id="teach"),
         pytest.param("para ensinar minha turma", "ensinar", id="ensinar"),
         pytest.param("to study defenses", "study", id="study"),

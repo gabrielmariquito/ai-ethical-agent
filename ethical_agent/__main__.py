@@ -17,7 +17,14 @@ from .audit import (
 )
 from .demo import DEMO_CASES, demo_scripted
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
-from .evaluate import evaluate_engine, format_report, load_dataset
+from .evaluate import (
+    METADES,
+    evaluate_engine,
+    format_report,
+    load_dataset,
+    resumo_da_divisao,
+    selecionar_metade,
+)
 from .kg_engine import KnowledgeGraphEngine
 from .llm import LLMClient, MockLLM, describe_llm_provenance, resolve_llm
 from .ollama_install import DEFAULT_LOCAL_MODEL, read_env_model
@@ -105,14 +112,43 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 2 if verdict.intervened else 0
 
 
+def dataset_curado() -> Path:
+    """The curated in-distribution set, which is never split.
+
+    Resolved from the package, not matched by file name: two different files
+    can be called dataset.json, and the one that must not be split is *this*
+    one.
+    """
+    return (default_policy_path().parents[1] / "eval" / "dataset.json").resolve()
+
+
 def cmd_eval(args: argparse.Namespace) -> int:
     # Intentionally never audited: this runs hundreds of synthetic dataset
     # cases directly against the engine, and logging them would swamp the
     # real usage trail with non-real data. args.audit_log exists on this
     # namespace (it's a global arg) but is never read here.
+    #
+    # eval/dataset.json is not divided. It is the curated set, written by the
+    # author of the rules being tested -- in-distribution by construction, so a
+    # "holdout" carved out of it would measure nothing while looking exactly
+    # like a generalisation claim. It is reported whole and separately. The
+    # refusal is loud rather than a silent fallback to `full`, because a number
+    # labelled `holdout` that is not one is worse than no number.
+    if args.half != "full" and Path(args.dataset).resolve() == dataset_curado():
+        print(
+            f"erro: {args.dataset} não é dividido -- é o conjunto curado "
+            "in-distribution, escrito pelo autor das próprias regras. Ele é "
+            "reportado inteiro e separado, nunca somado nem promediado com os "
+            "datasets externos. Use --half full (ou omita) para este dataset.",
+            file=sys.stderr,
+        )
+        return 2
+
     engine = _build_engine(args)
     cases = load_dataset(args.dataset)
-    results = evaluate_engine(engine, cases)
+    da_metade = selecionar_metade(cases, args.half)
+    divisao = resumo_da_divisao(da_metade, cases, args.half)
+    results = evaluate_engine(engine, da_metade, divisao=divisao)
     if args.json:
         print(json.dumps(results, indent=2, ensure_ascii=False))
     else:
@@ -371,7 +407,16 @@ def main(argv=None) -> int:
     p_eval = sub.add_parser("eval", help="run the evaluation harness")
     p_eval.add_argument(
         "--dataset",
-        default=str(default_policy_path().parents[1] / "eval" / "dataset.json"),
+        default=str(dataset_curado()),
+        help="dataset to evaluate (default: the curated in-distribution set)",
+    )
+    p_eval.add_argument(
+        "--half",
+        choices=list(METADES),
+        default="full",
+        help="which half of the dataset to read (recipe divisao/v1). The half "
+             "is always named in the output, including for 'full' -- a recall "
+             "number without its half named is a claim without provenance.",
     )
     p_eval.add_argument("--json", action="store_true")
     p_eval.set_defaults(func=cmd_eval)
