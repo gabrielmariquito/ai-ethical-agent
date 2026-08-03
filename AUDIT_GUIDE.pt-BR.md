@@ -867,6 +867,26 @@ na lista de processos e no histórico do shell. Também não guarde a senha num
 arquivo dentro do repositório — o servidor avisa no `stderr` se você fizer isso,
 porque é um `git add -A` de distância de ser commitada.
 
+**Duas senhas configuradas é erro de configuração, não uma disputa a resolver.**
+A senha pode vir de três lugares: da flag acima, da variável de ambiente
+`$ETHICAL_AGENT_AUDIT_PASSWORD`, ou da chave de mesmo nome no `.env` da raiz
+(que é onde o instalador gráfico grava). Se as **duas últimas** estiverem
+definidas ao mesmo tempo, `ethical-agent serve` **não sobe**: diz onde cada uma
+está e sai com código diferente de zero. Remova uma das duas — qual delas é
+decisão de quem instalou.
+
+O motivo é desta seção. Antes, a variável de ambiente ganhava e o arranque
+avisava que o `.env` tinha outra. Só que o aviso mora num terminal, e a
+consequência mora no navegador: quem tentava entrar com a senha do `.env` era
+recusado sem ter, em lugar nenhum da tela, como saber por quê. Uma tela de
+login que recusa a senha certa não é um problema de senha — é a auditoria
+parecendo quebrada para exatamente a pessoa que ela deveria servir.
+
+Para subir agora sem mexer em nenhuma das duas, use
+`--audit-password-file ARQUIVO`: a flag tem precedência sobre ambas e é uma
+resposta explícita, naquela invocação, a "qual delas vale". A própria mensagem
+de erro diz isso, para ninguém precisar voltar aqui.
+
 Reiniciar o servidor invalida todas as sessões (elas vivem só na memória do
 processo). É comportamento documentado, não defeito: persistir um token de
 sessão em disco seria gravar uma credencial ao lado da trilha que ela abre.

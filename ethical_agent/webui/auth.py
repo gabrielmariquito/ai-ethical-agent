@@ -11,7 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Mapping, Optional, Tuple
 
-from ..ollama_install import read_env_var
+from ..ollama_install import (
+    AUDIT_PASSWORD_ENV_VAR,
+    audit_password_conflict,
+    read_env_var,
+)
 
 # Access separation for the audit screen.
 #
@@ -35,7 +39,13 @@ from ..ollama_install import read_env_var
 # link would not have been enough -- the local server is reachable from the
 # URL bar and from devtools.
 
-ENV_PASSWORD_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
+# The local name this module has always used, now an alias rather than a
+# third copy of the literal. ollama_install owns it because that is the one
+# module both this and wizard_gui.py can import, and the conflict check has
+# to be asking about the same key on both sides -- two spellings that drifted
+# would produce a refusal on one side and a silent second password on the
+# other.
+ENV_PASSWORD_VAR = AUDIT_PASSWORD_ENV_VAR
 
 # The name of the session cookie, defined once because two modules need it and
 # they need the SAME one: handlers_audit.py writes it on login, httphandler.py
@@ -71,8 +81,11 @@ LOCKOUT_SECONDS = 60
 
 class AuditPasswordError(Exception):
     """Raised at startup for a password source that exists but is unusable
-    (e.g. an empty file). Failing loudly beats silently starting a server
-    whose audit screen quietly does not exist -- the operator asked for it."""
+    (e.g. an empty file), or for two ambient sources that contradict each
+    other. Failing loudly beats silently starting a server whose audit screen
+    quietly does not exist -- the operator asked for it -- and beats picking
+    one of two configured passwords, which rejects whoever believed in the
+    other one with no explanation anywhere on screen."""
 
 
 @dataclass
@@ -91,24 +104,31 @@ def load_audit_password(
     """Returns (password, source_description, warnings).
 
     The description and the warnings are safe to print; the password itself
-    never is. Precedence, highest first:
+    never is. The three sources, highest first:
 
       1. --audit-password-file ARQUIVO
       2. $ETHICAL_AGENT_AUDIT_PASSWORD
       3. ETHICAL_AGENT_AUDIT_PASSWORD= in <root>/.env   (written by wizard_gui)
       4. nothing -- the audit screen does not exist
 
-    Environment above .env is the python-dotenv convention and matches how
-    OLLAMA_API_KEY already resolves here (llm.py calls load_dotenv(), which
-    does not override an existing variable, then reads os.environ): a real
-    variable is the per-invocation override, .env is the persistent setting.
-    Two different precedences for two keys of the same .env would be worse
-    than either order.
+    Only (1) is a precedence. Sources (2) and (3) do not rank against each
+    other: both defined at once raises AuditPasswordError and the server does
+    not start. They used to rank -- the variable won, python-dotenv style,
+    the way OLLAMA_API_KEY still resolves in llm.py -- and the startup banner
+    named the loser. What that missed is that the banner is in a terminal
+    window nobody is necessarily watching, while the consequence lands in the
+    browser, where someone types the password they believe they configured
+    and is rejected with nothing to go on. A ranking was the wrong shape for
+    a question the operator can simply be asked to answer.
 
-    That does mean a stale `export` in someone's shell profile can quietly
-    outrank the password their installer wrote. The startup banner is what
-    covers it -- cmd_serve names the winning source, and says so explicitly
-    when the variable beat a password that .env also had.
+    The flag still outranks both, and silences the conflict: it is an
+    explicit, per-invocation answer to "which one", which is precisely what
+    is missing in the ambient case. It is also the escape hatch the error
+    message names, so nobody has to edit their shell profile to run *now*.
+
+    OLLAMA_MODEL and OLLAMA_API_KEY are untouched by any of this: they keep
+    the variable-over-.env precedence, in the same file. What changed is one
+    key, and only when it is defined twice.
 
     There is deliberately no --audit-password VALUE flag: an argument value
     lands in the process list and in shell history, which is a worse place
@@ -136,6 +156,13 @@ def load_audit_password(
         warnings.extend(_password_file_warnings(path))
         return password, f"--audit-password-file {path}", warnings
 
+    # Below this line there is no flag, so nobody has said which of the two
+    # ambient sources they meant. The check sits *after* the branch above and
+    # not before it: with the flag, the question has already been answered.
+    conflict = audit_password_conflict(root, env, password_file)
+    if conflict:
+        raise AuditPasswordError(conflict)
+
     env_password = (env.get(ENV_PASSWORD_VAR) or "").strip()
     if env_password:
         return env_password, f"${ENV_PASSWORD_VAR}", warnings
@@ -154,8 +181,10 @@ def load_audit_password(
 def dotenv_password_present(root: Optional[Path] = None) -> bool:
     """Whether .env carries a password, regardless of who won.
 
-    Only used to tell the operator that a higher-precedence source overrode
-    it. Returns a boolean and never the value, because the caller prints.
+    Only used to tell the operator that --audit-password-file outranked it,
+    which is the one source that still can: the environment variable no
+    longer overrides .env, it collides with it. Returns a boolean and never
+    the value, because the caller prints.
     """
     return read_env_var(REPO_ROOT if root is None else root, ENV_PASSWORD_VAR) is not None
 

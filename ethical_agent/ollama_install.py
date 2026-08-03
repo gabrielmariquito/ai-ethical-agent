@@ -30,7 +30,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator, Optional, Tuple
+from typing import Callable, Iterator, Mapping, Optional, Tuple
 
 DEFAULT_LOCAL_MODEL = "llama3.2:3b"
 
@@ -332,7 +332,7 @@ def write_env_audit_password(root: Path, password: str) -> Path:
     password stored with a trailing space would silently never match what
     the reader hands to the login check.
     """
-    return _upsert_env_var(root, "ETHICAL_AGENT_AUDIT_PASSWORD", password.strip())
+    return _upsert_env_var(root, AUDIT_PASSWORD_ENV_VAR, password.strip())
 
 
 def read_env_var(root: Path, key: str) -> Optional[str]:
@@ -352,6 +352,107 @@ def read_env_var(root: Path, key: str) -> Optional[str]:
                 if value:
                     return value
     return None
+
+
+# -- two audit passwords at once ---------------------------------------------
+#
+# The audit-screen password can arrive from two *ambient* places: the
+# environment variable, and .env at the project root (where the graphical
+# installer writes it). Both defined at the same time used to be a precedence
+# question -- the variable won, and the startup banner named the loser. In
+# use that turned out to be the wrong shape for the problem: the banner is in
+# a terminal window nobody is necessarily watching, and the person who then
+# types the .env password into the browser is simply rejected, with no
+# explanation available anywhere on screen. Two configured passwords is a
+# configuration error, and the server refuses to start on it.
+#
+# This lives here, next to the .env reader, because it is the only module
+# both callers can reach: webui/auth.py imports it, and wizard_gui.py imports
+# it while running on the *system* Python before the project is installed
+# (see wizard_gui.py's comment on AUDIT_PASSWORD_ENV_VAR, which is why the
+# installer cannot import webui/auth at all).
+
+AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
+
+
+def env_audit_password_present(env: Optional[Mapping[str, str]] = None) -> bool:
+    """Whether the environment defines a usable audit password.
+
+    Stripped, so that an exported-but-empty variable -- how a shell profile
+    leaves a name defined without meaning anything by it -- counts as absent,
+    exactly as read_env_var already treats a bare `KEY=` line in .env. The
+    two halves of the conflict check have to agree on what "defined" means,
+    or they disagree about how many passwords exist.
+    """
+    source = os.environ if env is None else env
+    return bool((source.get(AUDIT_PASSWORD_ENV_VAR) or "").strip())
+
+
+def audit_password_conflict(
+    root: Path,
+    env: Optional[Mapping[str, str]] = None,
+    password_file: Optional[str] = None,
+) -> Optional[str]:
+    """The message to show when both ambient sources define a password, or
+    None when there is no conflict. Returning the text, rather than a bool,
+    is what keeps the CLI and the installer saying the same thing.
+
+    `password_file` is a parameter here rather than a check the callers do
+    for themselves. The flag is an explicit, per-invocation answer to "which
+    one", so it silences the conflict -- and that exception has to live in
+    the same place as the rule. Implemented twice, the two callers would
+    drift apart on the *exception* while still appearing to share the rule,
+    which is the divergence nobody notices.
+    """
+    if password_file:
+        return None
+    if not env_audit_password_present(env):
+        return None
+    if read_env_var(root, AUDIT_PASSWORD_ENV_VAR) is None:
+        return None
+
+    env_path = (root / ".env").resolve()
+    return (
+        "há duas senhas de auditoria definidas ao mesmo tempo, e não dá para "
+        "saber qual delas é a que vale:\n"
+        f"  - a variável de ambiente ${AUDIT_PASSWORD_ENV_VAR}\n"
+        f"  - a chave {AUDIT_PASSWORD_ENV_VAR} do arquivo {env_path}\n"
+        "Usar uma das duas em silêncio faz a outra ser recusada no login sem "
+        "explicação nenhuma, que foi como este caso apareceu. Remova uma das "
+        "duas -- qual delas é decisão de quem instalou, não deste programa.\n"
+        "Para subir agora sem mexer em nenhuma das duas: "
+        "--audit-password-file ARQUIVO, que tem precedência sobre ambas."
+    )
+
+
+def audit_password_would_conflict(
+    root: Path, env: Optional[Mapping[str, str]] = None
+) -> Optional[str]:
+    """The other half of the same rule: the environment already defines a
+    password and the caller is about to write a second one into .env. None
+    when there is nothing exported and the write is fine.
+
+    Separate from audit_password_conflict because the two are asked at
+    different moments and answer different questions -- "is this machine
+    already misconfigured?" versus "would what I am about to do misconfigure
+    it?" -- and because the second one has to be answerable *before* the .env
+    key exists, which is exactly when the first one is still None. Callers
+    append their own way out: what that is depends on whether there is still
+    a field on screen to edit.
+
+    Returned ready to display, first letter and all. A caller that
+    capitalized it would lowercase the variable name in the middle of it,
+    which is how the message ends up naming a variable that does not exist.
+    """
+    if not env_audit_password_present(env):
+        return None
+
+    env_path = (root / ".env").resolve()
+    return (
+        f"A variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} já define uma senha "
+        f"de auditoria nesta máquina. Gravar outra em {env_path} deixaria duas "
+        "definidas ao mesmo tempo, e a interface web se recusa a subir assim."
+    )
 
 
 def read_env_model_optional(root: Path) -> Optional[str]:

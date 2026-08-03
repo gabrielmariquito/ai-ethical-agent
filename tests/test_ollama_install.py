@@ -5,12 +5,15 @@ from pathlib import Path
 import pytest
 
 from ethical_agent.ollama_install import (
+    AUDIT_PASSWORD_ENV_VAR,
     DEFAULT_LOCAL_MODEL,
     InstallerPlan,
     _WIN_BREAKAWAY,
     _WIN_NEW_GROUP,
     _WIN_NO_WINDOW,
+    audit_password_conflict,
     download_file,
+    env_audit_password_present,
     estimate_model_size_text,
     find_ollama_exe,
     installer_plan_for_platform,
@@ -206,6 +209,82 @@ def test_remove_env_var_on_the_only_line_leaves_a_valid_empty_file(tmp_path):
     remove_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD")
     assert (tmp_path / ".env").read_text(encoding="utf-8") == ""
     assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") is None
+
+
+# -- the two ambient sources, and refusing to choose between them -------------
+#
+# Both the CLI (webui/auth.load_audit_password) and the installer
+# (wizard_gui.py) have to answer "are two audit passwords defined at once?"
+# the same way, and wizard_gui cannot import webui/auth (it runs on the
+# system Python before the project is installed -- see wizard_gui.py's own
+# comment on AUDIT_PASSWORD_ENV_VAR). This module is the only place both can
+# import from, so the predicate, the exception to it, and the wording all
+# live here and are tested here.
+
+
+def _dotenv_with_password(root, value="do-dotenv"):
+    (root / ".env").write_text(
+        f"OLLAMA_MODEL=llama3.2:3b\n{AUDIT_PASSWORD_ENV_VAR}={value}\n", encoding="utf-8"
+    )
+    return root
+
+
+def test_audit_password_conflict_only_when_both_ambient_sources_are_set(tmp_path):
+    env_only = {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}
+
+    # Neither.
+    assert audit_password_conflict(tmp_path, {}) is None
+    # The variable alone -- no .env file at all.
+    assert audit_password_conflict(tmp_path, env_only) is None
+    # .env alone.
+    assert audit_password_conflict(_dotenv_with_password(tmp_path), {}) is None
+    # Both.
+    assert audit_password_conflict(tmp_path, env_only) is not None
+
+
+def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
+    # "Defined" has to mean the same thing on both sides or the two halves of
+    # the check disagree about how many passwords exist. read_env_var already
+    # treats `KEY=` as absent; the variable is measured the same way.
+    (tmp_path / ".env").write_text(f"{AUDIT_PASSWORD_ENV_VAR}=\n", encoding="utf-8")
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is None
+
+    _dotenv_with_password(tmp_path)
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "   "}) is None
+    assert env_audit_password_present({AUDIT_PASSWORD_ENV_VAR: "   "}) is False
+    assert env_audit_password_present({AUDIT_PASSWORD_ENV_VAR: "x"}) is True
+    assert env_audit_password_present({}) is False
+
+
+def test_the_password_file_flag_silences_the_conflict(tmp_path):
+    # The exception lives in the predicate, not in each caller. If the CLI
+    # carved it out on its own, the installer would carve out something
+    # slightly different, and the two would drift apart on the *exception*
+    # while still looking like they share the rule -- which is the divergence
+    # nobody notices.
+    _dotenv_with_password(tmp_path)
+    env = {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}
+
+    assert audit_password_conflict(tmp_path, env) is not None
+    assert audit_password_conflict(tmp_path, env, password_file="/tmp/senha.txt") is None
+
+
+def test_the_conflict_message_names_both_origins_the_path_and_the_way_out(tmp_path):
+    _dotenv_with_password(tmp_path)
+    message = audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"})
+
+    # Where each one is.
+    assert f"${AUDIT_PASSWORD_ENV_VAR}" in message
+    assert str((tmp_path / ".env").resolve()) in message
+    # What to do, without saying which to remove -- that is the operator's
+    # call, and this program has no way to know which one was intended.
+    assert "remova uma das duas" in message.lower()
+    # And the way to run *now* without editing anything, so nobody has to go
+    # read the documentation to get unstuck.
+    assert "--audit-password-file" in message
+    # Never either value.
+    assert "do-ambiente" not in message
+    assert "do-dotenv" not in message
 
 
 def test_verify_windows_signature_valid():

@@ -237,6 +237,10 @@ def test_dotenv_password_enables_the_audit_screen_with_no_flag_at_all(
 ):
     # The whole point of the wizard writing to .env: `ethical-agent serve`,
     # bare, and the screen is there.
+    #
+    # Also the regression guard for the refusal above: .env is the source
+    # that used to be silently overridden, so it is the one whose ordinary
+    # case has to keep working untouched.
     (tmp_path / ".env").write_text(
         f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
     )
@@ -249,13 +253,14 @@ def test_dotenv_password_enables_the_audit_screen_with_no_flag_at_all(
     assert ".env (ETHICAL_AGENT_AUDIT_PASSWORD)" in out
 
 
-def test_banner_warns_when_the_env_var_overrode_a_password_in_dotenv(
+def test_serve_refuses_to_start_when_both_ambient_sources_have_a_password(
     monkeypatch, tmp_path, capsys
 ):
-    # The cost of putting .env at the bottom of the precedence chain: a stale
-    # `export` silently wins. The banner is what converts that into a visible
-    # fact at startup, instead of a login prompt that keeps rejecting the
-    # password the person believes they configured.
+    # The banner used to be the whole answer here: the variable won, the
+    # banner named the loser, and the server came up. But the banner is in a
+    # terminal window nobody is necessarily watching, and the person who then
+    # types the .env password into the browser is rejected with nothing to go
+    # on. Two configured passwords is now a configuration error.
     (tmp_path / ".env").write_text(
         f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
     )
@@ -263,12 +268,56 @@ def test_banner_warns_when_the_env_var_overrode_a_password_in_dotenv(
         monkeypatch, tmp_path, env={"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}
     )
 
+    assert code == 2
+    # make_server was never reached -- nothing bound a port, so there is no
+    # half-started server behind the error message.
+    assert "initial_config" not in captured
+
+    err = capsys.readouterr().err
+    assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in err
+    assert str((tmp_path / ".env").resolve()) in err
+    assert "--audit-password-file" in err, "quem precisa subir agora tem de sair daqui sozinho"
+    assert CANARY not in err
+
+
+def test_the_password_file_flag_still_starts_with_both_ambient_sources_set(
+    monkeypatch, tmp_path, capsys
+):
+    # The flag is an explicit answer to "which one", so it is not refused --
+    # and the old banner warning is exactly right for this case, which is the
+    # only one it still fires in.
+    password_file = tmp_path / "senha.txt"
+    password_file.write_text("do-arquivo\n", encoding="utf-8")
+    (tmp_path / ".env").write_text(
+        f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
+    )
+    captured, code = _run_serve(
+        monkeypatch,
+        tmp_path,
+        argv_extra=("--audit-password-file", str(password_file)),
+        env={"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"},
+    )
+
+    assert code == 0
+    assert captured["kwargs"]["audit_password"] == "do-arquivo"
+    out = capsys.readouterr().out
+    assert "o .env também tem uma senha" in out
+    assert "precedência" in out
+
+
+def test_the_env_var_alone_still_enables_the_audit_screen(monkeypatch, tmp_path, capsys):
+    # Unchanged behaviour, asserted so the refusal cannot quietly widen into
+    # "any environment variable is suspicious". No .env file exists here.
+    captured, code = _run_serve(
+        monkeypatch, tmp_path, env={"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}
+    )
+
     assert code == 0
     assert captured["kwargs"]["audit_password"] == "do-ambiente"
     out = capsys.readouterr().out
+    assert "Auditoria: habilitada" in out
     assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in out
-    assert "o .env também tem uma senha" in out
-    assert "precedência" in out
+    assert "também tem uma senha" not in out
 
 
 def test_banner_does_not_cry_override_when_dotenv_is_the_winner(
@@ -298,18 +347,25 @@ def test_disabled_banner_points_at_the_installer_not_only_at_flags(
 def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, capsys):
     # One sweep over stdout+stderr for each source in turn. The banner is
     # allowed to name where the password came from and nothing else.
+    #
+    # Each case sets up its own .env: written once for all of them, the "env
+    # var" case would be two ambient sources at once, which is now refused
+    # before make_server is ever called -- so the case would stop testing
+    # what it is named after. The refusal is its own case here, and it is the
+    # one where a leak would be easiest to write by accident, because that
+    # message is the only one that has to talk about both passwords at once.
     password_file = tmp_path / "senha.txt"
     password_file.write_text(f"{CANARY}\n", encoding="utf-8")
-    (tmp_path / ".env").write_text(
-        f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
-    )
+    dotenv = f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n"
 
     cases = (
-        ("dotenv", (), None),
-        ("env var", (), {"ETHICAL_AGENT_AUDIT_PASSWORD": CANARY}),
-        ("password file", ("--audit-password-file", str(password_file)), None),
+        ("dotenv", (), None, dotenv),
+        ("env var", (), {"ETHICAL_AGENT_AUDIT_PASSWORD": CANARY}, "OLLAMA_MODEL=llama3.2:3b\n"),
+        ("password file", ("--audit-password-file", str(password_file)), None, dotenv),
+        ("conflito", (), {"ETHICAL_AGENT_AUDIT_PASSWORD": CANARY}, dotenv),
     )
-    for label, argv_extra, env in cases:
+    for label, argv_extra, env, env_file in cases:
+        (tmp_path / ".env").write_text(env_file, encoding="utf-8")
         captured, _ = _run_serve(monkeypatch, tmp_path, argv_extra=argv_extra, env=env)
         streams = capsys.readouterr()
         assert CANARY not in streams.out, f"vazou em stdout via {label}"
@@ -318,8 +374,12 @@ def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, 
         # serves verbatim and unauthenticated at /api/choices. This is the
         # same guarantee test_choices_endpoint_never_exposes_the_password
         # checks from the HTTP side, asserted here at the source for the two
-        # new ways a password can arrive.
-        assert CANARY not in repr(captured["initial_config"]), f"vazou em /api/choices via {label}"
+        # new ways a password can arrive. The refused case never gets that
+        # far, which is itself the assertion for it.
+        if label == "conflito":
+            assert "initial_config" not in captured
+        else:
+            assert CANARY not in repr(captured["initial_config"]), f"vazou via {label}"
 
 
 def test_serve_exits_nonzero_on_an_empty_password_file(tmp_path, capsys):

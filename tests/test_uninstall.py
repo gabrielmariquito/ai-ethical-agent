@@ -397,7 +397,12 @@ def test_env_question_says_which_keys_without_printing_the_value(tmp_path):
     assert "super-secret" not in env_cand.detail
 
 
-def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path):
+def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path, monkeypatch):
+    # The variable has to be cleared explicitly: on a machine that exports
+    # one, removing .env does *not* disable the screen, and this text would
+    # be a promise the uninstaller cannot keep (see the test below). That is
+    # not hypothetical -- it is the setup this project's own author runs.
+    monkeypatch.delenv("ETHICAL_AGENT_AUDIT_PASSWORD", raising=False)
     root = _make_root(
         tmp_path,
         env="OLLAMA_MODEL=llama3.2:3b\nETHICAL_AGENT_AUDIT_PASSWORD=senha-secreta\n",
@@ -413,6 +418,26 @@ def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path)
     # Milder than the OLLAMA_API_KEY warning on purpose: this loss is
     # recoverable without leaving the machine.
     assert "recuperável" in env_cand.detail
+
+
+def test_env_question_does_not_promise_a_shutdown_the_environment_prevents(
+    tmp_path, monkeypatch
+):
+    # With a password exported, removing .env is the *remedy* for having two
+    # of them -- the screen stays up on the exported one. Saying "desativa a
+    # tela" here would talk someone out of the one action that fixes their
+    # configuration.
+    monkeypatch.setenv("ETHICAL_AGENT_AUDIT_PASSWORD", "do-ambiente")
+    root = _make_root(
+        tmp_path,
+        env="OLLAMA_MODEL=llama3.2:3b\nETHICAL_AGENT_AUDIT_PASSWORD=senha-secreta\n",
+    )
+    plan = build_plan(root, port=8765, probe=False)
+    env_cand = [c for c in plan.optional if c.key == "env"][0]
+
+    assert "não a desativa" in env_cand.detail
+    assert "senha-secreta" not in env_cand.detail
+    assert "do-ambiente" not in env_cand.detail
 
 
 # -- running services ------------------------------------------------------

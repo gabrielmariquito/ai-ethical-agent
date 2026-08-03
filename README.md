@@ -974,20 +974,36 @@ ethical-agent serve --audit-password-file ~/.ethical-agent-audit-password
 # ou:  ETHICAL_AGENT_AUDIT_PASSWORD=... ethical-agent serve
 ```
 
-**Precedência**, da mais forte para a mais fraca:
+As três fontes, da mais forte para a mais fraca:
 
 1. `--audit-password-file ARQUIVO`
 2. `$ETHICAL_AGENT_AUDIT_PASSWORD`
 3. `ETHICAL_AGENT_AUDIT_PASSWORD=` no `.env` da raiz (o que o instalador grava)
 4. nenhuma — a tela não existe
 
-Variável de ambiente acima do `.env` é a convenção do `python-dotenv` e é como
-`OLLAMA_API_KEY` já se resolve neste projeto: a variável é o override pontual, o
-`.env` é a configuração persistente. A consequência é que um `export` esquecido
-no perfil do shell pode sobrepor a senha que o instalador gravou — por isso o
-banner de inicialização **nomeia a origem da senha que está valendo** e avisa
-explicitamente quando o `.env` também tinha uma e perdeu. Nem o banner nem
-qualquer log imprimem o valor.
+**Só a flag é precedência. As duas fontes de ambiente não se ordenam entre si:
+com as duas definidas, `serve` não sobe** — imprime onde cada uma está e sai
+com código 2. Duas senhas configuradas é erro de configuração, e remover uma
+das duas é decisão de quem instalou.
+
+Elas já se ordenaram: a variável ganhava, à moda do `python-dotenv`, e o banner
+de inicialização nomeava a perdedora. O que isso não cobria é onde a
+consequência aparece. O banner fica num terminal que ninguém está
+necessariamente olhando; quem digita no navegador a senha que acredita ter
+configurado é recusado **sem explicação nenhuma na tela**. Uma ordem era a
+forma errada para uma pergunta que dá para simplesmente devolver a quem
+instalou.
+
+A flag continua acima das duas e **silencia o conflito** — ela é uma resposta
+explícita, naquela invocação, a "qual delas". É também a saída que a mensagem
+de erro oferece, para quem precisa subir agora sem mexer em configuração
+nenhuma. O banner ainda nomeia a origem da senha em vigor, e avisa quando a
+flag passou por cima de uma senha no `.env`. Nem o banner nem qualquer log
+imprimem o valor.
+
+`OLLAMA_MODEL` e `OLLAMA_API_KEY` não mudaram: continuam no mesmo `.env`, com a
+variável de ambiente acima dele. O que mudou é uma chave só, e só quando ela
+está definida duas vezes.
 
 Sem senha, `/audit`, os endpoints `/api/audit/*` e os próprios arquivos
 estáticos da tela respondem o mesmo `404` de uma rota inexistente, para

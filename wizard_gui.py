@@ -47,9 +47,13 @@ from ethical_agent.install_progress import (  # noqa: E402
     plan_phases,
 )
 from ethical_agent.ollama_install import (  # noqa: E402
+    AUDIT_PASSWORD_ENV_VAR,
     DEFAULT_LOCAL_MODEL,
     DEFAULT_OLLAMA_HOST,
+    audit_password_conflict,
+    audit_password_would_conflict,
     download_file,
+    env_audit_password_present,
     estimate_model_size_text,
     find_ollama_exe,
     installer_plan_for_platform,
@@ -65,12 +69,16 @@ from ethical_agent.ollama_install import (  # noqa: E402
     write_env_model,
 )
 
-# The one .env key the audit screen looks for. Duplicated from
-# webui/auth.ENV_PASSWORD_VAR rather than imported: this installer runs on the
-# *system* Python, before the project has been pip-installed into the venv, so
-# it can only import modules that are importable from a bare checkout --
-# ollama_install is (stdlib only), webui/auth is not guaranteed to be.
-AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
+# AUDIT_PASSWORD_ENV_VAR, audit_password_conflict and
+# env_audit_password_present all arrive from ollama_install above, and the
+# import list is the whole reason they live there: this installer runs on the
+# *system* Python, before the project has been pip-installed into the venv,
+# so it can only import what is importable from a bare checkout --
+# ollama_install is (stdlib only), webui/auth is not. The key name used to be
+# re-declared here as its own literal for that reason. It no longer is,
+# because the refusal has to be the same refusal on both sides: a wizard that
+# writes a second password the server then refuses to start on would be worse
+# than the ambiguity it is meant to remove.
 
 # A server that is already up answers the first probe right away, so keep it
 # short -- the common Windows case is "installed but stopped", and spending
@@ -191,6 +199,19 @@ def _manual_launch_instructions() -> str:
         f"    {py} -m ethical_agent serve --port {DEFAULT_WEB_PORT}\n\n"
         f"    (depois abra http://127.0.0.1:{DEFAULT_WEB_PORT} no navegador)\n"
     )
+
+
+def _read_serve_error(path: Path, limit: int = 4000) -> str:
+    """The tail of the server's stderr, or "" if it cannot be read.
+
+    Swallows every error on purpose: failing to launch the interface is
+    never an install failure (see _launch_interface), and neither is failing
+    to explain why it did not launch.
+    """
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip()[-limit:]
+    except OSError:
+        return ""
 
 
 def _wait_for_web_ui(port: int, timeout: float = 5.0, poll: float = 0.2) -> bool:
@@ -361,13 +382,36 @@ class WizardApp(tk.Tk):
             print(_manual_launch_instructions())
             return
         port = DEFAULT_WEB_PORT
+        # The server's stderr goes to a file, not DEVNULL and not a PIPE.
+        #
+        # DEVNULL is where this used to send it, and it meant that a server
+        # refusing to start -- two audit passwords defined, the port already
+        # taken -- looked from here exactly like a slow one: "não respondeu a
+        # tempo", with the actual reason discarded a line before it was
+        # printed.
+        #
+        # A PIPE would fix that and introduce something worse: httphandler
+        # writes a line to stderr per request, nobody here ever drains it,
+        # and the web interface would freeze for good once the pipe buffer
+        # filled. A file has no such limit and can be read after the fact.
+        #
+        # The price, stated rather than discovered later: a server that comes
+        # up fine keeps appending one request line here for as long as it
+        # runs, where it used to write to DEVNULL. It is one file per
+        # installer run, in the system temp directory, and it buys the only
+        # channel through which a launch failure can explain itself at all.
+        stderr_path = Path(tempfile.gettempdir()) / f"ethical-agent-serve-{os.getpid()}.log"
+        try:
+            stderr_file = open(stderr_path, "w", encoding="utf-8")
+        except OSError:
+            stderr_file = None
         try:
             python_exe = _venv_python(VENV_DIR)
             cmd = [str(python_exe), "-m", "ethical_agent", "serve", "--port", str(port)]
             popen_kwargs: dict = dict(
                 cwd=ROOT,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=stderr_file if stderr_file is not None else subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
             )
             if sys.platform == "win32":
@@ -397,6 +441,10 @@ class WizardApp(tk.Tk):
             )
             print(_manual_launch_instructions())
             return
+        finally:
+            # The child holds its own handle; this one has done its job.
+            if stderr_file is not None:
+                stderr_file.close()
 
         stop_cmd = (
             f"taskkill /PID {proc.pid} /F" if sys.platform == "win32" else f"kill {proc.pid}"
@@ -409,6 +457,17 @@ class WizardApp(tk.Tk):
                 f"segundo plano (PID {proc.pid}), independente deste instalador.\n"
                 f"Para encerrá-lo: rode `{stop_cmd}`.\n"
             )
+        elif proc.poll() is not None:
+            # It did not fail to answer in time -- it is gone. A server that
+            # refuses to start says why, and that reason is worth more than
+            # the timeout wording that used to cover this case.
+            print(
+                f"O servidor encerrou assim que subiu (código {proc.returncode}); "
+                "a interface não foi aberta."
+            )
+            detalhe = _read_serve_error(stderr_path)
+            if detalhe:
+                print(detalhe)
         else:
             print(
                 f"O servidor (PID {proc.pid}) não respondeu em {url} a tempo -- "
@@ -652,7 +711,12 @@ class OptionsPage(_Page):
         _autowrap(self.audit_state_label, audit_frame, padding=8)
 
         # Only shown when there is something to remove. The label names the
-        # consequence, not the action: losing the screen, not just a credential.
+        # consequence, not the action: losing the screen, not just a
+        # credential. on_show rewrites it when the environment exports a
+        # password, because then removing the one in .env does not lose the
+        # screen at all -- the exported one takes over, and a checkbox that
+        # promised otherwise would be lying at the exact moment it is being
+        # offered as the way out of the conflict.
         self.audit_remove_check = tk.Checkbutton(
             audit_frame,
             text="Remover a senha e desativar a tela de auditoria",
@@ -671,11 +735,33 @@ class OptionsPage(_Page):
         # reinstall over an existing setup is the whole reason this branch
         # exists.
         self._existing_audit_password = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+        # A password exported in the environment is as configured as one in
+        # .env, and it is invisible from this screen -- which is how somebody
+        # types a second one here and only finds out at launch.
+        exported = env_audit_password_present()
+
         if self._existing_audit_password:
-            self.audit_state_label.config(
-                text="Já existe uma senha configurada. Deixe o campo em branco "
-                "para mantê-la, ou digite outra para trocar."
-            )
+            if exported:
+                self.audit_state_label.config(
+                    text="Há duas senhas de auditoria definidas: uma no .env e "
+                    f"uma na variável de ambiente ${AUDIT_PASSWORD_ENV_VAR}. A "
+                    "interface web se recusa a subir assim. Marque a remoção "
+                    "abaixo para ficar só com a variável de ambiente, ou apague "
+                    "a variável e mantenha a do .env."
+                )
+                # Removing the .env one does not disable anything here: the
+                # exported password takes over.
+                self.audit_remove_check.config(
+                    text="Remover a senha do .env e usar a da variável de ambiente"
+                )
+            else:
+                self.audit_state_label.config(
+                    text="Já existe uma senha configurada. Deixe o campo em branco "
+                    "para mantê-la, ou digite outra para trocar."
+                )
+                self.audit_remove_check.config(
+                    text="Remover a senha e desativar a tela de auditoria"
+                )
             # after= nos dois: pack() depois de um pack_forget() re-anexa no FIM
             # da ordem do master, não de volta ao lugar -- o mesmo motivo que
             # _sync_visibility documenta para os frames local/cloud.
@@ -684,11 +770,24 @@ class OptionsPage(_Page):
                 anchor="w", pady=(4, 0), after=self.audit_state_label
             )
         else:
-            self.audit_state_label.pack_forget()
             self.audit_remove_check.pack_forget()
             # Nothing to remove, so the flag must not survive from an earlier
             # visit where there was.
             self.app.remove_audit_password.set(False)
+            if exported:
+                # Nothing to remove and nothing to fix -- but leaving this
+                # unsaid is what makes the block on the next click look
+                # arbitrary. The screen has no other way to show a password
+                # it did not write.
+                self.audit_state_label.config(
+                    text="A auditoria já está habilitada pela variável de "
+                    f"ambiente ${AUDIT_PASSWORD_ENV_VAR}. Deixe o campo em branco "
+                    "para usá-la; digitar uma senha aqui deixaria duas definidas "
+                    "ao mesmo tempo, e a interface web se recusa a subir assim."
+                )
+                self.audit_state_label.pack(anchor="w", pady=(2, 0), after=self.audit_note)
+            else:
+                self.audit_state_label.pack_forget()
 
     def _sync_visibility(self) -> None:
         # pack()ing a widget that was pack_forget()'d re-appends it at the
@@ -740,6 +839,30 @@ class OptionsPage(_Page):
                 "auditoria, ou marque a remoção -- não os dois."
             )
             return False
+        # Writing a password into .env while the environment already exports
+        # one produces the configuration the web interface now refuses to
+        # start on -- so it is caught here, where there is still a field to
+        # edit, and not three screens later as a server that dies on launch.
+        #
+        # Every branch below names both ways out. Someone with that variable
+        # in their shell profile is not doing anything wrong, and a wizard
+        # that only says "no" to them is a wizard they cannot finish.
+        if not self.app.remove_audit_password.get() and env_audit_password_present():
+            if self.app.audit_password_var.get().strip():
+                self.validation_label.config(
+                    text=audit_password_would_conflict(ROOT)
+                    + "\nSaídas: apague a variável de ambiente e continue aqui, "
+                    "ou deixe este campo em branco e use a que já está exportada "
+                    "-- a auditoria funciona igual, e nada é gravado no .env."
+                )
+                return False
+            conflict = audit_password_conflict(ROOT)
+            if conflict:
+                self.validation_label.config(
+                    text=conflict + "\nAqui: marque a remoção acima para apagar "
+                    "a do .env e ficar só com a variável de ambiente."
+                )
+                return False
         self.validation_label.config(text="")
         return True
 
@@ -881,7 +1004,9 @@ class ProgressPage(_Page):
             audit_is_last_phase = not self.app.chosen_want_llm
             if audit_is_last_phase:
                 self._phase(PHASE_CONFIG)
-            self._apply_audit_password()
+            if not self._apply_audit_password():
+                self._queue.put("__FAILED__")
+                return
             if audit_is_last_phase:
                 self._phase_done(PHASE_CONFIG)
 
@@ -893,8 +1018,9 @@ class ProgressPage(_Page):
             self._queue.put(f"\nErro inesperado: {exc}\n")
             self._queue.put("__FAILED__")
 
-    def _apply_audit_password(self) -> None:
-        """Three cases, and doing nothing is one of them.
+    def _apply_audit_password(self) -> bool:
+        """Three cases, and doing nothing is one of them. False stops the
+        install rather than writing a configuration the server refuses.
 
         A blank field never erases an existing password: the only way to lose
         one is the explicit checkbox. Nothing here ever puts the value into
@@ -905,24 +1031,52 @@ class ProgressPage(_Page):
         if self.app.chosen_remove_audit_password:
             env_path = remove_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
             if env_path is not None:
-                self._queue.put(
-                    f"Senha da auditoria removida de {env_path} -- /audit deixa de existir.\n"
+                # Removing it disables the screen only if nothing else
+                # defines one. With the variable exported, this is the
+                # *remedy* for two passwords, not the loss of the feature.
+                consequence = (
+                    "-- a auditoria passa a usar a senha da variável de ambiente."
+                    if env_audit_password_present()
+                    else "-- /audit deixa de existir."
                 )
-            self.app.audit_enabled = False
-            return
+                self._queue.put(f"Senha da auditoria removida de {env_path} {consequence}\n")
+            self.app.audit_enabled = env_audit_password_present()
+            return True
 
         if password:
+            # OptionsPage.can_advance already refuses this, but it runs before
+            # the snapshot is taken and Back stays enabled during the install.
+            # Checked again here because the cost of being wrong is a .env the
+            # web interface will not start on.
+            if env_audit_password_present():
+                aviso = audit_password_would_conflict(ROOT)
+                saida = (
+                    "\nNada foi gravado. Volte uma tela e ou limpe o campo da "
+                    "senha -- a auditoria segue habilitada pela variável de "
+                    "ambiente --, ou apague a variável e digite a senha de novo.\n"
+                )
+                self._queue.put("\n" + aviso + saida)
+                self.app.audit_enabled = True
+                return False
             env_path = write_env_audit_password(ROOT, password)
             self._queue.put(f"Senha da tela de auditoria gravada em {env_path}\n")
             self._record_env_key(AUDIT_PASSWORD_ENV_VAR)
             self.app.audit_enabled = True
-            return
+            return True
 
         # Left blank. Whether audit ends up enabled depends on whether a
-        # password was already there, which is what FinishPage has to report.
-        self.app.audit_enabled = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
-        if self.app.audit_enabled:
+        # password was already there -- in .env, or exported, which is the
+        # supported way to finish this screen without writing anything.
+        # FinishPage reports whatever this decides.
+        in_dotenv = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+        self.app.audit_enabled = in_dotenv or env_audit_password_present()
+        if in_dotenv:
             self._queue.put("Senha da auditoria já configurada -- mantida como estava.\n")
+        elif self.app.audit_enabled:
+            self._queue.put(
+                "Auditoria habilitada pela variável de ambiente -- nada gravado no .env.\n"
+            )
+        return True
 
     def _record_env_key(self, key: str) -> None:
         """Adds `key` to the install record's env_keys without dropping the

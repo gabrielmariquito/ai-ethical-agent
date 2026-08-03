@@ -305,17 +305,31 @@ def test_dotenv_used_when_there_is_no_file_and_no_env_var(tmp_path):
     assert "do-dotenv" not in source
 
 
-def test_env_var_beats_dotenv(tmp_path):
-    # python-dotenv's convention, and OLLAMA_API_KEY's: the variable is the
-    # per-invocation override, .env is the persistent setting.
-    password, source, _ = load_audit_password(
-        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=_dotenv(tmp_path, "do-dotenv")
-    )
-    assert password == "do-ambiente"
-    assert source == "$ETHICAL_AGENT_AUDIT_PASSWORD"
+def test_env_var_and_dotenv_together_are_refused_instead_of_ranked(tmp_path):
+    # This used to be a precedence question -- the variable won and the banner
+    # said so. It is a contradiction, not a ranking: whoever types the losing
+    # password gets rejected in the browser with no explanation at all, and
+    # the banner that explains it is in a terminal window nobody is watching.
+    with pytest.raises(AuditPasswordError) as excinfo:
+        load_audit_password(
+            None,
+            {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"},
+            root=_dotenv(tmp_path, "do-dotenv"),
+        )
+
+    message = str(excinfo.value)
+    assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in message
+    assert str((tmp_path / ".env").resolve()) in message
+    assert "--audit-password-file" in message
+    assert "do-ambiente" not in message
+    assert "do-dotenv" not in message
 
 
-def test_password_file_beats_all_three(tmp_path):
+def test_password_file_silences_the_conflict_between_the_other_two(tmp_path):
+    # The regression test for where the check sits: inside
+    # load_audit_password, *after* the --audit-password-file branch has
+    # already returned. The flag is an explicit per-invocation answer to
+    # "which one", so there is no ambiguity left to refuse.
     path = tmp_path / "senha.txt"
     path.write_text("do-arquivo\n", encoding="utf-8")
     password, source, _ = load_audit_password(
@@ -325,6 +339,28 @@ def test_password_file_beats_all_three(tmp_path):
     assert "do-arquivo" not in source
     assert "do-dotenv" not in source
     assert "do-ambiente" not in source
+
+
+def test_env_var_with_a_dotenv_that_has_no_password_is_not_a_conflict(tmp_path):
+    # One source is still one source. The .env exists and is read -- it just
+    # does not carry this key.
+    (tmp_path / ".env").write_text("OLLAMA_MODEL=llama3.2:3b\n", encoding="utf-8")
+    password, source, _ = load_audit_password(
+        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=tmp_path
+    )
+    assert password == "do-ambiente"
+    assert source == "$ETHICAL_AGENT_AUDIT_PASSWORD"
+
+
+def test_a_blank_env_var_does_not_conflict_with_a_password_in_dotenv(tmp_path):
+    # An exported-but-empty variable is how a shell profile leaves the name
+    # defined without meaning anything by it. Refusing to start over that
+    # would be refusing over nothing.
+    password, source, _ = load_audit_password(
+        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "   "}, root=_dotenv(tmp_path, "do-dotenv")
+    )
+    assert password == "do-dotenv"
+    assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
 
 
 def test_dotenv_password_present_reports_the_loser_without_the_value(tmp_path):

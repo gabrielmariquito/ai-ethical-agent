@@ -243,7 +243,6 @@ def cmd_serve(args: argparse.Namespace) -> int:
     # Lazy import: webui/ is only needed for this one subcommand, so the
     # other subcommands (check/eval/demo/process) don't pay its import cost.
     from .webui.auth import (
-        ENV_PASSWORD_VAR,
         AuditPasswordError,
         dotenv_password_present,
         load_audit_password,
@@ -323,12 +322,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if audit_password:
         # The source, never the value.
         print(f"Auditoria: habilitada em /audit (senha de {password_source})")
-        # .env sits at the bottom of the precedence chain, so a stale
-        # `export` in a shell profile can outrank the password the installer
-        # wrote -- silently, and with the two being different, confusingly.
-        # Naming the loser is what makes that visible at startup instead of
-        # at the login prompt that keeps rejecting the "right" password.
-        if password_source != f".env ({ENV_PASSWORD_VAR})" and dotenv_password_present():
+        # One source can still outrank a password in .env: the flag. The
+        # variable-versus-.env case never reaches this line any more -- it is
+        # refused in load_audit_password, because a banner in a terminal
+        # nobody is watching was not enough to keep the loser's password from
+        # being rejected in the browser with no explanation. Where the flag
+        # is concerned the warning is still exactly right: the operator typed
+        # it, in this invocation, so naming what it displaced is news they
+        # can act on rather than a puzzle.
+        if password_source.startswith("--audit-password-file") and dotenv_password_present():
             print(
                 f"           atenção: o .env também tem uma senha, e não é a "
                 f"que está valendo ({password_source} tem precedência)"
@@ -457,12 +459,14 @@ def main(argv=None) -> int:
         "--audit-password-file",
         help=(
             "file whose contents are the password for the /audit screen. "
-            "Highest precedence of three sources: this flag, then "
-            "$ETHICAL_AGENT_AUDIT_PASSWORD, then ETHICAL_AGENT_AUDIT_PASSWORD "
-            "in .env (what the graphical installer writes); with none of them "
-            "the audit screen does not exist. There is deliberately no "
-            "--audit-password VALUE flag: it would land in the process list "
-            "and shell history"
+            "Outranks the other two sources, $ETHICAL_AGENT_AUDIT_PASSWORD "
+            "and ETHICAL_AGENT_AUDIT_PASSWORD in .env (what the graphical "
+            "installer writes), and is the only way to start with both of "
+            "them defined -- on their own the two do not rank against each "
+            "other, they are a configuration error and serve refuses to "
+            "start. With no source at all the audit screen does not exist. "
+            "There is deliberately no --audit-password VALUE flag: it would "
+            "land in the process list and shell history"
         ),
     )
     p_serve.add_argument(

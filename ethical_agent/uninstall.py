@@ -796,11 +796,23 @@ def build_plan(
         # condicionado à chave existir porque, sem ela, a tela já está
         # desligada e prometer que ela some seria falso.
         if "ETHICAL_AGENT_AUDIT_PASSWORD" in keys:
-            detail += (
-                "\nRemover este arquivo desativa a tela de auditoria (/audit): "
-                "a senha dela mora aqui. É recuperável -- rode o instalador de "
-                "novo, ou defina a senha à mão."
-            )
+            # ...a menos que o ambiente exporte uma, caso em que ela assume e
+            # a tela continua de pé. Prometer o desligamento nesse caso seria
+            # tão falso quanto prometê-lo sem a chave.
+            from .ollama_install import env_audit_password_present
+
+            if env_audit_password_present():
+                detail += (
+                    "\nA senha da tela de auditoria (/audit) mora aqui, mas o "
+                    "ambiente exporta ETHICAL_AGENT_AUDIT_PASSWORD -- remover "
+                    "este arquivo passa a tela a usar essa, não a desativa."
+                )
+            else:
+                detail += (
+                    "\nRemover este arquivo desativa a tela de auditoria "
+                    "(/audit): a senha dela mora aqui. É recuperável -- rode o "
+                    "instalador de novo, ou defina a senha à mão."
+                )
         optional.append(
             Candidate(
                 key="env",
