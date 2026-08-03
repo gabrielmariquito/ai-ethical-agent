@@ -185,11 +185,20 @@ def test_exclusoes_deliberadas_continuam_passando(engine, nome, texto, razao):
 # ------------------------------------------------------------ a versão subiu
 
 
+def _versao(policy) -> tuple:
+    return tuple(int(p) for p in policy.metadata["version"].split("."))
+
+
 def test_a_versao_da_politica_acompanhou_a_mudanca_de_cobertura():
     # A trilha grava policy_version. Mudar regra sem mudar versão torna
     # registros antes e depois indistinguíveis para quem auditar.
-    policy = Policy.from_file(default_policy_path())
-    assert policy.metadata["version"] == "0.3.0"
+    #
+    # ">= a versão em que esta cobertura entrou", não "== 0.3.0": a igualdade
+    # literal quebra em toda leva seguinte, por um motivo que nada tem a ver
+    # com PII -- e foi exatamente o que aconteceu quando a leva do whole_word
+    # subiu para 0.4.0. Contagem ou literal acoplado a número que se move por
+    # razão alheia é o defeito que este projeto já catalogou.
+    assert _versao(Policy.from_file(default_policy_path())) >= (0, 3, 0)
 
 
 def test_a_regra_documenta_o_que_deixou_de_fora():

@@ -2,8 +2,8 @@
   "schema_version": "1.0",
   "metadata": {
     "name": "Core Ethical Policy",
-    "version": "0.3.0",
-    "description": "Baseline symbolic policy for the rule-based + constraint guardrail (roadmap item #1). Constraints are the hard safety floor (constraint-based reasoning); rules are deontic statements tied to ethical principles. Patterns cover English and Brazilian Portuguese.",
+    "version": "0.4.0",
+    "description": "Baseline symbolic policy for the rule-based + constraint guardrail (roadmap item #1). Constraints are the hard safety floor (constraint-based reasoning); rules are deontic statements tied to ethical principles. Patterns cover English and Brazilian Portuguese. ON whole_word: keyword conditions match as substring by default, which is why 'paradoxxal' used to fire the 'doxx' keyword. As of v0.4.0 whole_word:true is set on the single-token keywords that lose NOTHING by it -- measured against real inflected forms, not stems. It is deliberately NOT set on the others, because in this direction the risk is a false NEGATIVE: 'hack' with whole_word stops matching hacking/hacked/hacker, and 'doxx' stops matching doxxing/doxxed, which are the forms actually used. Those keywords need a regex with a suffix wildcard, not whole_word, and that is a separate change. Portuguese keywords are enumerated full forms rather than stems, which is why most of them are safe; English ones are stems where suffixing is plain concatenation, which is why most of them are not.",
     "language": "en, pt-BR",
     "created": "2026-06-10",
     "principles_reference": "RQ1 principle mapping (non_maleficence, privacy, autonomy, fairness, transparency, accountability, security)"
@@ -179,9 +179,9 @@
             "type": "any",
             "conditions": [
               { "type": "keyword", "value": "hack" },
-              { "type": "keyword", "value": "hackear" },
-              { "type": "keyword", "value": "invadir" },
-              { "type": "keyword", "value": "invasão" },
+              { "type": "keyword", "value": "hackear", "whole_word": true },
+              { "type": "keyword", "value": "invadir", "whole_word": true },
+              { "type": "keyword", "value": "invasão", "whole_word": true },
               { "type": "keyword", "value": "intrusion" },
               { "type": "keyword", "value": "break into" },
               { "type": "keyword", "value": "penetration" }
@@ -190,17 +190,17 @@
           {
             "type": "any",
             "conditions": [
-              { "type": "keyword", "value": "educational" },
-              { "type": "keyword", "value": "educacional" },
-              { "type": "keyword", "value": "educacionais" },
+              { "type": "keyword", "value": "educational", "whole_word": true },
+              { "type": "keyword", "value": "educacional", "whole_word": true },
+              { "type": "keyword", "value": "educacionais", "whole_word": true },
               { "type": "keyword", "value": "learn" },
-              { "type": "keyword", "value": "aprender" },
+              { "type": "keyword", "value": "aprender", "whole_word": true },
               { "type": "keyword", "value": "course" },
               { "type": "keyword", "value": "curso", "whole_word": true },
               { "type": "keyword", "value": "teach" },
-              { "type": "keyword", "value": "ensinar" },
+              { "type": "keyword", "value": "ensinar", "whole_word": true },
               { "type": "keyword", "value": "study" },
-              { "type": "keyword", "value": "estudar" }
+              { "type": "keyword", "value": "estudar", "whole_word": true }
             ]
           }
         ]
@@ -233,18 +233,18 @@
       "exceptions": {
         "type": "any",
         "conditions": [
-          { "type": "keyword", "value": "educational" },
-          { "type": "keyword", "value": "educacional" },
-          { "type": "keyword", "value": "educacionais" },
+          { "type": "keyword", "value": "educational", "whole_word": true },
+          { "type": "keyword", "value": "educacional", "whole_word": true },
+          { "type": "keyword", "value": "educacionais", "whole_word": true },
           { "type": "keyword", "value": "learn" },
-          { "type": "keyword", "value": "aprender" },
+          { "type": "keyword", "value": "aprender", "whole_word": true },
           { "type": "keyword", "value": "course" },
           { "type": "keyword", "value": "curso", "whole_word": true },
           { "type": "keyword", "value": "defensive" },
           { "type": "keyword", "value": "defensivo" },
           { "type": "keyword", "value": "defensiva" },
           { "type": "keyword", "value": "protect" },
-          { "type": "keyword", "value": "proteger" }
+          { "type": "keyword", "value": "proteger", "whole_word": true }
         ]
       }
     },
@@ -295,7 +295,7 @@
           { "type": "keyword", "value": "kill myself" },
           { "type": "keyword", "value": "end my life" },
           { "type": "keyword", "value": "suicide" },
-          { "type": "keyword", "value": "suicidal" },
+          { "type": "keyword", "value": "suicidal", "whole_word": true },
           { "type": "keyword", "value": "hurt myself" },
           { "type": "keyword", "value": "self-harm" },
           { "type": "keyword", "value": "me matar" },
@@ -322,10 +322,10 @@
           {
             "type": "any",
             "conditions": [
-              { "type": "keyword", "value": "diagnosis" },
+              { "type": "keyword", "value": "diagnosis", "whole_word": true },
               { "type": "keyword", "value": "diagnóstico" },
               { "type": "keyword", "value": "dosage" },
-              { "type": "keyword", "value": "dosagem" },
+              { "type": "keyword", "value": "dosagem", "whole_word": true },
               { "type": "keyword", "value": "medication" },
               { "type": "keyword", "value": "medicamento" },
               { "type": "keyword", "value": "prescription" },
