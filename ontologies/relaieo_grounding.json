@@ -1,55 +1,151 @@
 {
   "metadata": {
     "name": "RelAIEO text-to-concept grounding lexicon",
-    "version": "0.1.1",
-    "description": "OUR maintained mapping from surface text (en/pt-BR) to a subset of RelAIEO concept IDs. RelAIEO itself has no lexicalizations (it is a formal, reflective auditing ontology); this layer is how the guardrail activates ontology concepts from a prompt/response. It references only concept IDs that exist in relaieo.ttl. Keeping it separate leaves the upstream ontology pristine.",
+    "version": "0.2.0",
+    "description": "OUR maintained mapping from surface text (en/pt-BR) to a subset of RelAIEO concept IDs. RelAIEO itself has no lexicalizations (it is a formal, reflective auditing ontology); this layer is how the guardrail activates ontology concepts from a prompt/response. It references only concept IDs that exist in relaieo.ttl. Keeping it separate leaves the upstream ontology pristine. AS OF v0.2.0, the `bias` concept is grounded on the ACT of discriminating in an employment decision -- a discriminatory action near a protected attribute near a hiring/employment target -- and not only on the words that name discrimination. The three original terms (bias/discriminat*/vies) matched the vocabulary ABOUT discrimination, so 'reproduces bias against wombats' fired while 'a hiring model that rejects women' did not: the protected category was irrelevant to the guardrail. Word order differs by language and both are encoded: English puts the attribute before the target ('older workers'), Portuguese after it ('funcionarios mais velhos').",
     "created": "2026-07-01",
     "grounds_concept_ids_from": "ontologies/relaieo.ttl"
   },
   "grounding": {
     "design": [
-      { "term": "\\b(build\\w*|creat\\w*|deploy\\w*|develop\\w*|design\\w*|launch\\w*|train\\w*|implement\\w*|program\\w*|roll(?:ing)?\\s+out|ship\\w*)\\b", "regex": true },
-      { "term": "\\bour (app|platform|system|model|tool|bot|product|service|algorithm|chatbot|agent)\\b", "regex": true },
-      { "term": "\\b(constru\\w*|cri(?:ar|o|a|amos|am|ando|ou|ei|e|em)|desenvolv\\w*|projet\\w*|implement\\w*|lan[çc]\\w*|trein\\w*)\\b", "regex": true },
-      { "term": "\\bnoss[ao] (app|plataforma|sistema|modelo|ferramenta|bot|produto|servi[çc]o|algoritmo|agente)\\b", "regex": true }
+      {
+        "term": "\\b(build\\w*|creat\\w*|deploy\\w*|develop\\w*|design\\w*|launch\\w*|train\\w*|implement\\w*|program\\w*|roll(?:ing)?\\s+out|ship\\w*)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\bour (app|platform|system|model|tool|bot|product|service|algorithm|chatbot|agent)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(constru\\w*|cri(?:ar|o|a|amos|am|ando|ou|ei|e|em)|desenvolv\\w*|projet\\w*|implement\\w*|lan[çc]\\w*|trein\\w*)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\bnoss[ao] (app|plataforma|sistema|modelo|ferramenta|bot|produto|servi[çc]o|algoritmo|agente)\\b",
+        "regex": true
+      }
     ],
     "surveillance": [
-      { "term": "\\b(surveil\\w*|monitor\\w*|track\\w*|spy\\w*|stalk\\w*|wiretap\\w*)\\b", "regex": true },
-      { "term": "\\bkeep\\w*\\s+(?:an?\\s+)?(?:close\\s+)?(?:eye|tabs)\\s+on\\b", "regex": true },
-      { "term": "\\b(monitorar|monitoramento|rastrear|rastreamento|vigiar|vigil[âa]ncia|espionar)\\b", "regex": true },
-      { "term": "\\bde\\s+olho\\s+em\\b", "regex": true }
+      {
+        "term": "\\b(surveil\\w*|monitor\\w*|track\\w*|spy\\w*|stalk\\w*|wiretap\\w*)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\bkeep\\w*\\s+(?:an?\\s+)?(?:close\\s+)?(?:eye|tabs)\\s+on\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(monitorar|monitoramento|rastrear|rastreamento|vigiar|vigil[âa]ncia|espionar)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\bde\\s+olho\\s+em\\b",
+        "regex": true
+      }
     ],
     "threat_to_privacy": [
-      { "term": "\\b(harvest|scrape|collect|mine|sell|leak|expose)\\w*\\b[^.?!]{0,25}\\b(data|personal|information|records)\\b", "regex": true },
-      { "term": "personal data" },
-      { "term": "dataveillance" },
-      { "term": "\\b(coletar|raspar|vender|vazar|expor)\\w*\\b[^.?!]{0,25}\\b(dados|informa[çc][õo]es)\\b", "regex": true },
-      { "term": "dados pessoais" }
+      {
+        "term": "\\b(harvest|scrape|collect|mine|sell|leak|expose)\\w*\\b[^.?!]{0,25}\\b(data|personal|information|records)\\b",
+        "regex": true
+      },
+      {
+        "term": "personal data"
+      },
+      {
+        "term": "dataveillance"
+      },
+      {
+        "term": "\\b(coletar|raspar|vender|vazar|expor)\\w*\\b[^.?!]{0,25}\\b(dados|informa[çc][õo]es)\\b",
+        "regex": true
+      },
+      {
+        "term": "dados pessoais"
+      }
     ],
     "information_disorder": [
-      { "term": "\\b(misinformation|disinformation|fake news|propaganda|deep ?fakes?|fake reviews?|astroturf\\w*)\\b", "regex": true },
-      { "term": "\\b(desinforma[çc][ãa]o|not[íi]cias falsas|propaganda enganosa|deep ?fakes?)\\b", "regex": true }
+      {
+        "term": "\\b(misinformation|disinformation|fake news|propaganda|deep ?fakes?|fake reviews?|astroturf\\w*)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(desinforma[çc][ãa]o|not[íi]cias falsas|propaganda enganosa|deep ?fakes?)\\b",
+        "regex": true
+      }
     ],
     "deskilling": [
-      { "term": "\\bde-?skill\\w*\\b", "regex": true },
-      { "term": "\\breplace\\b[^.?!]{0,30}\\b(workers?|teachers?|educators?|employees?|staff|humans?|jobs?|tutors?)\\b", "regex": true },
-      { "term": "automate away" },
-      { "term": "\\bmake\\b[^.?!]{0,20}\\bredundant\\b", "regex": true },
-      { "term": "\\bsubstituir\\b[^.?!]{0,30}\\b(trabalhadores|professores|funcion[áa]rios|empregos|humanos|tutores)\\b", "regex": true }
+      {
+        "term": "\\bde-?skill\\w*\\b",
+        "regex": true
+      },
+      {
+        "term": "\\breplace\\b[^.?!]{0,30}\\b(workers?|teachers?|educators?|employees?|staff|humans?|jobs?|tutors?)\\b",
+        "regex": true
+      },
+      {
+        "term": "automate away"
+      },
+      {
+        "term": "\\bmake\\b[^.?!]{0,20}\\bredundant\\b",
+        "regex": true
+      },
+      {
+        "term": "\\bsubstituir\\b[^.?!]{0,30}\\b(trabalhadores|professores|funcion[áa]rios|empregos|humanos|tutores)\\b",
+        "regex": true
+      }
     ],
     "bias": [
-      { "term": "\\bbias(ed|es)?\\b", "regex": true },
-      { "term": "\\bdiscriminat\\w*\\b", "regex": true },
-      { "term": "\\b(vi[ée]s|viesad\\w*|enviesad\\w*|discrimina[çc]\\w*|preconceito)\\b", "regex": true }
+      {
+        "term": "\\bbias(ed|es)?\\b",
+        "regex": true
+      },
+      {
+        "term": "\\bdiscriminat\\w*\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(vi[ée]s|viesad\\w*|enviesad\\w*|discrimina[çc]\\w*|preconceito)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(filter\\w*|screen\\w*|weed\\w*|exclud\\w*|reject\\w*|deprioriti[sz]\\w*|drop\\w*|cut\\w*|rank\\w*\\s+down|scor\\w*\\s+lower|penali[sz]\\w*|remov\\w*)\\b[^.?!]{0,40}\\b(older|elderly|senior|aged?|high[- ]tenure|long[- ]tenured|women|female|black|asian|latino|immigrant\\w*|foreign\\w*|muslim|jewish|christian|gay|lesbian|lgbt\\w*|trans|pregnan\\w*|disab\\w*|handicap\\w*|neurodiver\\w*)\\b[^.?!]{0,25}\\b(workers?|employees?|staff|candidates?|applicants?|people|hires?)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(filter\\w*|screen\\w*|weed\\w*|exclud\\w*|reject\\w*|deprioriti[sz]\\w*|drop\\w*|cut\\w*|rank\\w*\\s+down|scor\\w*\\s+lower|penali[sz]\\w*|remov\\w*)\\b[^.?!]{0,25}\\b(workers?|employees?|staff|candidates?|applicants?|people|hires?)\\b[^.?!]{0,25}\\b(with|who are|that are)\\b[^.?!]{0,15}\\b(older|elderly|senior|aged?|high[- ]tenure|long[- ]tenured|women|female|black|asian|latino|immigrant\\w*|foreign\\w*|muslim|jewish|christian|gay|lesbian|lgbt\\w*|trans|pregnan\\w*|disab\\w*|handicap\\w*|neurodiver\\w*)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(cort\\w*|demit\\w*|filtr\\w*|exclu\\w*|elimin\\w*|descart\\w*|rejeit\\w*|reprov\\w*|dispens\\w*|penaliz\\w*|remov\\w*|despriorizar|desclassifi\\w*)\\b[^.?!]{0,40}\\b(funcion[áa]ri\\w*|empregad\\w*|trabalhador\\w*|candidat\\w*|colaborador\\w*|equipe|pessoal|pessoas|inscrit\\w*)\\b[^.?!]{0,20}\\b(mais velh\\w*|idos\\w*|de idade|com idade|tempo de casa|veteran\\w*|mulher\\w*|negr\\w*|pret\\w*|defici[êe]ncia|deficientes?|gestantes?|gr[áa]vidas?|imigrantes?|estrangeir\\w*|gays?|l[ée]sbicas?|trans|mu[çc]ulman\\w*|judeus?|evang[ée]lic\\w*)\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(cort\\w*|demit\\w*|filtr\\w*|exclu\\w*|elimin\\w*|descart\\w*|rejeit\\w*|reprov\\w*|dispens\\w*|penaliz\\w*|remov\\w*|despriorizar|desclassifi\\w*)\\b[^.?!]{0,25}\\b(mais velh\\w*|idos\\w*|de idade|com idade|tempo de casa|veteran\\w*|mulher\\w*|negr\\w*|pret\\w*|defici[êe]ncia|deficientes?|gestantes?|gr[áa]vidas?|imigrantes?|estrangeir\\w*|gays?|l[ée]sbicas?|trans|mu[çc]ulman\\w*|judeus?|evang[ée]lic\\w*)\\b",
+        "regex": true
+      }
     ],
     "hate_speech": [
-      { "term": "\\bhate speech\\b", "regex": true },
-      { "term": "\\b(discurso de [óo]dio|fala de [óo]dio)\\b", "regex": true }
+      {
+        "term": "\\bhate speech\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(discurso de [óo]dio|fala de [óo]dio)\\b",
+        "regex": true
+      }
     ],
     "ethic_washing": [
-      { "term": "\\bethics?[- ]washing\\b", "regex": true },
-      { "term": "\\b(look|appear|seem) ethical\\b", "regex": true },
-      { "term": "\\bethics? as (a )?(marketing|pr|branding)\\b", "regex": true }
+      {
+        "term": "\\bethics?[- ]washing\\b",
+        "regex": true
+      },
+      {
+        "term": "\\b(look|appear|seem) ethical\\b",
+        "regex": true
+      },
+      {
+        "term": "\\bethics? as (a )?(marketing|pr|branding)\\b",
+        "regex": true
+      }
     ]
   }
 }
