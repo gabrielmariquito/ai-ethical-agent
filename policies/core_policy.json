@@ -2,8 +2,8 @@
   "schema_version": "1.0",
   "metadata": {
     "name": "Core Ethical Policy",
-    "version": "0.4.0",
-    "description": "Baseline symbolic policy for the rule-based + constraint guardrail (roadmap item #1). Constraints are the hard safety floor (constraint-based reasoning); rules are deontic statements tied to ethical principles. Patterns cover English and Brazilian Portuguese. ON whole_word: keyword conditions match as substring by default, which is why 'paradoxxal' used to fire the 'doxx' keyword. As of v0.4.0 whole_word:true is set on the single-token keywords that lose NOTHING by it -- measured against real inflected forms, not stems. It is deliberately NOT set on the others, because in this direction the risk is a false NEGATIVE: 'hack' with whole_word stops matching hacking/hacked/hacker, and 'doxx' stops matching doxxing/doxxed, which are the forms actually used. Those keywords need a regex with a suffix wildcard, not whole_word, and that is a separate change. Portuguese keywords are enumerated full forms rather than stems, which is why most of them are safe; English ones are stems where suffixing is plain concatenation, which is why most of them are not.",
+    "version": "0.5.0",
+    "description": "Baseline symbolic policy for the rule-based + constraint guardrail (roadmap item #1). Constraints are the hard safety floor (constraint-based reasoning); rules are deontic statements tied to ethical principles. Patterns cover English and Brazilian Portuguese. ON SUBSTRING MATCHING: keyword conditions match as substring by default, and the direction of the risk depends on WHERE the condition sits. In a trigger, over-matching is a false positive -- annoying. In an EXCEPTION it is a bypass, because the exception suppresses a DENY and the person writing the text picks the word, and therefore picks the exemption: 'desaprender' contains 'aprender', 'unlearn' contains 'learn', 'discourse' contains 'course'. THE RULE THIS POLICY NOW FOLLOWS: an exception keyword must not over-match. v0.4.0 closed part of it with whole_word:true, but whole_word is all-or-nothing -- it blocks 'unlearn' and loses 'learning' with it, which over-restricts the genuine educational framing. As of v0.5.0 every exception/unless term is a regex in the BOUNDED-PREFIX form \\bVALUE\\w*\\b: the leading \\b fails inside a longer word because the left neighbour is a word character, and \\w* keeps the inflected suffix. Two entries deliberately break that uniform shape, and the reason is written where they sit: 'curso' enumerates its forms (\\bcursos?\\b) because the prefix generates 'cursor', an unrelated and frequent word in technical text, and in an exception that would be a fresh bypass; 'educaciona(l|is)' spells out both forms because Portuguese pluralises -al to -ais, so 'educacionais' does NOT contain 'educacional' and a lone \\beducacional\\w*\\b would silently drop the plural. TRIGGER keywords are unchanged and still match as substring, on purpose: there the risk runs the other way, and 'hack' with a word boundary stops matching hacking/hacked/hacker -- 23 of the 36 single-token keywords lose a real form that way. The 6 trigger keywords carrying whole_word (hackear, invadir, invasao, suicidal, diagnosis, dosagem) are the ones measured to lose nothing. Portuguese keywords are enumerated full forms rather than stems, which is why most of them are safe; English ones are stems where suffixing is plain concatenation, which is why most of them are not.",
     "language": "en, pt-BR",
     "created": "2026-06-10",
     "principles_reference": "RQ1 principle mapping (non_maleficence, privacy, autonomy, fairness, transparency, accountability, security)"
@@ -132,7 +132,7 @@
           },
           { "type": "keyword", "value": "someone's address" },
           { "type": "keyword", "value": "someone's phone" },
-          { "type": "keyword", "value": "doxx" }
+          { "type": "regex", "pattern": "\\bdoxx\\w*\\b", "flags": "i" }
         ]
       }
     },
@@ -190,17 +190,16 @@
           {
             "type": "any",
             "conditions": [
-              { "type": "keyword", "value": "educational", "whole_word": true },
-              { "type": "keyword", "value": "educacional", "whole_word": true },
-              { "type": "keyword", "value": "educacionais", "whole_word": true },
-              { "type": "keyword", "value": "learn" },
-              { "type": "keyword", "value": "aprender", "whole_word": true },
-              { "type": "keyword", "value": "course" },
-              { "type": "keyword", "value": "curso", "whole_word": true },
-              { "type": "keyword", "value": "teach" },
-              { "type": "keyword", "value": "ensinar", "whole_word": true },
-              { "type": "keyword", "value": "study" },
-              { "type": "keyword", "value": "estudar", "whole_word": true }
+              { "type": "regex", "pattern": "\\beducational\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\beducaciona(l|is)\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\blearn\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\baprender\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\bcourse\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\bcursos?\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\bteach\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\bensinar\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\bstudy\\w*\\b", "flags": "i" },
+              { "type": "regex", "pattern": "\\bestudar\\w*\\b", "flags": "i" }
             ]
           }
         ]
@@ -233,18 +232,17 @@
       "exceptions": {
         "type": "any",
         "conditions": [
-          { "type": "keyword", "value": "educational", "whole_word": true },
-          { "type": "keyword", "value": "educacional", "whole_word": true },
-          { "type": "keyword", "value": "educacionais", "whole_word": true },
-          { "type": "keyword", "value": "learn" },
-          { "type": "keyword", "value": "aprender", "whole_word": true },
-          { "type": "keyword", "value": "course" },
-          { "type": "keyword", "value": "curso", "whole_word": true },
-          { "type": "keyword", "value": "defensive" },
-          { "type": "keyword", "value": "defensivo" },
-          { "type": "keyword", "value": "defensiva" },
-          { "type": "keyword", "value": "protect" },
-          { "type": "keyword", "value": "proteger", "whole_word": true }
+          { "type": "regex", "pattern": "\\beducational\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\beducaciona(l|is)\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\blearn\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\baprender\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\bcourse\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\bcursos?\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\bdefensive\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\bdefensivo\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\bdefensiva\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\bprotect\\w*\\b", "flags": "i" },
+          { "type": "regex", "pattern": "\\bproteger\\w*\\b", "flags": "i" }
         ]
       }
     },

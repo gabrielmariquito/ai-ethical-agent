@@ -385,7 +385,14 @@ condição por extenso — a palavra-chave, ou o padrão de regex inteiro:
 ```json
 "description": "regex '\\b(ignore|disregard|forget|desconsidere)\\b[^.?!]{0,40}\\b(instructions?|system prompt|regras)\\b'"
 "description": "keyword 'dosage'"
+"description": "regex '\\baprender\\w*\\b'"
 ```
+
+O terceiro tem uma forma que você vai encontrar bastante, e ela quer dizer uma
+coisa só: **`\b` + palavra + `\w*` + `\b` = aquela palavra com qualquer
+sufixo, mas não dentro de uma palavra maior.** `\baprender\w*\b` casa
+`aprender` e `aprenderá`; **não** casa `desaprender`. O Passo 4 explica por que
+as palavras de exceção têm essa forma — é onde a decisão está registrada.
 
 **Isso é decisão de projeto, pelo mesmo motivo que o trecho casado num `DENY`
 é.** Uma evidência que dissesse apenas "a regra R-INJ-001 casou" não seria
@@ -464,6 +471,53 @@ Três campos decidem a leitura:
   o `input`.
 - **`exceptions`** (só regras) — o que a desarma. É o que aparece em
   `suppressed`.
+
+### Por que as palavras de exceção têm aquele `\w*` no meio
+
+Ao abrir um bloco `exceptions` você não vai ver uma lista de palavras soltas,
+e sim padrões nesta forma:
+
+```
+\baprender\w*\b
+\blearn\w*\b
+\bcourse\w*\b
+```
+
+**Leia assim: "a palavra *aprender* com qualquer sufixo, mas não como pedaço de
+uma palavra maior".** Casa `aprender`, `aprenderá`, `aprendendo`. Não casa
+`desaprender` nem `reaprender`. O `\b` da frente é o que exige que a palavra
+*comece* ali; o `\w*` do fim é o que deixa o sufixo passar.
+
+Isso não é preciosismo de notação. **Vem de uma regra, e a regra é esta:**
+
+> **Palavra de exceção não pode casar demais, porque casar demais numa exceção
+> enfraquece o guardrail em vez de apertá-lo.**
+
+A diferença é de direção, e é a coisa mais importante desta seção:
+
+- Numa condição de **gatilho**, casar demais dispara alarme falso. É chato:
+  bloqueia quem não devia ser bloqueado, e a pessoa reclama e o caso aparece.
+- Numa **exceção**, casar demais **desliga** o bloqueio. Nada dispara, nada
+  aparece, ninguém reclama. E quem escreve o texto escolhe a palavra — logo
+  escolhe a isenção.
+
+Concretamente: `aprender` como pedaço solto casava dentro de `desaprender`.
+Bastava escrever "como invadir um sistema e desaprender o vício" para a exceção
+educacional ser concedida e o `DENY` virar coisa menor. A palavra não tinha
+nada de educacional; só continha as letras certas. O mesmo valia para `learn`
+dentro de `unlearn`, e para `course` dentro de `discourse` e `intercourse`.
+
+**Duas entradas fogem dessa forma, de propósito, e vale saber por quê** — é
+exatamente o tipo de coisa que um auditor deve poder cobrar:
+
+- **`\bcursos?\b`** em vez de `\bcurso\w*\b`. O curinga de sufixo casaria
+  `cursor`, que é palavra alheia e frequente em texto técnico. Numa exceção
+  isso seria um bypass novo, então aqui as formas estão enumeradas à mão:
+  `curso` e `cursos`, e mais nada.
+- **`\beducaciona(l|is)\w*\b`** para o par `educacional`/`educacionais`. O
+  português pluraliza *-al* em *-ais*, então `educacionais` **não** contém
+  `educacional`: um `\beducacional\w*\b` sozinho teria perdido o plural em
+  silêncio. As duas formas estão escritas.
 
 Para saber por que uma palavra ativou um conceito, olhe o léxico:
 

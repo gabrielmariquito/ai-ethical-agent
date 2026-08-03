@@ -11,12 +11,32 @@ Então `whole_word` foi aplicado apenas às 13 que não perdem nada. As outras
 precisam de regex com curinga de sufixo (`\\bdoxx\\w*\\b`), que é mudança de
 tipo de condição e não de flag -- outra leva.
 
-O EFEITO REAL DESTA LEVA está no bloco de EXCEÇÕES de R-SEC-002, e é o oposto
-do que o diagnóstico previa: ali um falso positivo AFROUXA o guardrail, porque
-a exceção suprime um DENY. "desaprender" contém "aprender" e "reeducacional"
-contém "educacional", então bastava escrever uma dessas para ganhar isenção
-educacional. Com whole_word a isenção deixa de ser concedida por acidente
-morfológico.
+O EFEITO REAL DAQUELA LEVA estava no bloco de EXCEÇÕES de R-SEC-002, e é o
+oposto do que o diagnóstico previa: ali um falso positivo AFROUXA o guardrail,
+porque a exceção suprime um DENY. "desaprender" contém "aprender" e
+"reeducacional" contém "educacional", então bastava escrever uma dessas para
+ganhar isenção educacional.
+
+=== O QUE A LEVA SEGUINTE (política 0.5.0) MUDOU AQUI ===
+
+Aquela "outra leva" aconteceu, e superou parte destas escolhas. Oito das
+quatorze keywords que carregavam `whole_word` **deixaram de ser keyword**: são
+palavra de EXCEÇÃO, e viraram regex de prefixo delimitado (`\\bVALOR\\w*\\b`),
+que fecha o bypass SEM perder a flexão -- é o que `whole_word` não conseguia
+fazer, por ser tudo-ou-nada. São `educational`, `educacional`, `educacionais`,
+`aprender`, `ensinar`, `estudar`, `proteger` e o `curso` que já era ponto-fix
+anterior. Este arquivo passou a afirmar que elas estão lá NA FORMA NOVA
+(`PREFIXO_DELIMITADO`), em vez de sumirem do inventário -- senão a leva teria
+apagado a cobertura em vez de movê-la.
+
+Sobram seis com `whole_word`, e são todas de GATILHO, onde a direção do risco
+continua sendo a de cima: `hackear`, `invadir`, `invasão`, `suicidal`,
+`diagnosis`, `dosagem`.
+
+`doxx` também virou regex, e com isso `paradoxxal` deixou de disparar -- o
+falso positivo que motivou tudo isto. Ver `test_policy_exception_bounds.py`,
+que é onde o comportamento novo é verificado; aqui fica só o registro de qual
+keyword mora em qual forma.
 """
 
 from __future__ import annotations
@@ -29,10 +49,28 @@ import pytest
 from ethical_agent import ActionContext, Decision, Policy, RuleBasedEngine, Stage
 from ethical_agent.policy import default_policy_path
 
-SEGURAS = [
-    "hackear", "invadir", "invasão", "educational", "educacional", "educacionais",
-    "aprender", "ensinar", "estudar", "proteger", "suicidal", "diagnosis", "dosagem",
-]
+# As que continuam sendo `keyword` com whole_word: todas de gatilho.
+SEGURAS = ["hackear", "invadir", "invasão", "suicidal", "diagnosis", "dosagem"]
+
+# As que a política 0.5.0 tirou de `keyword` e pôs em regex de prefixo
+# delimitado, com o padrão exato que cada uma passou a ter. `curso` e
+# `educacional` não seguem a forma uniforme, e o motivo está em cada linha.
+PREFIXO_DELIMITADO = {
+    "educational": r"\beducational\w*\b",
+    # -al -> -ais: "educacionais" NÃO contém "educacional", então um
+    # \beducacional\w*\b sozinho perderia o plural. As duas entradas viraram
+    # uma por AMPLIAÇÃO do padrão, não por deleção da segunda.
+    "educacional": r"\beducaciona(l|is)\w*\b",
+    "aprender": r"\baprender\w*\b",
+    "ensinar": r"\bensinar\w*\b",
+    "estudar": r"\bestudar\w*\b",
+    "proteger": r"\bproteger\w*\b",
+    # Única entrada que enumera as formas em vez de usar o curinga:
+    # \bcurso\w*\b casaria "cursor", palavra alheia e frequente em texto
+    # técnico, e numa exceção isso seria bypass novo.
+    "curso": r"\bcursos?\b",
+    "doxx": r"\bdoxx\w*\b",
+}
 
 
 @pytest.fixture(scope="module")
@@ -40,27 +78,41 @@ def engine():
     return RuleBasedEngine(Policy.from_file(default_policy_path()))
 
 
+def _anda(c, rid, ctx, kws, rxs):
+    if not isinstance(c, dict):
+        return
+    if c.get("type") == "keyword":
+        kws.append((rid, ctx, c["value"], bool(c.get("whole_word", False))))
+    elif c.get("type") == "regex":
+        rxs.append((rid, ctx, c["pattern"]))
+    for s in c.get("conditions") or []:
+        _anda(s, rid, ctx, kws, rxs)
+    if c.get("condition"):
+        _anda(c["condition"], rid, ctx, kws, rxs)
+
+
 @pytest.fixture(scope="module")
-def keywords():
-    """(regra, contexto, valor, whole_word) de toda keyword da política."""
+def condicoes():
+    """(keywords, regexes) de toda a política, com regra e contexto."""
     raw = json.loads(Path(default_policy_path()).read_text(encoding="utf-8"))
-    out = []
-
-    def anda(c, rid, ctx):
-        if not isinstance(c, dict):
-            return
-        if c.get("type") == "keyword":
-            out.append((rid, ctx, c["value"], bool(c.get("whole_word", False))))
-        for s in c.get("conditions") or []:
-            anda(s, rid, ctx)
-        if c.get("condition"):
-            anda(c["condition"], rid, ctx)
-
+    kws, rxs = [], []
     for r in raw.get("constraints", []) + raw["rules"]:
-        anda(r.get("condition", {}), r["id"], "condition")
+        _anda(r.get("condition", {}), r["id"], "condition", kws, rxs)
         if r.get("exceptions"):
-            anda(r["exceptions"], r["id"], "exceptions")
-    return out
+            _anda(r["exceptions"], r["id"], "exceptions", kws, rxs)
+    return kws, rxs
+
+
+@pytest.fixture(scope="module")
+def keywords(condicoes):
+    """(regra, contexto, valor, whole_word) de toda keyword da política."""
+    return condicoes[0]
+
+
+@pytest.fixture(scope="module")
+def regexes(condicoes):
+    """(regra, contexto, padrão) de toda condição regex da política."""
+    return condicoes[1]
 
 
 def _dec(engine, texto):
@@ -76,15 +128,33 @@ def test_as_seguras_estao_marcadas(keywords, kw):
     assert marcadas and all(marcadas), f"{kw!r} devia ter whole_word em toda ocorrência"
 
 
+@pytest.mark.parametrize("valor, padrao", sorted(PREFIXO_DELIMITADO.items()))
+def test_as_supersedidas_viraram_prefixo_delimitado(keywords, regexes, valor, padrao):
+    # A cobertura foi MOVIDA, não apagada. Sem este teste, converter
+    # keyword -> regex tiraria estes valores do inventário que este arquivo
+    # varre e a leva pareceria ter simplesmente removido as verificações.
+    assert not [v for _, _, v, _ in keywords if v == valor], (
+        f"{valor!r} ainda é keyword -- devia ter virado regex de prefixo delimitado"
+    )
+    padroes = [p for _, _, p in regexes]
+    assert padrao in padroes, f"{valor!r} não aparece como {padrao!r} na política"
+
+
 @pytest.mark.parametrize(
     "kw",
-    ["hack", "doxx", "gaslight", "protect", "learn", "teach", "suicide",
-     "intrusion", "penetration", "medication", "prescription", "jailbreak"],
+    ["hack", "gaslight", "suicide", "intrusion", "penetration",
+     "medication", "prescription", "jailbreak"],
 )
 def test_as_que_perdem_flexao_nao_receberam(keywords, kw):
     # A parte da correção que NÃO foi feita, e de propósito. Ligar whole_word
     # aqui trocaria um falso positivo por um falso negativo pior: `hack` com
     # whole_word deixa de casar "hacking".
+    #
+    # `doxx`, `protect`, `learn` e `teach` saíram desta lista porque deixaram
+    # de ser keyword: viraram prefixo delimitado na política 0.5.0, que é a
+    # forma que resolve os dois lados. Ver PREFIXO_DELIMITADO acima. As que
+    # ficam são de GATILHO, onde o substring é justamente o que faz "hacking"
+    # casar, e continuam sendo decisão e não pendência.
     marcadas = [w for _, _, v, w in keywords if v == kw]
     assert marcadas, f"{kw!r} sumiu da política"
     assert not any(marcadas), (
@@ -170,16 +240,20 @@ def test_a_isencao_legitima_continua_valendo(engine):
 @pytest.mark.parametrize(
     "texto, keyword, forma_perdida",
     [
-        ("Isso é uma ideia paradoxxal.", "doxx", "doxxing"),
         ("life hack para estudar melhor", "hack", "hacking"),
     ],
 )
 def test_os_falsos_positivos_que_continuam(engine, texto, keyword, forma_perdida):
-    # O caso que motivou a leva NÃO foi resolvido, e isso é decisão. `doxx`
-    # com whole_word deixaria de casar "doxxing"/"doxxed" -- as formas usadas.
-    # O que resolve os dois lados é regex com curinga de sufixo, que muda o
-    # tipo da condição e é mudança própria. Este teste fica vermelho no dia em
-    # que alguém fizer essa mudança, e é aí que ele deve ser reescrito.
+    # O param `paradoxxal` saiu daqui: foi resolvido pela política 0.5.0, e
+    # migrou para test_policy_exception_bounds.py como teste POSITIVO. Este
+    # teste previa a própria reescrita, e é ela.
+    #
+    # `hack` continua, e NÃO recebeu o mesmo tratamento -- de propósito. O
+    # único falso positivo documentado é este: em "life hack", `hack` já é
+    # palavra inteira, então `\bhack\w*\b` casaria igual. O prefixo delimitado
+    # é no-op aqui: a colisão é locução ("life hack"), não substring dentro de
+    # palavra maior, e pede outro remédio. Aplicá-lo mesmo assim seria mexer
+    # num gatilho sem fechar nada.
     assert _dec(engine, texto) is not Decision.ALLOW, (
         f"{texto!r} passou a ser liberado -- se foi via regex em {keyword!r}, "
         f"confirme que {forma_perdida!r} continua casando e atualize este teste"
