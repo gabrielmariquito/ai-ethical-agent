@@ -472,52 +472,103 @@ Três campos decidem a leitura:
 - **`exceptions`** (só regras) — o que a desarma. É o que aparece em
   `suppressed`.
 
-### Por que as palavras de exceção têm aquele `\w*` no meio
+> [!IMPORTANT]
+> **`exceptions` não é o único jeito de desarmar uma regra, e o outro não
+> aparece em `suppressed`.** Dentro de `condition` pode existir um bloco `not`:
+> ele diz "esta regra só vale se o texto **não** contiver isto". R-TRANS-001 usa
+> um — o aviso médico não é anexado quando a resposta já avisa.
+>
+> A diferença prática, e ela engana: quando um `exceptions` desarma, o registro
+> traz o caso em `suppressed`, dizendo qual regra foi suprimida e por quê.
+> Quando um bloco `not` desarma, **o registro não traz nada** — a regra
+> simplesmente não disparou, e `suppressed` fica vazio. Um auditor que procure
+> ali por que R-TRANS-001 não apareceu não encontra nada e conclui que nada foi
+> suprimido. Para essas regras, o lugar de olhar é o bloco `not` dentro de
+> `condition`, no arquivo.
 
-Ao abrir um bloco `exceptions` você não vai ver uma lista de palavras soltas,
-e sim padrões nesta forma:
+### Por que os padrões de supressão têm aquele `\b` nas pontas
+
+Ao abrir um bloco `exceptions` — ou um bloco `not` — você não vai ver uma lista
+de palavras soltas, e sim padrões nesta forma:
 
 ```
 \baprender\w*\b
-\blearn\w*\b
-\bcourse\w*\b
+\bcursos?\b
+\bconsult a doctor\b
 ```
 
-**Leia assim: "a palavra *aprender* com qualquer sufixo, mas não como pedaço de
-uma palavra maior".** Casa `aprender`, `aprenderá`, `aprendendo`. Não casa
-`desaprender` nem `reaprender`. O `\b` da frente é o que exige que a palavra
-*comece* ali; o `\w*` do fim é o que deixa o sufixo passar.
+Os três dizem coisas ligeiramente diferentes, e **há uma regra só que produz os
+três**:
 
-Isso não é preciosismo de notação. **Vem de uma regra, e a regra é esta:**
+> **Todo padrão é ancorado com `\b` nas duas pontas — isso já quer dizer "esta
+> expressão, e não dentro de uma palavra maior". O que varia é o fim, e quem
+> decide é a última palavra do padrão.**
 
-> **Palavra de exceção não pode casar demais, porque casar demais numa exceção
-> enfraquece o guardrail em vez de apertá-lo.**
+Os três casos, com o exemplo que os motivou:
+
+| Se a última palavra… | o padrão fica | exemplo |
+|---|---|---|
+| ganha terminações, e colar uma nela não produz outra palavra | leva um curinga que as aceita | `\baprender\w*\b` casa `aprenderá`, `aprendendo`; não casa `desaprender` |
+| não ganha terminações úteis, mas colar uma produz palavra alheia | fica só com o `\b` | `\bconsult a doctor\b` não casa `doctoral` nem `doctorate` |
+| ganha terminações **e** colar uma produz palavra alheia | tem as formas boas escritas à mão | `\bcursos?\b` casa `curso` e `cursos`, e não casa `cursor` |
+
+**Locução ou palavra única dá no mesmo** — palavra única é só o caso em que a
+última palavra é a única palavra. Foi o que se aprendeu na v0.6.0, quando o
+guia dizia que `\bcursos?\b` era uma exceção deliberada à forma "normal": não
+era exceção nenhuma, era esta mesma regra aplicada a uma palavra que flexiona e
+colide ao mesmo tempo. E vale ao contrário também: `\bnão substitui\w*\b` é uma
+locução que precisa do curinga, porque `não substituirá` e `não substituiu` são
+disclaimers legítimos que precisam continuar desarmando o aviso.
+
+> [!NOTE]
+> **`whole_word: true` e `\bpalavra\b` querem dizer exatamente a mesma coisa:**
+> a expressão exata, não dentro de uma palavra maior. Você vai encontrar as duas
+> grafias lado a lado no mesmo bloco — em `R-TRANS-001` elas convivem —, e não é
+> incoerência nem uma ser mais forte que a outra. `whole_word: true` é a forma
+> curta, e serve quando não há sufixo a tratar; o regex é o que se escreve
+> quando há (o curinga `\w*` ou as formas enumeradas `s?` não cabem numa flag,
+> que é tudo-ou-nada).
+
+Nada disso é preciosismo de notação. **Vem de uma regra, e a regra é esta:**
+
+> **Padrão que suprime não pode casar demais, porque casar demais numa
+> supressão enfraquece o guardrail em vez de apertá-lo.**
 
 A diferença é de direção, e é a coisa mais importante desta seção:
 
 - Numa condição de **gatilho**, casar demais dispara alarme falso. É chato:
   bloqueia quem não devia ser bloqueado, e a pessoa reclama e o caso aparece.
-- Numa **exceção**, casar demais **desliga** o bloqueio. Nada dispara, nada
-  aparece, ninguém reclama. E quem escreve o texto escolhe a palavra — logo
-  escolhe a isenção.
+- Numa **supressão** — seja um `exceptions`, seja um bloco `not` —, casar demais
+  **desliga** a regra. Nada dispara, nada aparece, ninguém reclama. E quem
+  escreve o texto escolhe a palavra, logo escolhe desligar a regra.
 
-Concretamente: `aprender` como pedaço solto casava dentro de `desaprender`.
-Bastava escrever "como invadir um sistema e desaprender o vício" para a exceção
-educacional ser concedida e o `DENY` virar coisa menor. A palavra não tinha
-nada de educacional; só continha as letras certas. O mesmo valia para `learn`
-dentro de `unlearn`, e para `course` dentro de `discourse` e `intercourse`.
+Concretamente, e os dois exemplos não pesam igual:
 
-**Duas entradas fogem dessa forma, de propósito, e vale saber por quê** — é
-exatamente o tipo de coisa que um auditor deve poder cobrar:
+- `aprender` como pedaço solto casava dentro de `desaprender`. Bastava escrever
+  "como invadir um sistema e desaprender o vício" para a exceção educacional ser
+  concedida e o `DENY` virar coisa menor. A palavra não tinha nada de
+  educacional; só continha as letras certas. O mesmo valia para `learn` dentro
+  de `unlearn`, e para `course` dentro de `discourse` e `intercourse`. Aqui o
+  que se comprava era **permissão para um pedido**.
+- No bloco `not` de `R-TRANS-001`, `seek professional` casava dentro de
+  `professionalism`. "The dosage is 500mg daily. At this clinic we seek
+  professionalism." saía sem aviso nenhum. Aqui o que se comprava era **o
+  apagamento de um aviso de segurança** numa resposta que dá dosagem — pior que
+  o caso anterior, e sem deixar rastro em `suppressed`. O mesmo valia para
+  `consult a doctor` dentro de `doctoral`/`doctorate`.
 
-- **`\bcursos?\b`** em vez de `\bcurso\w*\b`. O curinga de sufixo casaria
-  `cursor`, que é palavra alheia e frequente em texto técnico. Numa exceção
-  isso seria um bypass novo, então aqui as formas estão enumeradas à mão:
-  `curso` e `cursos`, e mais nada.
-- **`\beducaciona(l|is)\w*\b`** para o par `educacional`/`educacionais`. O
-  português pluraliza *-al* em *-ais*, então `educacionais` **não** contém
-  `educacional`: um `\beducacional\w*\b` sozinho teria perdido o plural em
-  silêncio. As duas formas estão escritas.
+**Nenhuma entrada "foge da forma".** As três variações da tabela acima são a
+mesma regra decidindo pela última palavra, e vale conferir os dois casos que
+antes deste guia apareciam como exceções deliberadas:
+
+- **`\bcursos?\b`** em vez de `\bcurso\w*\b`: `curso` ganha `cursos`, e colar
+  terminação nela também produz `cursor`, palavra alheia e frequente em texto
+  técnico. Flexiona **e** colide, logo formas escritas à mão — terceira linha da
+  tabela, não desvio dela.
+- **`\beducaciona(l|is)\w*\b`** para `educacional`/`educacionais`: o português
+  pluraliza *-al* em *-ais*, então `educacionais` **não** contém `educacional` e
+  um `\beducacional\w*\b` sozinho teria perdido o plural em silêncio. As duas
+  formas estão escritas, pelo mesmo motivo.
 
 Para saber por que uma palavra ativou um conceito, olhe o léxico:
 
