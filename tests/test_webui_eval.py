@@ -29,6 +29,33 @@ def test_eval_happy_path(server):
     assert "report_text" in body and isinstance(body["report_text"], str) and body["report_text"]
 
 
+def test_eval_names_the_half_and_carries_the_noise_floor(server):
+    """The reporting rule reaches the audit screen, not just the CLI.
+
+    b384600 documented "no recall figure travels without the half named beside
+    it" and left this endpoint returning a bare number -- a rule with a
+    counterexample inside the product. The screen reads the whole dataset and
+    has no half selector, but `full` is a half like any other and has to say so.
+    Without this test the block can vanish again and nothing goes red.
+    """
+    status, body, _ = server.post("/api/eval", {"dataset": REAL_DATASET, "config": {}})
+    assert status == 200
+
+    divisao = body["divisao"]
+    assert divisao["metade"] == "full"
+    assert divisao["receita"] == "divisao/v1"
+    assert divisao["casos"] == body["total_cases"]
+    assert divisao["identificador"]
+
+    # A escala do número viaja junto com o número.
+    assert body["binary"]["recall_erro_padrao"] is not None
+
+    # E o auditor lê a mesma procedência que a CLI imprime, porque report_text
+    # é o mesmo format_report.
+    assert "Divisão : full" in body["report_text"]
+    assert "metade-id :" in body["report_text"]
+
+
 def test_eval_accepts_the_absolute_path_the_screen_was_handed(server):
     # /api/choices advertises dataset_default as an absolute path and eval.js
     # posts it straight back, so the absolute form has to keep working.

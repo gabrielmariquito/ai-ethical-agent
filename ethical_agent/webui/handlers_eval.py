@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from ethical_agent import default_policy_path
-from ethical_agent.evaluate import evaluate_engine, format_report, load_dataset
+from ethical_agent.evaluate import (
+    evaluate_engine,
+    format_report,
+    load_dataset,
+    resumo_da_divisao,
+)
 
 from . import routing
 from .engine_factory import build_engine
@@ -93,6 +98,13 @@ def post_eval(state, params, body):
     except (FileNotFoundError, ValueError, OSError) as exc:
         raise bad_request("dataset_load_failed", f"{exc.__class__.__name__}: {exc}") from exc
 
-    results = evaluate_engine(engine, cases)
+    # This screen always reads the whole dataset -- there is no half selector in
+    # the UI, and adding one is not this batch's job. But `full` is a half like
+    # any other and has to say so: the reporting rule is that no recall figure
+    # travels without the half named beside it, and an audit screen is the last
+    # place that rule should be quietly broken. The block also carries the
+    # standard error, so the auditor sees the noise floor next to the number.
+    divisao = resumo_da_divisao(cases, cases, "full")
+    results = evaluate_engine(engine, cases, divisao=divisao)
     results["report_text"] = format_report(results)
     return results
