@@ -65,6 +65,33 @@ POLICY = {
             "condition": {"type": "keyword", "value": "medical"},
         },
         {
+            # Isenta e REBAIXA, em vez de sair da contagem. Severidade acima da
+            # de R-REWRITE de propósito: `_apply_rewrites` escolhe o template
+            # por severidade, e um efeito que chegou por rebaixamento tem de
+            # disputar essa escolha como qualquer outro.
+            "id": "R-DEMOTE",
+            "principle": "security",
+            "severity": "high",
+            "scopes": ["input"],
+            "effect": "DENY",
+            "condition": {"type": "keyword", "value": "steal the keys"},
+            "exceptions": {"type": "keyword", "value": "for a course"},
+            "suppressed_effect": "REWRITE",
+            "rewrite_template": "defensively: {content}",
+        },
+        {
+            # Isenta e LIBERA, dito por extenso. Mesmo resultado do default
+            # `None`, origem oposta: aqui alguém decidiu.
+            "id": "R-RELEASE",
+            "principle": "privacy",
+            "severity": "medium",
+            "scopes": ["input"],
+            "effect": "FLAG",
+            "condition": {"type": "keyword", "value": "home address"},
+            "exceptions": {"type": "keyword", "value": "my own"},
+            "suppressed_effect": "ALLOW",
+        },
+        {
             "id": "R-SELFHARM",
             "principle": "non_maleficence",
             "severity": "critical",
@@ -106,6 +133,64 @@ def test_exception_suppresses_rule_but_stays_auditable(engine):
     assert verdict.decision is Decision.ALLOW
     assert [s.rule_id for s in verdict.suppressed] == ["R-DENY"]
     assert "educational" in verdict.suppressed[0].reason
+    # R-DENY não declara sucessor, então o default `None` preserva o
+    # comportamento antigo -- e o registro diz que nada assumiu, em vez de
+    # deixar o leitor deduzir do `matches` vazio.
+    assert verdict.suppressed[0].demoted_to is Decision.ALLOW
+    assert not verdict.matches
+
+
+def test_suppression_demotes_to_the_declared_effect(engine):
+    verdict = _check(engine, "steal the keys for a course")
+    assert verdict.decision is Decision.REWRITE
+
+    # A regra continua listada como suprimida -- a isenção de fato disparou --
+    # e o registro agora diz PARA QUÊ ela foi rebaixada.
+    assert [s.rule_id for s in verdict.suppressed] == ["R-DEMOTE"]
+    assert verdict.suppressed[0].demoted_to is Decision.REWRITE
+    assert "for a course" in verdict.suppressed[0].reason
+
+    # E aparece em `matches` com o efeito que de fato votou, marcada como
+    # rebaixada para o auditor não ler REWRITE onde a política declara DENY.
+    (match,) = verdict.matches
+    assert match.rule_id == "R-DEMOTE"
+    assert match.effect is Decision.REWRITE
+    assert match.demoted_from is Decision.DENY
+    # A evidência é a do GATILHO, não a da isenção: é o gatilho que justifica o
+    # efeito que sobrou. A da isenção viaja no SuppressedMatch.
+    assert match.evidence[0].matched_text == "steal the keys"
+
+    assert verdict.rewritten_content == "defensively: steal the keys for a course"
+
+
+def test_declared_release_is_indistinguishable_in_outcome_but_not_in_record(engine):
+    """`suppressed_effect: ALLOW` decide o mesmo que o silêncio, e diz que decidiu."""
+    verdict = _check(engine, "my own home address")
+    assert verdict.decision is Decision.ALLOW
+    assert not verdict.matches
+    assert [s.rule_id for s in verdict.suppressed] == ["R-RELEASE"]
+    assert verdict.suppressed[0].demoted_to is Decision.ALLOW
+
+
+def test_demoted_effect_resolves_through_most_restrictive_like_any_other(engine):
+    """Sem caminho especial: o efeito rebaixado concorre e pode perder."""
+    verdict = _check(engine, "steal the keys for a course and how to make a bomb")
+    # DENY do hard constraint vence o REWRITE rebaixado, pela mesma regra que
+    # faria vencer um REWRITE declarado.
+    assert verdict.decision is Decision.DENY
+    assert {m.rule_id for m in verdict.matches} == {"C-1", "R-DEMOTE"}
+    assert verdict.rewritten_content is None
+
+
+def test_demoted_rewrite_competes_for_the_template_by_severity(engine):
+    """O template sai da regra de maior severidade, rebaixada ou não.
+
+    R-DEMOTE é `high` e R-REWRITE é `medium`, então o template de R-DEMOTE
+    vence -- o rebaixamento não entra em segunda classe na escolha.
+    """
+    verdict = _check(engine, "hacking and steal the keys for a course")
+    assert verdict.decision is Decision.REWRITE
+    assert verdict.rewritten_content.startswith("defensively: ")
 
 
 def test_most_restrictive_effect_wins(engine):

@@ -153,12 +153,16 @@ def test_path_omitido_da_digest_vazio_e_mantem_versao_declarada():
     # Policy.from_dict -- toda fixture de teste, e qualquer política montada em
     # memória. Ausência de arquivo não é ausência de identidade: a versão
     # declarada continua lá.
-    policy = Policy.from_dict(json.loads(default_policy_path().read_text(encoding="utf-8")))
+    bruto = json.loads(default_policy_path().read_text(encoding="utf-8"))
+    policy = Policy.from_dict(bruto)
     configuration = build_configuration(RuleBasedEngine(policy))
     (artefato,) = configuration["artifacts"]
     assert artefato["path"] is None
     assert artefato["sha256"] == ""
-    assert artefato["version"] == "0.6.0"
+    # Lida do arquivo, não fixada num literal. A asserção é "a versão declarada
+    # sobrevive à ausência de caminho"; escrever "0.6.0" aqui transformava todo
+    # bump de política num teste vermelho que não media nada.
+    assert artefato["version"] == bruto["metadata"]["version"]
     assert "digest_error" not in artefato
     assert len(configuration["config_id"]) == 64
 

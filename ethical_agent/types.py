@@ -131,6 +131,16 @@ class RuleMatch:
     match's own matched text must never be retained anywhere (trace, audit
     log), regardless of whether the same or another fired rule also carries
     a rewrite_template. See Verdict.suppresses_raw_content."""
+    demoted_from: Optional[Decision] = None
+    """The rule's declared `effect`, when this match carries a *demoted* one.
+
+    `effect` above is the effect that actually voted in the decision. For a
+    rule whose `exceptions` matched, that is its `suppressed_effect`, not what
+    the policy file declares -- and without this field an auditor reads
+    `R-SEC-002` carrying REWRITE while the policy says DENY, with no way to
+    tell whether the policy changed or an exemption fired. None means the
+    match is un-demoted and `effect` is the declared one.
+    """
 
     def to_dict(self) -> dict:
         return {
@@ -142,6 +152,9 @@ class RuleMatch:
             "rationale": self.rationale,
             "hard": self.hard,
             "redacted": self.redacted,
+            "demoted_from": (
+                self.demoted_from.value if self.demoted_from is not None else None
+            ),
             "evidence": [e.to_dict() for e in self.evidence],
         }
 
@@ -151,11 +164,23 @@ class SuppressedMatch:
     rule_id: str
     reason: str
     evidence: list = field(default_factory=list)
+    demoted_to: Decision = Decision.ALLOW
+    """What took this rule's place once its exception matched.
+
+    Until the motor leva this was unrepresentable, and the gap was the defect:
+    the engine dropped the rule and nothing assumed its place, so a verdict
+    reading `suppressed: [R-SEC-002]` gave the auditor no way to tell whether
+    anything survived. `Decision.ALLOW` is the honest name for "nothing did" --
+    it is not declarable as a rule `effect`, but it is exactly what the old
+    behaviour produced, and naming it makes the release a stated outcome
+    instead of an absence.
+    """
 
     def to_dict(self) -> dict:
         return {
             "rule_id": self.rule_id,
             "reason": self.reason,
+            "demoted_to": self.demoted_to.value,
             "evidence": [e.to_dict() for e in self.evidence],
         }
 
@@ -220,10 +245,15 @@ class Verdict:
             lines.append(f"Reason: {self.reason}")
         for match in self.matches:
             hard = " [HARD CONSTRAINT]" if match.hard else ""
+            demoted = (
+                f" (demoted from {match.demoted_from.value})"
+                if match.demoted_from is not None
+                else ""
+            )
             lines.append(
                 f"- {match.rule_id}{hard} | principle={match.principle} | "
                 f"deontic={match.deontic} | severity={match.severity.value} "
-                f"-> {match.effect.value}"
+                f"-> {match.effect.value}{demoted}"
             )
             if match.rationale:
                 lines.append(f"    rationale: {match.rationale}")
@@ -232,7 +262,9 @@ class Verdict:
                 matched = f" ({ev.matched_text!r})" if ev.matched_text else ""
                 lines.append(f"    evidence: {ev.description}{matched}{where}")
         for sup in self.suppressed:
-            lines.append(f"- {sup.rule_id} SUPPRESSED: {sup.reason}")
+            lines.append(
+                f"- {sup.rule_id} SUPPRESSED -> {sup.demoted_to.value}: {sup.reason}"
+            )
         if self.rewritten_content is not None:
             lines.append(f"Rewritten content: {self.rewritten_content!r}")
         return "\n".join(lines)

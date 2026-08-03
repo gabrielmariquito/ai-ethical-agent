@@ -1,20 +1,32 @@
-"""Suprimir uma regra não é liberar o pedido -- mas hoje, em 54 de 66 casos, é.
+"""Suprimir uma regra não é liberar o pedido. As 66 células provam que não é.
 
-O motor tem exatamente um construto que suprime uma regra e **não põe nada no
-lugar**: `rule.exceptions` (`engine.py:53-66` -- casou a exceção, `continue`,
-sem efeito residual). Só `R-SEC-002` o usa. O sucessor pretendido é `R-SEC-001`
-(REWRITE), e a `rationale` de `R-SEC-002` afirma isso em prosa: *"denied unless
-an educational/defensive context applies (handled by R-SEC-001)"*.
+**Fechado na leva do motor (política v0.7.0). As 54 `xfail(strict=True)` deste
+arquivo viraram XPASS e os marcadores saíram -- 54 de 54, nenhuma sobra.** O
+arquivo deixa de fixar um defeito e passa a ser a guarda contra o seu retorno.
 
-`R-SEC-001` é regra independente, com gatilho próprio. **Nada no motor nem no
-schema obriga ou verifica essa cobertura**, e a medição abaixo mostra que ela
-não existe na maior parte da grade.
+O QUE HAVIA. O motor tinha exatamente um construto que suprimia uma regra e
+**não punha nada no lugar**: `rule.exceptions` -- casou a exceção, `continue`,
+sem efeito residual. Só `R-SEC-002` o usa. O sucessor pretendido era
+`R-SEC-001` (REWRITE), e a `rationale` de `R-SEC-002` afirmava isso em prosa,
+mas `R-SEC-001` é regra independente com gatilho próprio e nada obrigava nem
+verificava a cobertura. Das 66 células, **54 caíam para ALLOW com `matches`
+vazio**.
 
-O RISCO, e é por isso que este arquivo assevera onde assevera: o defeito produz
-**ALLOW silencioso**. É pior que um REWRITE errado, porque um REWRITE errado
-deixa rastro -- o texto muda, `matches` traz a regra, o auditor vê. Aqui o
-veredito é ALLOW com `matches` vazio; o único vestígio é uma linha em
-`suppressed` dizendo que algo foi desarmado, sem dizer que nada assumiu.
+O RISCO que justificava asseverar aqui, e que continua justificando a guarda: o
+defeito produzia **ALLOW silencioso**. É pior que um REWRITE errado, porque um
+REWRITE errado deixa rastro -- o texto muda, `matches` traz a regra, o auditor
+vê. Ali o veredito era ALLOW com `matches` vazio, e o único vestígio era uma
+linha em `suppressed` dizendo que algo foi desarmado, sem dizer que nada
+assumiu.
+
+O QUE MUDOU. `Rule` ganhou `suppressed_effect` (`policy.py:48`) e o motor
+rebaixa para o efeito declarado em vez de descartar a regra
+(`engine.py:76-101`). `R-SEC-002` declara `REWRITE` e carrega
+`rewrite_template` próprio, escrito para roubo de credencial. O rebaixamento
+entra em `most_restrictive` como qualquer outro efeito, sem caminho especial, e
+fica legível no veredito: `SuppressedMatch.demoted_to` diz **para quê** a regra
+foi rebaixada, e `RuleMatch.demoted_from` diz que aquele efeito não é o
+declarado na política.
 
 O ALVO DE ASSERÇÃO MUDA NESTE ARQUIVO, E ISSO PRECISA ESTAR ESCRITO.
 `test_policy_exception_bounds.py` (Leva 0) assevera sobre `suppressed`;
@@ -23,54 +35,57 @@ de propósito a decisão final, e o segundo diz por quê: naquelas levas o defei
 medido era outro, e asseverar sobre a decisão mediria **este** defeito por
 acidente, quebrando quando ele fosse corrigido por motivo alheio.
 
-Aqui a decisão final **é** o defeito. Por isso este arquivo assevera sobre
+Aqui a decisão final **era** o defeito. Por isso este arquivo assevera sobre
 `verdict.decision`, e os três não são inconsistentes entre si: cada um mede a
 própria obrigação no campo onde ela aparece. **Uniformizar os três quebra dois.**
 
 MEDIDO, NÃO SUPOSTO -- a grade inteira, 6 gatilhos de `R-SEC-002` x 11 entradas
-do seu `exceptions` = 66 células, todas com supressão confirmada:
+do seu `exceptions` = 66 células, todas com supressão confirmada. Antes: 12 com
+sucessor, 54 em ALLOW. Depois: **66 em REWRITE**.
 
-  - **12 têm sucessor** e passam de verdade. São as células em que o gatilho
-    *e* o termo existem nos dois lados: T1/T2 x os seis termos educacionais.
-  - **54 caem para ALLOW** e estão marcadas `xfail(strict=True)`. Ficam fixadas
-    sem deixar a suíte vermelha, e quando a correção chegar o XPASS obriga a
-    remover o marcador -- ninguém corrige e esquece de contar.
-
-AS 54 TÊM DUAS CAUSAS DIFERENTES, e o relatório desta leva as separa porque
-uma correção que atenda só a primeira parece completa e não é:
+AS 54 TINHAM DUAS CAUSAS DIFERENTES, e os rótulos abaixo as preservam porque
+uma correção que atendesse só a primeira pareceria completa e não seria. O
+mecanismo fecha as duas de uma vez, mas a distinção é o que permite dizer isso
+com números em vez de com confiança:
 
   **Achado A -- desalinhamento das listas (10 células).** `defensive`,
   `defensivo`, `defensiva`, `protect` e `proteger` estão no `exceptions` de
-  `R-SEC-002` e não no segundo `any` de `R-SEC-001`. Só morde em T1 e T2.
+  `R-SEC-002` e não no segundo `any` de `R-SEC-001`. Só mordia em T1 e T2.
   Deliberado, não deriva: em `706331f` as duas listas já nasciam com os mesmos
   sete termos iniciais, na mesma ordem, e caudas diferentes -- pedagógica numa,
   defensiva na outra. Cada lista faz sentido lida sozinha; o que nunca foi
-  modelado foi a relação de sucessão entre elas.
+  modelado foi a relação de sucessão entre elas. **As listas continuam
+  divergentes de propósito**: o mecanismo tornou a divergência inofensiva, em
+  vez de exigir que fossem espelhadas.
 
   **Achado B -- gatilhos órfãos (44 células).** `steal credentials`,
   `roubar senha`, `crack password` e `crack a password` existem na regra DENY e
   **não têm contraparte nenhuma na regra REWRITE**: o vocabulário de gatilho de
   `R-SEC-001` é todo de intrusão (hack, invadir, intrusion, break into,
   penetration), e roubo de credencial é outro ato. Nessas quatro superfícies
-  **os 11 termos caem**, inclusive os seis que as duas regras compartilham.
-  Lacuna não percebida, não decisão: a `rationale` promete `R-SEC-001` para as
+  **os 11 termos caíam**, inclusive os seis que as duas regras compartilham.
+  Lacuna não percebida, não decisão: a `rationale` prometia `R-SEC-001` para as
   seis superfícies, e já era falsa em `706331f`.
 
-O QUE ESTE ARQUIVO NÃO DECIDE. O Achado B esconde uma pergunta normativa que
-**nem a correção no motor responde**: garantir que a supressão não vire ALLOW
-não diz o que uma `steal credentials` isenta deve virar. REWRITE (o
-`rewrite_template` atual foi escrito para intrusão, não para roubo de
-credencial) ou DENY (a isenção não deveria alcançar essas superfícies)? A
-segunda nem é expressável hoje -- `Rule.exceptions` é um único `Condition` de
-nível de regra (`policy.py:35`), sem escopo por condição de gatilho. Os xfails
-abaixo afirmam apenas **não-ALLOW**, que é o que as duas respostas têm em
-comum. Fixar REWRITE aqui decidiria por omissão o que a leva do motor precisa
-decidir explicitamente.
+A PERGUNTA NORMATIVA QUE O ACHADO B ESCONDIA, E COMO FOI DECIDIDA. Garantir que
+a supressão não vire ALLOW não dizia o que uma `steal credentials` isenta
+**deve** virar. Duas respostas: **B1**, a isenção não deveria alcançar essas
+superfícies, o certo seria DENY; **B2**, deveria alcançar, e falta o sucessor.
+**B2 foi escolhida** -- `R-SEC-001` existe justamente para afirmar que
+segurança ofensiva em moldura educacional é sanitizada e não recusada, e roubo
+de credencial é segurança ofensiva. O `rewrite_template` foi escrito para roubo
+de credencial em vez de presumido adequado, e preserva `{content}`.
 
-O QUE ESTE ARQUIVO NÃO FAZ: não altera `core_policy.json`. Esta leva apurou e
-parou, pelo critério do próprio briefing -- 44 das 54 células vêm de causa que
-o diagnóstico original não previa, e remendar a lista deixaria o mecanismo
-intacto para divergir de novo.
+**B1 não foi refutada, e as asserções abaixo continuam de propósito em
+não-ALLOW.** O conteúdo defensável de B1 -- uma isenção comprada por
+palavra-chave está a uma frase anexada de qualquer pedido -- é argumento sobre a
+**força** das isenções, não sobre estes quatro gatilhos, já que a mesma frase
+sempre isentou os gatilhos de intrusão. Expressá-la exigiria isenção escopada
+por condição de gatilho, e `Rule.exceptions` é um único `Condition` de nível de
+regra (`policy.py:47`). Está registrado na DIVIDA-TECNICA como lacuna de
+expressividade do schema, com destino na leva da taxonomia de dano. Se essa
+leva vier e decidir DENY para essas superfícies, **este arquivo não deve
+quebrar**: é por isso que a asserção segue sendo não-ALLOW, e não `is REWRITE`.
 """
 
 from __future__ import annotations
@@ -145,18 +160,21 @@ GRADE_SIMPLES = [
     for g_id, t_id, texto, _, _ in _celulas()
 ]
 
+# Sem marcador nenhum, e os booleans de `GATILHOS`/`TERMOS` ficam.
+#
+# As 54 que eram `xfail(strict=True)` viraram XPASS quando o motor passou a
+# rebaixar para o efeito declarado, e foram contadas antes de sair: 10 do
+# Achado A, 44 do Achado B, zero sobrando. Zerar os booleans junto com os
+# marcadores teria apagado o registro de *por que* cada célula falhava -- e é
+# esse registro que sustenta a afirmação de que o mecanismo fechou as duas
+# causas, e não só a que o diagnóstico original previa.
+#
+# `tem_sucessor` continua no param por isso: hoje é `g_coberto and
+# t_compartilhado`, ou seja "R-SEC-001 sozinha cobriria esta célula", que já
+# não é o que decide o resultado. Vale como discriminante nas asserções abaixo.
 GRADE_MARCADA = [
-    pytest.param(
-        texto,
-        tem_sucessor,
-        id=f"{g_id}|{t_id}",
-        marks=(
-            []
-            if tem_sucessor
-            else pytest.mark.xfail(strict=True, reason=causa)
-        ),
-    )
-    for g_id, t_id, texto, tem_sucessor, causa in _celulas()
+    pytest.param(texto, tem_sucessor, id=f"{g_id}|{t_id}")
+    for g_id, t_id, texto, tem_sucessor, _causa in _celulas()
 ]
 
 
@@ -185,21 +203,31 @@ def test_a_celula_de_fato_suprime(engine, texto):
 
 @pytest.mark.parametrize("texto, tem_sucessor", GRADE_MARCADA)
 def test_supressao_tem_sucessor(engine, texto, tem_sucessor):
-    """Suprimir um DENY nunca deveria resultar em ALLOW.
+    """Suprimir um DENY nunca resulta em ALLOW. Nas 66.
 
-    **Não-ALLOW, e não `is REWRITE`**: ver "O QUE ESTE ARQUIVO NÃO DECIDE" na
-    docstring do módulo. As 12 células com sucessor dão REWRITE hoje, mas
-    afirmar isso nas 54 restantes decidiria a pergunta normativa aberta do
-    Achado B por omissão.
+    **Não-ALLOW, e não `is REWRITE`**: ver a nota sobre B1 na docstring do
+    módulo. REWRITE é o que a política v0.7.0 declara, e as 66 dão REWRITE
+    hoje; fixar isso aqui faria uma futura decisão normativa sobre a força das
+    isenções quebrar este arquivo por motivo alheio ao defeito que ele guarda.
 
-    As 12 sem marcador são **guarda**, não correção -- já passavam antes desta
-    leva e são o que impede uma correção mal calibrada de quebrar o caminho que
-    já funciona. As 54 marcadas são o defeito, fixado.
+    As 12 que sempre passaram são **guarda**: já passavam antes da leva do
+    motor e são o que impede uma correção mal calibrada de quebrar o caminho
+    que já funcionava. As 54 restantes eram o defeito, e fecharam.
     """
     v = _avalia(engine, texto)
     assert v.decision is not Decision.ALLOW, (
         f"supressão sem sucessor: {texto!r} -> ALLOW, "
         f"suppressed={[s.rule_id for s in v.suppressed]}, matches=[]"
+    )
+    # E o sucessor é declarado, não deduzido do que sobrou. Esta asserção é
+    # sobre o mecanismo e independe de B1/B2: qualquer que seja o efeito
+    # escolhido, ele tem de estar escrito no registro. Sem ela, uma célula
+    # poderia sair de ALLOW porque outra regra passou a disparar por acaso --
+    # que é exatamente a cobertura acidental cuja ausência produziu o defeito.
+    rebaixamentos = {s.rule_id: s.demoted_to for s in v.suppressed}
+    assert rebaixamentos.get("R-SEC-002") is not Decision.ALLOW, (
+        f"R-SEC-002 suprimida sem sucessor declarado em {texto!r}: "
+        f"demoted_to={rebaixamentos.get('R-SEC-002')}"
     )
 
 

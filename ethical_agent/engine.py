@@ -61,7 +61,12 @@ class RuleBasedEngine(PolicyEngine):
         return self.policy.config_artifacts()
 
     def evaluate(self, action: ActionContext) -> Verdict:
-        fired: List[Tuple[Rule, List[Evidence]]] = []
+        # `fired` carries the *effective* effect alongside the rule, not just
+        # the rule. A demoted rule differs from an undemoted one in exactly one
+        # respect -- which effect it casts -- so carrying that effect here lets
+        # most_restrictive, the match list and the rewrite pass treat it like
+        # any other fired rule instead of growing a branch apiece.
+        fired: List[Tuple[Rule, Decision, List[Evidence]]] = []
         suppressed: List[SuppressedMatch] = []
 
         for rule in self.policy.rules_for(action.stage):
@@ -74,24 +79,35 @@ class RuleBasedEngine(PolicyEngine):
                     reasons = ", ".join(
                         e.matched_text or e.description for e in exception_evidence[:3]
                     )
+                    successor = rule.suppressed_effect or Decision.ALLOW
                     suppressed.append(
                         SuppressedMatch(
                             rule_id=rule.id,
                             reason=f"exception matched: {reasons}",
                             evidence=exception_evidence,
+                            demoted_to=successor,
                         )
                     )
+                    if successor is Decision.ALLOW:
+                        continue
+                    # The trigger evidence, not the exception's: it is the
+                    # trigger that justifies whatever effect survives, and the
+                    # exception's own evidence already travels in the
+                    # SuppressedMatch above. Handing the exception evidence to
+                    # the match would leave a REWRITE explained by the word
+                    # that was supposed to relax it.
+                    fired.append((rule, successor, evidence))
                     continue
-            fired.append((rule, evidence))
+            fired.append((rule, rule.effect, evidence))
 
-        decision = Decision.most_restrictive(rule.effect for rule, _ in fired)
+        decision = Decision.most_restrictive(effect for _, effect, _ in fired)
         matches = [
             RuleMatch(
                 rule_id=rule.id,
                 principle=rule.principle,
                 deontic=rule.deontic,
                 severity=rule.severity,
-                effect=rule.effect,
+                effect=effect,
                 rationale=rule.rationale,
                 evidence=(
                     [e.without_matched_text() for e in evidence]
@@ -101,8 +117,9 @@ class RuleBasedEngine(PolicyEngine):
                 hard=rule.hard,
                 user_message=rule.user_message,
                 redacted=rule.redact,
+                demoted_from=rule.effect if effect is not rule.effect else None,
             )
-            for rule, evidence in fired
+            for rule, effect, evidence in fired
         ]
         matches.sort(
             key=lambda m: (m.effect.restrictiveness, m.severity.rank), reverse=True
@@ -137,18 +154,25 @@ class RuleBasedEngine(PolicyEngine):
             ids = ", ".join(m.rule_id for m in soft)
             parts.append(f"{len(soft)} rule(s) triggered ({ids})")
         if suppressed:
-            ids = ", ".join(s.rule_id for s in suppressed)
+            # Say what each one was demoted *to*. "R-SEC-002 suppressed" left
+            # the reader unable to tell a released request from a downgraded
+            # one, and that ambiguity was the whole finding.
+            ids = ", ".join(
+                f"{s.rule_id} -> {s.demoted_to.value}" for s in suppressed
+            )
             parts.append(f"{len(suppressed)} rule(s) suppressed by exception ({ids})")
         return "; ".join(parts)
 
     @staticmethod
     def _apply_rewrites(
-        content: str, fired: Sequence[Tuple[Rule, List[Evidence]]]
+        content: str, fired: Sequence[Tuple[Rule, Decision, List[Evidence]]]
     ) -> str:
+        # Filtered on the effective effect, so a rule demoted into REWRITE
+        # rewrites on the same terms as one that declared REWRITE outright.
         rewrite_rules = [
             (rule, evidence)
-            for rule, evidence in fired
-            if rule.effect is Decision.REWRITE
+            for rule, effect, evidence in fired
+            if effect is Decision.REWRITE
         ]
 
         result = content

@@ -491,7 +491,10 @@ Execução real, receita `divisao/v1`:
 | injections | `tune` | 323 | 133/190 | 0.412 | 133 | 0.017 | `fae20622ea3a…` |
 | injections | `holdout` | 339 | 130/209 | 0.384 | 130 | 0.017 | `25de58b3e96e…` |
 
-(`e.p.` calculado no recall de hoje: 0.058 no BeaverTails, 0.038 nas injeções.)
+(`e.p.` **projetado**: calculado com o recall do conjunto inteiro — 0.058 no
+BeaverTails, 0.038 nas injeções — aplicado ao N de cada metade, porque as
+metades ainda não tinham sido medidas. Os valores medidos estão na tabela da
+seção seguinte, e diferem: 0.031 e 0.021 nos dois `holdout`.)
 
 > [!WARNING]
 > **O gap de proporção DENY entre as metades é 0.0216 (BeaverTails) e 0.0283
@@ -508,11 +511,58 @@ Execução real, receita `divisao/v1`:
 > registrado é restringir a comparação, não refazer a partição.
 
 > [!CAUTION]
-> **No `holdout` do BeaverTails o recall de hoje (0.058) é menor que o próprio
-> intervalo de confiança (±0.062, de 55 positivos).** Um ganho abaixo de ~0.06
-> ali não é distinguível de ruído, por mais cuidadoso que seja o léxico. Quem
-> for reportar melhoria nesse conjunto precisa ou de um efeito maior que isso,
-> ou de mais casos DENY, ou de dizer que o resultado é indistinguível de zero.
+> **No `holdout` do BeaverTails o recall é menor que o próprio intervalo de
+> confiança.** Medido: **0.055**, e.p. 0.031, IC 95% **±0.061** sobre 55
+> positivos. Um ganho abaixo de ~0.06 ali não é distinguível de ruído, por mais
+> cuidadoso que seja o léxico. Quem for reportar melhoria nesse conjunto precisa
+> ou de um efeito maior que isso, ou de mais casos DENY, ou de dizer que o
+> resultado é indistinguível de zero.
+>
+> Este aviso citava `0.058` como se fosse o número do `holdout`; **0.058 é o
+> recall do conjunto inteiro**, projetado sobre o N do `holdout` antes de a
+> metade ter sido medida de fato. O `holdout` foi medido na leva do motor e dá
+> 0.055. A conclusão não muda — e a troca é registrada porque um número com a
+> metade errada ao lado é o defeito que esta seção existe para impedir.
+
+### Holdout, medido na leva do motor (política v0.7.0)
+
+Primeira leva a reportar `holdout` como resultado. Engine `hybrid`, execução
+real em 2026-08-03, receita `divisao/v1`:
+
+| dataset | metade | casos | N_DENY | recall | e.p. | acurácia | F1 | metade-id |
+|---|---|---|---|---|---|---|---|---|
+| BeaverTails | `holdout` | 103 | 55 | **0.055** | ±0.031 | 0.476 | 0.100 | `48adcaf986b8…` |
+| injections | `holdout` | 339 | 130 | **0.062** | ±0.021 | 0.640 | 0.116 | `25de58b3e96e…` |
+| curada | `full` | 72 | 49 | **0.980** | ±0.020 | 0.972 | 0.980 | `572d5b29bc0c…` |
+
+**A curada aparece como `full` porque a CLI recusa dividi-la** (sai com código
+2): 72 casos escritos pelo autor das próprias regras não sustentam duas
+metades, e o número dela nunca foi evidência de generalização. A metade está
+nomeada mesmo assim, que é a regra.
+
+**Acurácia e F1 estão na tabela para leitura dentro de uma metade só.** Entre
+metades eles não são comparáveis nestes dois datasets — ver o aviso de gap
+acima. O que se compara entre metades é o recall.
+
+> [!IMPORTANT]
+> **Esta leva não moveu nenhum destes números, e isso é o resultado, não uma
+> omissão.** A mudança de critério (supressão passa a rebaixar para um efeito
+> declarado) alcança apenas casos que juntem um gatilho de `R-SEC-002` com um
+> termo do seu `exceptions`. Varrido o corpus inteiro — 954 casos — **nenhum
+> caso dos dois datasets externos satisfaz as duas condições**: as duas regras
+> `R-SEC-*` têm `scopes: ["input"]`, e o BeaverTails avalia respostas em
+> `stage: output`. O retrato confirma: 0 diferenças de decisão em 2862 chaves.
+>
+> **`movidos 0` em decisão aqui é cegueira do conjunto, não inocuidade da
+> mudança.** A evidência de que o defeito existia e foi fechado é
+> `tests/test_sucessor_da_supressao.py` — 54 células que terminavam em `ALLOW`
+> e hoje terminam em `REWRITE` —, não o benchmark. É a lição 1 da
+> `DIVIDA-TECNICA` mais uma vez: o corpus não enxerga esta classe de defeito.
+>
+> O que o retrato **sim** registrou foram 4 chaves com `rules` diferente (2
+> casos da curada x 2 engines): `R-SEC-002`, agora rebaixada em vez de
+> descartada, passa a constar em `matches`. A decisão dos dois é `REWRITE`
+> antes e depois.
 
 ### Os números abaixo são do **conjunto inteiro**
 
@@ -521,17 +571,17 @@ inteiro (`--half full`). Ficam como estão porque é o que elas são; nenhuma de
 é um número de `holdout`.
 
 `python -m ethical_agent eval [--dataset ...]`, execução real em 2026-08-03
-(**política v0.6.0**, dataset in-distribution v0.5.0, RelAIEO com grounding
+(**política v0.7.0**, dataset in-distribution v0.5.0, RelAIEO com grounding
 v0.2.0 / normas v0.2.0):
 
 > [!NOTE]
-> **A linha de procedência dizia `política v0.5.0` e a política está em
-> `0.6.0`.** As três tabelas foram **remedidas** nesta leva, sob `0.6.0`, e
-> saem idênticas até a terceira casa — nenhum número mudou; só o rótulo estava
-> velho. O fato informativo é justamente esse: a política andou de `0.5.0` para
-> `0.6.0` **sem mover nenhuma destas métricas**, o que é a lição 1 da
-> `DIVIDA-TECNICA` outra vez — o benchmark não enxerga o que aquelas levas
-> mudaram. Um rótulo de versão errado ao lado de um número é a mesma classe de
+> **A política já andou de `0.5.0` para `0.7.0` sem mover nenhuma destas
+> métricas.** As tabelas foram remedidas em `0.6.0` e o retrato de `0.7.0`
+> confirma 0 diferenças de decisão em 2862 chaves — nenhum número mudou em três
+> versões de política; só o rótulo é atualizado a cada leva. O fato informativo
+> é esse: é a lição 1 da `DIVIDA-TECNICA` outra vez — o benchmark não enxerga o
+> que essas levas mudaram, e o que prova a mudança são os testes dedicados de
+> cada uma. Um rótulo de versão errado ao lado de um número é a mesma classe de
 > defeito que um recall sem a metade nomeada.
 
 ### `eval/dataset.json` — 72 casos, in-distribution (não dividido)

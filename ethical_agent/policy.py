@@ -14,6 +14,17 @@ SCHEMA_VERSION = "1.0"
 _VALID_DEONTICS = {"prohibition", "obligation"}
 _VALID_EFFECTS = {Decision.DENY, Decision.REWRITE, Decision.FLAG}
 
+# `suppressed_effect` admits one value that `effect` does not: ALLOW.
+#
+# ALLOW is not declarable as an `effect` because a rule that decides ALLOW is a
+# rule that does nothing -- absence of a firing rule already means that. As a
+# *successor* it is the opposite: it is the only way to say "this exemption
+# releases the request on purpose, nothing assumes the rule's place". That was
+# the engine's silent behaviour for every exempted rule until this leva, and
+# the whole point here is that the successor has to be stated. Leaving ALLOW
+# out would make "release deliberately" the one answer the schema cannot spell.
+_VALID_SUPPRESSED_EFFECTS = _VALID_EFFECTS | {Decision.ALLOW}
+
 
 class PolicyError(ValueError):
     def __init__(self, errors: List[str]):
@@ -34,6 +45,7 @@ class Rule:
     rationale: str = ""
     references: list = field(default_factory=list)
     exceptions: Optional[Condition] = None
+    suppressed_effect: Optional[Decision] = None
     rewrite_template: Optional[str] = None
     redact: bool = False
     user_message: Optional[str] = None
@@ -120,16 +132,79 @@ class Rule:
             except ConditionError as exc:
                 errors.append(f"{rule_id}: exceptions error: {exc}")
 
+        # Default None, and deliberately not a value that demotes.
+        #
+        # A demoting default would hand every `exceptions` block a successor
+        # its author never wrote -- which is this leva's defect wearing new
+        # clothes. There is also no principled universal target: REWRITE would
+        # oblige every rule to carry a template, and FLAG (the only one that
+        # needs none) would quietly settle open normative questions with the
+        # weakest available answer. None keeps the engine's behaviour exactly
+        # as it was for any rule that stays silent, and
+        # tests/test_sucessor_declarado.py makes silence visible in this
+        # repository's own policy rather than merely permitted.
+        suppressed_effect: Optional[Decision] = None
+        raw_suppressed = data.get("suppressed_effect")
+        if raw_suppressed is not None:
+            if hard:
+                errors.append(
+                    f"{rule_id}: hard constraints admit no exceptions, "
+                    f"so 'suppressed_effect' has nothing to succeed"
+                )
+            try:
+                suppressed_effect = Decision(raw_suppressed)
+            except ValueError:
+                errors.append(
+                    f"{rule_id}: invalid suppressed_effect {raw_suppressed!r}"
+                )
+            else:
+                if suppressed_effect not in _VALID_SUPPRESSED_EFFECTS:
+                    errors.append(
+                        f"{rule_id}: suppressed_effect must be one of "
+                        f"{sorted(e.value for e in _VALID_SUPPRESSED_EFFECTS)}"
+                    )
+                if not hard and data.get("exceptions") is None:
+                    errors.append(
+                        f"{rule_id}: 'suppressed_effect' without 'exceptions' -- "
+                        f"nothing can demote this rule, so the successor is dead "
+                        f"letter"
+                    )
+                # An exception may only relax. A successor at or above the
+                # rule's own effect means the exemption either changes nothing
+                # or tightens on match, and both read as a rule written the
+                # wrong way round -- say it directly rather than shipping a
+                # policy whose exception block is decorative.
+                if (
+                    suppressed_effect.restrictiveness
+                    >= effect.restrictiveness
+                ):
+                    errors.append(
+                        f"{rule_id}: suppressed_effect {suppressed_effect.value!r} "
+                        f"is not less restrictive than effect {effect.value!r}; "
+                        f"an exception may only relax"
+                    )
+
         rewrite_template = data.get("rewrite_template")
         redact = bool(data.get("redact", False))
-        if effect is Decision.REWRITE and not (rewrite_template or redact):
+        # A REWRITE reached by demotion needs the same equipment as a REWRITE
+        # declared outright -- without a template or redaction it rewrites
+        # nothing and the demotion produces a REWRITE verdict whose rewritten
+        # content is the original, which is worse than either honest answer.
+        rewrites = {effect, suppressed_effect}
+        if Decision.REWRITE in rewrites and not (rewrite_template or redact):
+            culprit = (
+                "REWRITE effect"
+                if effect is Decision.REWRITE
+                else "suppressed_effect: REWRITE"
+            )
             errors.append(
-                f"{rule_id}: REWRITE effect requires 'rewrite_template' and/or "
+                f"{rule_id}: {culprit} requires 'rewrite_template' and/or "
                 f"'redact: true'"
             )
-        if (rewrite_template or redact) and effect is not Decision.REWRITE:
+        if (rewrite_template or redact) and Decision.REWRITE not in rewrites:
             errors.append(
-                f"{rule_id}: 'rewrite_template'/'redact' only apply to REWRITE effect"
+                f"{rule_id}: 'rewrite_template'/'redact' only apply to REWRITE, "
+                f"as 'effect' or as 'suppressed_effect'"
             )
 
         if errors:
@@ -147,6 +222,7 @@ class Rule:
             rationale=data.get("rationale", ""),
             references=list(data.get("references", [])),
             exceptions=exceptions,
+            suppressed_effect=suppressed_effect,
             rewrite_template=rewrite_template,
             redact=redact,
             user_message=data.get("user_message"),
