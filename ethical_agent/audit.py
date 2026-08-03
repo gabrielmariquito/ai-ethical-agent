@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Union
 
+from .provenance import build_configuration
 from .types import Decision, Stage, Verdict
 
 
@@ -83,6 +84,7 @@ def build_check_audit_record(engine, verdict: Verdict, stage: Stage, text: str) 
         "status": "denied" if verdict.decision is Decision.DENY else "ok",
         "engine": engine.name,
         "config_versions": engine.describe_config(),
+        "configuration": build_configuration(engine),
     }
     if stage is Stage.INPUT:
         record["input"] = text

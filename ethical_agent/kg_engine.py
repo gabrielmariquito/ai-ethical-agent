@@ -4,6 +4,7 @@ from typing import List, Tuple
 
 from .engine import PolicyEngine, RuleBasedEngine
 from .ontology import Norm, Ontology
+from .provenance import ConfigArtifact
 from .types import ActionContext, Decision, RuleMatch, SuppressedMatch, Verdict
 
 
@@ -12,6 +13,9 @@ class KnowledgeGraphEngine(PolicyEngine):
 
     def __init__(self, ontology: Ontology):
         self.ontology = ontology
+
+    def config_artifacts(self) -> List[ConfigArtifact]:
+        return self.ontology.config_artifacts()
 
     def describe_config(self) -> dict:
         return {

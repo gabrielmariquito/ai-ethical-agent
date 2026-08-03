@@ -559,6 +559,21 @@
   line-height: 1.45;
 }
 
+/* O config_id é comparado a olho entre dois registros -- é essa a pergunta
+   que ele existe para responder. Monoespaçado e destacado porque diferença
+   de um caractere em doze tem de saltar; o valor inteiro fica no `title`. */
+.ea-audit-configid {
+  margin: 0.4rem 0 0.2rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  display: inline-block;
+  user-select: all;
+}
+
 /* ---- layers 2 and 3 */
 
 .ea-audit-layer {

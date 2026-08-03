@@ -110,6 +110,16 @@ def resolve_llm(
             MockLLM(default="[mock response: no model available]"),
             {
                 "kind": "mock_fallback",
+                # Which model was *asked for*. Without it the record says a
+                # simulation ran and cannot say instead of what: "mock because
+                # the operator asked" and "mock because gpt-oss:120b never
+                # answered" are different facts about a decision, and only the
+                # second one means a configured model silently did not run.
+                # model_label is the short form the screen shows; the record
+                # keeps requested_model separately so a reader can filter on
+                # the model without parsing prose.
+                "requested_model": model,
+                "model_label": f"mock (fallback from {model})",
                 "fallback_reason": f"{exc.__class__.__name__}: {exc}",
             },
         )
@@ -125,8 +135,13 @@ def describe_llm_provenance(provenance: dict) -> str:
     if kind == "mock_requested":
         return "[content simulated: mock requested]"
     if kind == "mock_fallback":
+        # `.get` on requested_model, not `[...]`: records written before this
+        # field existed are still read by the audit screen, and a KeyError
+        # there would take the screen down over a missing label.
+        pedido = provenance.get("requested_model")
+        alvo = f"{pedido} unavailable" if pedido else "real model unavailable"
         return (
-            "[content simulated: real model unavailable "
+            f"[content simulated: {alvo} "
             f"({provenance['fallback_reason']}); using mock]"
         )
     raise ValueError(f"unknown llm provenance kind: {kind!r}")

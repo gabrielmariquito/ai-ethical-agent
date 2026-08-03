@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Sequence, Tuple
 
 from .policy import Policy, Rule
+from .provenance import ConfigArtifact
 from .types import (
     ActionContext,
     Decision,
@@ -26,8 +27,22 @@ class PolicyEngine(ABC):
 
         Used to tag audit records (which store sensitive inputs/outputs) with
         exactly which policy/ontology version produced them.
+
+        This reports **declared** versions only. What was actually loaded is
+        `config_artifacts` -- see provenance.py for why both exist.
         """
         return {}
+
+    def config_artifacts(self) -> List[ConfigArtifact]:
+        """The configuration files behind this engine's verdicts, **flat**.
+
+        Flat, not nested by child engine, even for CompositeEngine: the
+        configuration governing a decision is one thing regardless of how many
+        engines voted, and a per-engine list would rebuild in artifacts[] the
+        same nesting that config_versions already forces the audit screen to
+        special-case (audit_view.config_versions_shape).
+        """
+        return []
 
 
 class RuleBasedEngine(PolicyEngine):
@@ -41,6 +56,9 @@ class RuleBasedEngine(PolicyEngine):
             "policy_schema_version": self.policy.schema_version,
             "policy_version": self.policy.metadata.get("version", "unknown"),
         }
+
+    def config_artifacts(self) -> List[ConfigArtifact]:
+        return self.policy.config_artifacts()
 
     def evaluate(self, action: ActionContext) -> Verdict:
         fired: List[Tuple[Rule, List[Evidence]]] = []
@@ -206,6 +224,12 @@ class CompositeEngine(PolicyEngine):
 
     def describe_config(self) -> dict:
         return {engine.name: engine.describe_config() for engine in self.engines}
+
+    def config_artifacts(self) -> List[ConfigArtifact]:
+        """Concatenated, not nested. Deduplication is by (role, path) in
+        provenance.build_configuration, so two engines sharing one policy file
+        contribute one artifact, not two identical ones."""
+        return [a for engine in self.engines for a in engine.config_artifacts()]
 
     def evaluate(self, action: ActionContext) -> Verdict:
         verdicts: List[Verdict] = []

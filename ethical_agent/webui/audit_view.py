@@ -82,6 +82,7 @@ KNOWN_RECORD_KEYS = frozenset(
         "status",
         "engine",
         "config_versions",
+        "configuration",
         "message",
         "input",
         "input_verdict",
@@ -367,11 +368,26 @@ def detail_from_record(record: dict, offset: int) -> dict:
         "matched_text_policy": _matched_text_policy(record),
     }
 
+    configuration = record.get("configuration")
+    config_id = configuration.get("config_id") if isinstance(configuration, dict) else None
+
     layer3 = {
         "event_id": record.get("event_id"),
         "engine": record.get("engine"),
         "config_versions": record.get("config_versions"),
         "config_versions_shape": config_versions_shape(record.get("config_versions")),
+        # Which files governed the decision, and one id for the set. Absent on
+        # every record written before this existed, and on audit_tools.py's
+        # synthetic samples -- the screen says "registro anterior à
+        # procedência" there instead of leaving a hole, the same way it does
+        # for a structurally absent raw_response.
+        "configuration": configuration if isinstance(configuration, dict) else None,
+        "config_id": config_id,
+        # The auditor's actual question is "were these two records decided
+        # under the same rules?", and that is answered by comparing ids by
+        # eye. 64 hex characters are not comparable by eye; 12 are, and the
+        # full value stays one line below for anyone who needs it.
+        "config_id_short": config_id[:12] if isinstance(config_id, str) else None,
         "llm_provenance": llm_provenance,
         "llm_provenance_text": safe_provenance_text(llm_provenance),
         "conversation_id": record.get("conversation_id"),

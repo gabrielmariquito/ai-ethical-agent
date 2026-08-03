@@ -146,6 +146,73 @@ Fora do veredito, o registro traz `config_versions`: a versão exata da polític
 e da ontologia que julgaram aquele caso. É o que permite reabrir um registro
 antigo e saber com quais regras ele foi decidido.
 
+### `configuration` — quais arquivos governaram a decisão, e o `config_id`
+
+`config_versions` diz a versão **declarada**, e essa é justamente a afirmação
+que quem escreve a política pode errar: se alguém editar uma regra e não subir
+`metadata.version`, dois registros alegam a mesma versão e foram decididos
+diferente. A trilha não teria como distinguir os dois.
+
+Por isso cada registro traz também um bloco `configuration`, com **um artefato
+por arquivo de configuração carregado**:
+
+```jsonc
+"configuration": {
+  "config_id": "72f0a82f03bd37b12226182c1833667d83b0c12fb9991d9f3cede9854b3d115f",
+  "config_id_recipe": "config-id/v1",
+  "artifacts": [
+    {"role": "grounding",    "version": "0.2.0", "sha256": "a2b3d4f1…", "path": "…/relaieo_grounding.json"},
+    {"role": "norms",        "version": "0.2.0", "sha256": "57609812…", "path": "…/relaieo_norms.json"},
+    {"role": "ontology_ttl", "version": null,    "sha256": "30098683…", "path": "…/relaieo.ttl"},
+    {"role": "policy",       "version": "0.6.0", "sha256": "9118da81…", "path": "…/core_policy.json"}
+  ]
+}
+```
+
+**Por que existem versão *e* digest.** São duas perguntas diferentes:
+
+- **`version`** é a versão **declarada**, lida do arquivo já carregado na
+  memória. É *o que o autor quis dizer*.
+- **`sha256`** é o resumo criptográfico do **arquivo em disco**, calculado na
+  hora em que o registro foi gravado. É *o que de fato foi carregado*.
+
+Quando os dois concordam, não há nada a notar. Quando alguém edita um arquivo
+sem subir a versão, só o digest muda — e é exatamente esse o caso que a versão
+declarada sozinha esconderia.
+
+Repare na linha `ontology_ttl`: **versão `null`**. Aquele arquivo é a ontologia
+RelAIEO, trazida do projeto de origem sem modificação, e o projeto de origem não
+declara versão nenhuma. Para ele o digest não confere a versão — é a **única**
+identidade que existe.
+
+**O `config_id` responde a pergunta prática.** Ele é um resumo do conjunto
+inteiro, e serve para responder, olhando dois registros lado a lado:
+
+> *"Estes dois casos foram decididos sob as mesmas regras?"*
+
+- **`config_id` igual** ⇒ a configuração era idêntica, arquivo por arquivo,
+  byte por byte. Os dois registros são **diretamente comparáveis**: qualquer
+  diferença de veredito entre eles vem do texto avaliado, não das regras.
+- **`config_id` diferente** ⇒ alguma coisa mudou. Compare a coluna `sha256`
+  linha a linha para achar qual arquivo — e note que isso vale **mesmo quando
+  as versões declaradas são iguais nos dois**.
+
+Na tela de auditoria isso aparece na camada 3, em "Quais arquivos governaram
+esta decisão", com os doze primeiros caracteres do `config_id` em destaque (o
+valor inteiro fica no `title`, ao passar o mouse).
+
+O `config_id` é calculado por uma receita **escrita por extenso** em
+`ethical_agent/provenance.py`, versionada em `config_id_recipe`. Duas
+consequências que importam para quem audita: o caminho do arquivo **não** entra
+na conta (senão duas máquinas com a mesma configuração dariam ids diferentes), e
+mudar a receita muda todos os ids, em vez de gerar em silêncio outra grandeza
+com o mesmo nome.
+
+> [!NOTE]
+> **Registros anteriores a este campo não têm `configuration`.** A tela diz
+> isso na cara — "Este registro é anterior à procedência de configuração" — em
+> vez de deixar a área em branco. Ausência declarada é informação; buraco não é.
+
 Dois outros campos, fora do veredito, respondem duas perguntas que
 `input`/`output_verdict` sozinhos não respondem: **o que gerou o conteúdo
 avaliado** e **o que o usuário efetivamente recebeu**.
@@ -156,8 +223,17 @@ conteúdo, distinguindo três casos:
 ```jsonc
 {"kind": "real", "model": "llama3.2:3b", "backend": "ollama_local"}   // modelo real, local ou "ollama_cloud"
 {"kind": "mock_requested"}                                            // --mock / caixa "Mock" marcada de propósito
-{"kind": "mock_fallback", "fallback_reason": "ConnectionError: ..."}  // Ollama falhou, caiu para mock
+{"kind": "mock_fallback", "requested_model": "gpt-oss:120b",          // Ollama falhou, caiu para mock
+ "model_label": "mock (fallback from gpt-oss:120b)",
+ "fallback_reason": "ConnectionError: ..."}
 ```
+
+No terceiro caso o registro diz **em vez de qual modelo** a simulação rodou.
+Sem isso, "mock porque o operador pediu" e "mock porque o modelo configurado
+não respondeu" chegam iguais a quem lê a trilha — e só o segundo significa que
+um modelo configurado silenciosamente não rodou. Registros gravados antes de
+`requested_model` existir simplesmente não o trazem, e a tela continua os
+mostrando.
 
 Antes desse campo, um `mock_fallback` era indistinguível de um `real`
 bem-sucedido: o aviso ia só para `stderr` (CLI), nunca para o registro. Na
@@ -186,6 +262,7 @@ deliberada, não esquecimento:
 | Campo | `check` | `process` | `demo` | Por que a ausência (quando há) é deliberada |
 |-------|:-------:|:---------:|:------:|----------------------------------------------|
 | `config_versions` | ✅ | ✅ | ✅ | Sempre presente — não há caso de ausência |
+| `configuration` | ✅ | ✅ | ✅ | Sempre presente **em registros novos**. Ausente em registros gravados antes deste campo existir e nas amostras sintéticas de `audit_tools.py gerar` — nos dois casos a tela declara a ausência |
 | `llm_provenance` | ❌ | ✅ | ❌ | `check` nunca chama LLM. `demo` usa um `MockLLM` com respostas roteirizadas direto (fora do `resolve_llm`); já é inequivocamente sintético por causa do `source="demo"`, então o campo seria redundante |
 | `message` | ❌ | ✅ | ✅ | `check` avalia conteúdo mas não gera mensagem para ninguém — forçar o campo seria um valor vazio/repetitivo, não sinal |
 | `source` | ❌ | ❌ | ✅ | Marca especificamente dados sintéticos de demonstração (ver `audit_tools.py resumir`); `process` é uso real, não leva a marca |
@@ -732,7 +809,7 @@ técnico, mostrar pouco impede o julgamento. A gradação é:
 |---|---|---|
 | 1 | O que a pessoa pediu, o que o sistema fez, e por quê — em linguagem comum, sem identificador de regra e sem span | sempre visível |
 | 2 | A norma que disparou, o `rationale` (que já traz a provocação RelAIEO), as evidências com trecho e posição, e o que foi afastado por exceção (`suppressed`) | um clique |
-| 3 | Proveniência: `config_versions`, `llm_provenance`, `conversation_id`, `turn_index` | um clique |
+| 3 | Proveniência: `config_versions`, **quais arquivos governaram a decisão** (com versão e digest) e o **`config_id`**, `llm_provenance`, `conversation_id`, `turn_index` | um clique |
 
 Registros de uma mesma conversa são navegáveis em ordem — uma decisão só é
 julgável em contexto. Quando uma regra de redação limpou o próprio trecho, a
@@ -856,6 +933,7 @@ moveu.
 - [ ] Abri a regra no JSON e li o `when` / `condition`, o `scopes` e as `exceptions`
 - [ ] Rodei nas três engines para saber qual camada decidiu
 - [ ] Reproduzi e anotei as `config_versions`
+- [ ] Anotei o `config_id` — e, se estou comparando dois registros, conferi se é o mesmo nos dois (se não for, comparei os `sha256` linha a linha para achar qual arquivo mudou)
 - [ ] Se o `matched_text` veio `null`, confirmei que a regra tem `redact: true` (e não que a evidência sumiu) — Passo 3
 
 **Auditando o sistema:**

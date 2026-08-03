@@ -705,6 +705,7 @@ ethical_agent/
 ├── llm.py          # LLMClient, MockLLM, OllamaClient, resolve_llm + proveniência
 ├── llm_judge.py    # engine experimental LLM-juiz (fora da configuração padrão)
 ├── audit.py        # logger de auditoria JSONL (versionado por config_versions)
+├── provenance.py   # artifacts[] (versão declarada + digest do arquivo) e config_id
 ├── evaluate.py     # harness de avaliação (RQ5)
 ├── demo.py         # os 7 prompts do demo + respondedor MockLLM, compartilhados
 ├── gui_choices.py  # rótulo ↔ valor dos seletores de engine/stage
@@ -751,6 +752,19 @@ Isso permite, dado um log antigo, saber exatamente qual conjunto de
 regras/ontologia decidiu sobre aquela entrada/saída sensível — pré-requisito
 para accountability e para reproduzir uma decisão depois que a política
 evoluir.
+
+Versão declarada, porém, é o que o **autor** afirmou: editar uma regra sem
+subir `metadata.version` produz dois registros que alegam a mesma versão e
+foram decididos diferente. Por isso cada registro traz também um bloco
+`configuration` (`ethical_agent/provenance.py`), com **um artefato por arquivo
+de configuração carregado** — `policy`, `ontology_ttl`, `grounding`, `norms` —
+cada um com a versão **declarada** e o `sha256` do arquivo **em disco**, mais um
+`config_id` que resume o conjunto inteiro. Dois registros com o mesmo
+`config_id` foram decididos sob uma configuração idêntica byte a byte e são
+diretamente comparáveis. A receita do `config_id` está escrita por extenso no
+módulo e versionada em `config_id_recipe`, para que ela própria seja
+reproduzível — e `relaieo.ttl`, que é upstream vendorizado sem versão
+declarada, tem no digest a sua única identidade.
 
 **A trilha é obrigatória** para `check`/`process`/`demo`, tanto na CLI quanto
 na interface web (`ethical-agent serve`), e o diretório `logs/` é criado pelo
@@ -802,7 +816,8 @@ técnicos** — outra pessoa, depois do fato, sobre decisões que não são dela
 Cada registro é apresentado em três camadas: o que a pessoa pediu, o que o
 sistema fez e por quê, em linguagem comum e sempre visível; depois, sob um
 clique, a norma que disparou com `rationale` e evidências; e por fim a
-proveniência (`config_versions`, `llm_provenance`, `conversation_id`,
+proveniência (`config_versions`, quais arquivos governaram a decisão com versão
+e digest, o `config_id`, `llm_provenance`, `conversation_id`,
 `turn_index`). Registros de uma mesma conversa são navegáveis em sequência,
 porque uma decisão só é julgável em contexto.
 

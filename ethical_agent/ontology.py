@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from .conditions import Condition, ConditionError, register_condition_type
+from .provenance import ConfigArtifact
 from .types import KNOWN_PRINCIPLES, Decision, Evidence, Severity, Stage
 
 PROPAGATING_PREDICATES = {"is_a", "part_of", "implies"}
@@ -108,6 +109,35 @@ class Ontology:
     relations: List[Relation]
     norms: List[Norm]
     _edges: dict = field(default_factory=dict, repr=False)
+    # {role: caminho} dos arquivos que produziram esta ontologia. Um único
+    # `from_file` deixa {"ontology": ...}; `relaieo.load_relaieo` deixa até
+    # três, porque a ontologia padrão é montada de três arquivos com ciclos de
+    # vida diferentes -- o TTL é upstream vendorizado, grounding e norms são
+    # nossos. Vazio quando a ontologia veio de `from_dict`.
+    source_paths: Dict[str, Path] = field(default_factory=dict)
+
+    # De onde sai a versão declarada de cada papel. O TTL não tem nenhuma:
+    # `relaieo._relaieo_to_ontology_dict` monta o metadata do upstream com
+    # name/source/creators/license/note e nada de version, porque o arquivo é
+    # vendorizado verbatim e o upstream não declara uma. Para ele o digest não
+    # confere a versão declarada -- é a **única** identidade que ele tem.
+    _CHAVE_DE_VERSAO = {
+        "ontology": "version",
+        "grounding": "grounding_version",
+        "norms": "norms_version",
+        "ontology_ttl": None,
+    }
+
+    def config_artifacts(self) -> List["ConfigArtifact"]:
+        artefatos = []
+        for role, caminho in sorted(self.source_paths.items()):
+            chave = self._CHAVE_DE_VERSAO.get(role, "version")
+            artefatos.append(ConfigArtifact(
+                role=role,
+                version=self.metadata.get(chave) if chave else None,
+                path=str(caminho) if caminho else None,
+            ))
+        return artefatos
 
     @classmethod
     def from_dict(cls, data: dict) -> "Ontology":
@@ -263,7 +293,9 @@ class Ontology:
                 data = json.load(handle)
             except json.JSONDecodeError as exc:
                 raise OntologyError([f"{path}: invalid JSON: {exc}"]) from exc
-        return cls.from_dict(data)
+        ontology = cls.from_dict(data)
+        ontology.source_paths = {"ontology": path}
+        return ontology
 
     def activate(
         self, text: str, limit: Optional[int] = MAX_GROUND_EVIDENCE

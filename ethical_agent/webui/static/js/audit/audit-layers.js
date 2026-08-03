@@ -402,6 +402,60 @@ function configTable(configVersions, shape) {
   return table;
 }
 
+// Nomes de arquivo de configuração para quem não lê o repositório. `role` vem
+// do código que os carrega (Policy.from_file e relaieo.load_relaieo), não de
+// uma lista escrita à mão aqui.
+const ROLE_LABELS = {
+  policy: "política de regras",
+  ontology: "ontologia",
+  ontology_ttl: "ontologia RelAIEO (upstream, vendorizada)",
+  grounding: "léxico de ancoragem",
+  norms: "normas de verificação",
+};
+
+// A tabela que responde "quais arquivos governaram esta decisão".
+//
+// Traz versão declarada **e** digest do arquivo porque as duas respondem
+// perguntas diferentes: a versão é o que o autor quis dizer, o digest é o que
+// foi de fato carregado. Só o digest pega uma edição sem troca de versão -- e
+// a ontologia RelAIEO não declara versão nenhuma, então para ela o digest é a
+// única identidade que existe.
+function artifactsTable(configuration) {
+  const artifacts = configuration && configuration.artifacts;
+  if (!Array.isArray(artifacts) || artifacts.length === 0) {
+    return el(
+      "p",
+      "ea-audit-absent",
+      "Este registro é anterior à procedência de configuração: ele não diz " +
+        "quais arquivos governaram a decisão, só as versões declaradas acima."
+    );
+  }
+  const table = el("table", "ea-audit-table");
+  const head = el("thead");
+  const headRow = el("tr");
+  for (const title of ["arquivo", "versão declarada", "digest do arquivo"]) {
+    headRow.appendChild(el("th", null, title));
+  }
+  head.appendChild(headRow);
+
+  const body = el("tbody");
+  for (const artifact of artifacts) {
+    const row = el("tr");
+    const name = el("td", null, ROLE_LABELS[artifact.role] || artifact.role);
+    if (artifact.path) name.title = artifact.path;
+    row.appendChild(name);
+    row.appendChild(el("td", null, artifact.version || "não declarada"));
+    const digest = el("td", null, artifact.sha256 ? `${artifact.sha256.slice(0, 12)}…` : "—");
+    if (artifact.sha256) digest.title = artifact.sha256;
+    if (artifact.digest_error) digest.title = `não foi possível ler: ${artifact.digest_error}`;
+    row.appendChild(digest);
+    body.appendChild(row);
+  }
+  table.appendChild(head);
+  table.appendChild(body);
+  return table;
+}
+
 export function renderLayer3(detail) {
   const l3 = detail.layer3;
   const wrap = el("div", "ea-audit-layer3");
@@ -420,6 +474,27 @@ export function renderLayer3(detail) {
         "desta decisão — não necessariamente as de hoje."
     )
   );
+
+  engine.appendChild(
+    el("h4", "ea-audit-verdict-title", "Quais arquivos governaram esta decisão")
+  );
+  engine.appendChild(artifactsTable(l3.configuration));
+  if (l3.config_id_short) {
+    const id = el("p", "ea-audit-configid", `config_id: ${l3.config_id_short}…`);
+    id.title = l3.config_id;
+    engine.appendChild(id);
+    engine.appendChild(
+      el(
+        "p",
+        "ea-audit-hint",
+        "O config_id é um resumo do conjunto inteiro. Dois registros com o " +
+          "mesmo config_id foram decididos sob uma configuração idêntica, " +
+          "arquivo por arquivo — são diretamente comparáveis. Se ele difere, " +
+          "alguma coisa mudou, mesmo que as versões declaradas acima sejam as " +
+          "mesmas."
+      )
+    );
+  }
   wrap.appendChild(engine);
 
   const model = el("section", "ea-audit-block");

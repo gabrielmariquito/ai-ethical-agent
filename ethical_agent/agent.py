@@ -6,6 +6,7 @@ from typing import Optional, Sequence
 from .audit import AuditLogger
 from .engine import PolicyEngine
 from .llm import LLMClient
+from .provenance import build_configuration
 from .types import ActionContext, Decision, Stage, Verdict
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -240,6 +241,7 @@ class GuardedAgent:
                 "status": result.status,
                 "engine": self.engine.name,
                 "config_versions": self.engine.describe_config(),
+                "configuration": build_configuration(self.engine),
                 "message": result.message,
                 **result.trace,
             }

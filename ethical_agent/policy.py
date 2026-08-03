@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from .conditions import Condition, ConditionError, condition_from_dict
+from .provenance import ConfigArtifact
 from .types import KNOWN_PRINCIPLES, Decision, Severity, Stage
 
 SCHEMA_VERSION = "1.0"
@@ -159,6 +160,18 @@ class Policy:
     metadata: dict
     constraints: List[Rule]
     rules: List[Rule]
+    # Onde este objeto foi lido, quando foi lido de um arquivo. `from_dict` --
+    # toda fixture de teste, e qualquer política montada em memória -- deixa
+    # None, e nesse caso o artefato sai com digest "" e a versão declarada
+    # mantida. Ausência de arquivo não é ausência de identidade.
+    source_path: Optional[Path] = None
+
+    def config_artifacts(self) -> List["ConfigArtifact"]:
+        return [ConfigArtifact(
+            role="policy",
+            version=self.metadata.get("version"),
+            path=str(self.source_path) if self.source_path else None,
+        )]
 
     @classmethod
     def from_dict(cls, data: dict) -> "Policy":
@@ -211,7 +224,9 @@ class Policy:
                 data = json.load(handle)
             except json.JSONDecodeError as exc:
                 raise PolicyError([f"{path}: invalid JSON: {exc}"]) from exc
-        return cls.from_dict(data)
+        policy = cls.from_dict(data)
+        policy.source_path = path
+        return policy
 
     def rules_for(self, stage: Stage) -> List[Rule]:
         ordered = [r for r in self.constraints if r.applies_to(stage)]

@@ -343,7 +343,20 @@ def load_relaieo(
             "version", "unknown"
         )
 
-    return Ontology.from_dict(data)
+    ontology = Ontology.from_dict(data)
+    # Três arquivos, três papéis, e a distinção importa: `relaieo.ttl` é
+    # upstream vendorizado verbatim (sem versão declarada -- ver
+    # Ontology._CHAVE_DE_VERSAO), grounding e norms são camadas nossas com
+    # versão própria. Um papel só, "ontology", apagaria justamente a diferença
+    # que o auditor precisa ver.
+    ontology.source_paths = {
+        role: Path(caminho)
+        for role, caminho in (("ontology_ttl", ttl_path),
+                              ("grounding", grounding_path),
+                              ("norms", norms_path))
+        if caminho is not None
+    }
+    return ontology
 
 
 def default_relaieo_ttl() -> Path:

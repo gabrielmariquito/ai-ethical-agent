@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-"""Instalador gráfico (wizard) do ai-ethical-agent.
-
-Mesma ideia de um instalador estilo Inno Setup (telas de Boas-vindas,
-Opções, Progresso, Info final), mas em Tkinter puro -- só biblioteca padrão,
-roda igual em macOS/Windows/Linux sem depender de uma ferramenta de
-instalador específica de plataforma. Pode ser empacotado como executável
-standalone com PyInstaller (ver README, seção "Instalação").
-
-Uso:
-    python3 wizard_gui.py
-"""
 from __future__ import annotations
 
 import argparse
@@ -90,10 +79,7 @@ AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 OLLAMA_PROBE_TIMEOUT = 3.0
 OLLAMA_START_TIMEOUT = 30.0
 
-# Quanto da fase "instalar o Ollama" o download do instalador representa. O
-# resto (conferir a assinatura, rodar o instalador, esperar a permissão do
-# Windows) não tem sinal de progresso nenhum -- a barra fica parada ali de
-# propósito, e o rótulo diz o que está sendo esperado.
+
 OLLAMA_DOWNLOAD_SPAN = 0.75
 OLLAMA_VERIFY_MARK = 0.80
 OLLAMA_RUN_MARK = 0.85
