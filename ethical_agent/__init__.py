@@ -49,7 +49,7 @@ from .types import (
 #
 # Era `__version__ = "0.3.0"` aqui e `version = "0.3.0"` em pyproject.toml:
 # dois literais que precisam ser iguais, sem nada prendendo os dois. Mesma
-# forma do AUDIT_SESSION_COOKIE duplicado (achado 7 da DIVIDA-TECNICA), e a
+# forma do AUDIT_SESSION_COOKIE duplicado (achado 7 do REGISTRO), e a
 # disposição registrada lá vale aqui -- **dois literais que precisam ser
 # iguais são um literal**, e a solução é unificar, não escrever um teste
 # prendendo os dois. Nenhum leitor de `__version__` existe hoje, então a

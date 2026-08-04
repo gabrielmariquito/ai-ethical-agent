@@ -82,7 +82,7 @@ palavra-chave está a uma frase anexada de qualquer pedido -- é argumento sobre
 **força** das isenções, não sobre estes quatro gatilhos, já que a mesma frase
 sempre isentou os gatilhos de intrusão. Expressá-la exigiria isenção escopada
 por condição de gatilho, e `Rule.exceptions` é um único `Condition` de nível de
-regra (`policy.py:47`). Está registrado na DIVIDA-TECNICA como lacuna de
+regra (`policy.py:47`). Está registrado na DIVIDA-ABERTA (`D-2`) como lacuna de
 expressividade do schema, com destino na leva da taxonomia de dano. Se essa
 leva vier e decidir DENY para essas superfícies, **este arquivo não deve
 quebrar**: é por isso que a asserção segue sendo não-ALLOW, e não `is REWRITE`.

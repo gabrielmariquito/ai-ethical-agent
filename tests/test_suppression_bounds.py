@@ -36,7 +36,7 @@ A CONVENÇÃO DO ALVO DE ASSERÇÃO, que precisa estar escrita porque este arqui
 `test_policy_exception_bounds.py` medem defeitos irmãos e asseveram sobre campos
 diferentes: **o alvo segue o que o construto de fato popula.** Aquele arquivo
 assevera sobre `suppressed` porque R-SEC-002 suprime por `exceptions`, e
-`exceptions` popula `suppressed` (engine.py:53-66). Este assevera sobre
+`exceptions` popula `suppressed` (engine.py:76-101). Este assevera sobre
 `matches` porque R-TRANS-001 suprime por bloco `not`, e blocos `not` **não**
 populam `suppressed` -- eles impedem o disparo lá dentro da condição
 (conditions.py:211-222, com o curto-circuito de `AllCondition`), e o motor nunca
