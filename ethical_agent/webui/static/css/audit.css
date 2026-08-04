@@ -8,46 +8,50 @@
 
 /* ---- login shell */
 
+/* A goteira e a largura saem de `.ea-column` (app.css), aplicada ao card no
+   HTML -- e por isso que nao ha mais `padding` horizontal nem `max-width`
+   aqui. Antes esta tela media 44rem/704px com 1rem de goteira enquanto todo o
+   resto do app media 820px com 1.25rem: nao era um valor solto errado, eram
+   dois containers independentes, e e por isso que a correcao e compartilhar o
+   container em vez de acertar o numero. */
 .ea-audit-login {
   display: flex;
   justify-content: center;
-  padding: 2rem 1rem 4rem;
+  padding: var(--ea-space-6) 0 var(--ea-space-8);
   overflow-y: auto;
 }
 
-.ea-audit-login__card {
-  width: 100%;
-  max-width: 44rem;
-}
-
 .ea-audit-login__card h1 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--ea-space-2);
   font-size: 1.5rem;
 }
 
 .ea-audit-login__lead {
-  margin: 0 0 1.25rem;
+  margin: 0 0 var(--ea-space-5);
   color: var(--ea-fg-muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
 }
 
 .ea-audit-notice {
-  border: 1px solid var(--ea-border);
+  border: 1px solid var(--ea-border-soft);
   border-left: 4px solid var(--ea-info);
   background: var(--ea-info-bg);
-  border-radius: var(--ea-radius);
-  padding: 0.9rem 1rem;
-  margin-bottom: 1.25rem;
+  border-radius: var(--ea-radius-lg);
+  box-shadow: var(--ea-shadow-sm);
+  padding: var(--ea-space-4);
+  margin-bottom: var(--ea-space-5);
 }
 
 .ea-audit-notice h2 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--ea-space-2);
   font-size: 1rem;
 }
 
 .ea-audit-notice p {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--ea-space-2);
   font-size: 0.9rem;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .ea-audit-notice p:last-child {
@@ -62,8 +66,8 @@
 .ea-audit-login__form {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
+  gap: var(--ea-space-1);
+  margin-bottom: var(--ea-space-3);
 }
 
 .ea-audit-login__form label {
@@ -72,23 +76,24 @@
 }
 
 .ea-audit-login__form input {
-  padding: 0.55rem 0.7rem;
+  padding: var(--ea-space-3) var(--ea-space-3);
   border: 1px solid var(--ea-border);
   border-radius: var(--ea-radius);
-  background: var(--ea-bg);
+  background: var(--ea-surface);
   color: var(--ea-fg);
   font: inherit;
 }
 
 .ea-audit-login__form button {
   align-self: flex-start;
-  margin-top: 0.35rem;
-  padding: 0.5rem 1.2rem;
+  margin-top: var(--ea-space-1);
+  padding: var(--ea-space-3) var(--ea-space-5);
   border: none;
   border-radius: var(--ea-radius);
   background: var(--ea-accent);
   color: var(--ea-accent-fg);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -98,16 +103,16 @@
 }
 
 .ea-audit-login__error {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--ea-space-4);
   color: var(--ea-danger);
   font-size: 0.9rem;
 }
 
 .ea-audit-caveat__short {
-  margin: 1.25rem 0 0.35rem;
+  margin: var(--ea-space-5) 0 var(--ea-space-1);
   font-size: 0.85rem;
   color: var(--ea-fg-muted);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .ea-audit-caveat__short code,
@@ -122,9 +127,9 @@
 }
 
 .ea-audit-caveat__body p {
-  margin: 0.5rem 0;
+  margin: var(--ea-space-2) 0;
   font-size: 0.85rem;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--ea-fg-muted);
 }
 
@@ -138,7 +143,7 @@
 .ea-audit-session {
   border-bottom: 1px solid var(--ea-border);
   background: var(--ea-info-bg);
-  padding: 0.5rem 1rem;
+  padding: var(--ea-space-2) var(--ea-gutter);
   font-size: 0.85rem;
 }
 
@@ -176,8 +181,8 @@
 }
 
 .ea-audit-session__details p {
-  margin: 0.5rem 0;
-  line-height: 1.5;
+  margin: var(--ea-space-2) 0;
+  line-height: 1.6;
 }
 
 .ea-audit-session__events {
@@ -192,14 +197,19 @@
 }
 
 .ea-audit-session__view {
-  padding: 0.35rem 0.8rem;
+  padding: var(--ea-space-2) var(--ea-space-4);
   border: 1px solid var(--ea-border);
   border-radius: var(--ea-radius);
-  background: var(--ea-bg);
+  background: var(--ea-surface);
   color: var(--ea-fg);
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;
+  transition: border-color var(--ea-transition), background-color var(--ea-transition);
+}
+
+.ea-audit-session__view:hover {
+  border-color: var(--ea-accent);
 }
 
 .ea-audit-session__viewout {
@@ -228,8 +238,13 @@
   display: flex;
 }
 
+/* 26rem, nao as 24rem de antes: alinhar a goteira interna a `--ea-gutter`
+   custou 12px de cada lado, e num painel fixo isso sai direto da largura util
+   da linha (368px -> 344px). O ajuste e na largura do painel, nao na goteira
+   -- reverter a goteira traria de volta o desalinhamento que esta leva veio
+   consertar. Confirmado a olho: ver a nota da verificacao. */
 .ea-audit__list-pane {
-  width: 24rem;
+  width: 26rem;
   flex-shrink: 0;
   border-right: 1px solid var(--ea-border);
   background: var(--ea-bg-alt);
@@ -244,9 +259,12 @@
   overflow-y: auto;
 }
 
+/* Mesma largura de leitura e mesma goteira do resto do app. Antes eram
+   52rem/832px com 1.5rem -- proximo o bastante para parecer intencional e
+   diferente o bastante para nunca alinhar. */
 .ea-audit-record {
-  padding: 1.25rem 1.5rem 4rem;
-  max-width: 52rem;
+  padding: var(--ea-space-5) var(--ea-gutter) var(--ea-space-8);
+  max-width: var(--ea-content-max);
 }
 
 .ea-audit-record__empty {
@@ -273,9 +291,9 @@
 .ea-audit-filter {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: var(--ea-space-1);
   align-items: center;
-  padding: 0.6rem 0.75rem;
+  padding: var(--ea-space-2) var(--ea-gutter);
   border-bottom: 1px solid var(--ea-border);
 }
 
@@ -286,14 +304,21 @@
 }
 
 .ea-audit-chip {
-  padding: 0.2rem 0.6rem;
+  padding: var(--ea-space-1) var(--ea-space-3);
   border: 1px solid var(--ea-border);
   border-radius: 999px;
-  background: var(--ea-bg);
+  background: var(--ea-surface);
   color: var(--ea-fg-muted);
   font: inherit;
   font-size: 0.78rem;
   cursor: pointer;
+  transition: border-color var(--ea-transition), background-color var(--ea-transition),
+    color var(--ea-transition);
+}
+
+.ea-audit-chip:hover {
+  border-color: var(--ea-accent);
+  color: var(--ea-fg);
 }
 
 .ea-audit-chip--on {
@@ -313,15 +338,15 @@
 .ea-audit-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: var(--ea-space-2) var(--ea-gutter);
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: var(--ea-space-1);
 }
 
 .ea-audit-list__empty,
 .ea-audit-list__footer {
-  padding: 0.5rem 0.75rem;
+  padding: var(--ea-space-2) var(--ea-gutter);
   font-size: 0.8rem;
   color: var(--ea-fg-muted);
 }
@@ -330,12 +355,16 @@
   border-top: 1px solid var(--ea-border);
 }
 
+/* Linha de lista, nao card: sem sombra de proposito. Cinquenta sombras
+   empilhadas viram ruido, e o fundo da linha (`--ea-bg`) contra o do painel
+   (`--ea-bg-alt`) ja da a separacao -- em cada tema por um lado diferente,
+   mas sempre distinta. */
 .ea-audit-row {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--ea-border);
+  padding: var(--ea-space-2) var(--ea-space-3);
+  border: 1px solid var(--ea-border-soft);
   /* The gravity rail. Transparent by default so every row keeps the same
      text origin -- otherwise marked and unmarked rows would misalign and the
      eye would read indentation instead of severity. */
@@ -345,12 +374,18 @@
   color: var(--ea-fg);
   font: inherit;
   cursor: pointer;
+  transition: border-color var(--ea-transition), background-color var(--ea-transition);
 }
 
 .ea-audit-row:hover {
   border-color: var(--ea-accent);
 }
 
+/* SELECAO: anel para DENTRO (`-1px`). O foco de teclado usa `box-shadow`
+   para FORA (ver a regra `:focus-visible` global em app.css), e a separacao
+   e por eixo de proposito -- com o mesmo tratamento nos dois, "a linha que
+   estou lendo" e "a linha onde esta o cursor do teclado" ficariam
+   indistinguiveis, justamente na lista que um auditor percorre. */
 .ea-audit-row--selected {
   outline: 2px solid var(--ea-accent);
   outline-offset: -1px;
@@ -456,10 +491,12 @@
 
 /* ---- scan honesty line */
 
+/* 0.8rem, nao 0.78: esta e a linha em que a tela diz o que NAO conseguiu
+   varrer. E texto que se le, nao metadado, entao respeita o minimo. */
 .ea-audit-scan {
-  margin: 0.35rem 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
+  margin: var(--ea-space-1) 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
   color: var(--ea-fg-muted);
 }
 
@@ -472,15 +509,20 @@
 }
 
 .ea-audit-more {
-  margin-top: 0.35rem;
-  padding: 0.35rem 0.9rem;
+  margin-top: var(--ea-space-1);
+  padding: var(--ea-space-2) var(--ea-space-4);
   border: 1px solid var(--ea-border);
   border-radius: var(--ea-radius);
-  background: var(--ea-bg);
+  background: var(--ea-surface);
   color: var(--ea-fg);
   font: inherit;
   font-size: 0.82rem;
   cursor: pointer;
+  transition: border-color var(--ea-transition), background-color var(--ea-transition);
+}
+
+.ea-audit-more:hover {
+  border-color: var(--ea-accent);
 }
 
 /* ---- layer 1 */
@@ -500,11 +542,11 @@
 }
 
 .ea-audit-block {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--ea-space-5);
 }
 
 .ea-audit-block h3 {
-  margin: 0 0 0.4rem;
+  margin: 0 0 var(--ea-space-1);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -512,9 +554,9 @@
 }
 
 .ea-audit-layer1__what {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--ea-space-2);
   font-size: 1.05rem;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .ea-audit-layer1__pointer {
@@ -523,15 +565,18 @@
   color: var(--ea-fg-muted);
 }
 
+/* Bloco recuado, nao elevado: a citacao e conteudo embutido no registro, e o
+   fundo `--ea-bg-alt` a poe atras da pagina em vez de a frente dela. Por isso
+   ela nao ganha sombra -- so o raio maior e a entrelinha de leitura. */
 .ea-audit-quote {
-  margin: 0.25rem 0;
-  padding: 0.6rem 0.8rem;
+  margin: var(--ea-space-1) 0;
+  padding: var(--ea-space-2) var(--ea-space-3);
   border-left: 3px solid var(--ea-border);
   background: var(--ea-bg-alt);
-  border-radius: 0 var(--ea-radius) var(--ea-radius) 0;
+  border-radius: 0 var(--ea-radius-lg) var(--ea-radius-lg) 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .ea-audit-label {
@@ -544,29 +589,29 @@
 /* Something the record structurally does not contain -- said, not left
    blank, so its absence is legible as a decision rather than a gap. */
 .ea-audit-absent {
-  margin: 0.35rem 0;
-  padding: 0.5rem 0.7rem;
+  margin: var(--ea-space-1) 0;
+  padding: var(--ea-space-2) var(--ea-space-3);
   border: 1px dashed var(--ea-border);
-  border-radius: var(--ea-radius);
+  border-radius: var(--ea-radius-lg);
   font-size: 0.85rem;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--ea-fg-muted);
 }
 
 .ea-audit-hint {
   font-size: 0.8rem;
   color: var(--ea-fg-muted);
-  line-height: 1.45;
+  line-height: 1.6;
 }
 
 /* O config_id é comparado a olho entre dois registros -- é essa a pergunta
    que ele existe para responder. Monoespaçado e destacado porque diferença
    de um caractere em doze tem de saltar; o valor inteiro fica no `title`. */
 .ea-audit-configid {
-  margin: 0.4rem 0 0.2rem;
-  padding: 0.35rem 0.55rem;
+  margin: var(--ea-space-1) 0 var(--ea-space-1);
+  padding: var(--ea-space-2) var(--ea-space-2);
   border: 1px solid var(--ea-border);
-  border-radius: var(--ea-radius);
+  border-radius: var(--ea-radius-sm);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
   letter-spacing: 0.02em;
@@ -576,16 +621,21 @@
 
 /* ---- layers 2 and 3 */
 
+/* `--ea-surface` e nao `--ea-bg`: no tema escuro a superficie e mais clara
+   que a pagina, e e essa diferenca que faz a camada parecer elevada, ja que
+   sombra preta sobre fundo escuro nao aparece. No tema claro os dois valores
+   coincidem (#ffffff) e quem eleva e a sombra. Um token, dois canais. */
 .ea-audit-layer {
-  border: 1px solid var(--ea-border);
-  border-radius: var(--ea-radius);
-  margin-bottom: 0.6rem;
-  background: var(--ea-bg);
+  border: 1px solid var(--ea-border-soft);
+  border-radius: var(--ea-radius-lg);
+  margin-bottom: var(--ea-space-2);
+  background: var(--ea-surface);
+  box-shadow: var(--ea-shadow-sm);
 }
 
 .ea-audit-layer__summary {
   cursor: pointer;
-  padding: 0.6rem 0.8rem;
+  padding: var(--ea-space-3) var(--ea-space-4);
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
@@ -598,7 +648,7 @@
 }
 
 .ea-audit-layer > *:not(summary) {
-  padding: 0 0.8rem 0.8rem;
+  padding: 0 var(--ea-space-4) var(--ea-space-4);
 }
 
 .ea-audit-verdict-title {
@@ -633,14 +683,17 @@
   overflow-wrap: anywhere;
 }
 
+/* 0.8rem, nao 0.75: este bloco e o payload cru do registro -- e o que o
+   auditor efetivamente le quando quer conferir a decisao, entao entra no
+   minimo de texto de leitura em vez de ficar tamanho de metadado. */
 .ea-audit-pre {
-  margin: 0.35rem 0;
-  padding: 0.6rem 0.8rem;
+  margin: var(--ea-space-1) 0;
+  padding: var(--ea-space-2) var(--ea-space-3);
   background: var(--ea-bg-alt);
-  border-radius: var(--ea-radius);
+  border-radius: var(--ea-radius-lg);
   font-family: var(--ea-mono);
-  font-size: 0.75rem;
-  line-height: 1.45;
+  font-size: 0.8rem;
+  line-height: 1.6;
   overflow-x: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -649,12 +702,13 @@
 /* ---- the asymmetry explanations */
 
 .ea-audit-note {
-  margin: 0.5rem 0;
-  border: 1px solid var(--ea-border);
+  margin: var(--ea-space-2) 0;
+  border: 1px solid var(--ea-border-soft);
   border-left: 3px solid var(--ea-info);
-  border-radius: var(--ea-radius);
+  border-radius: var(--ea-radius-lg);
   background: var(--ea-info-bg);
-  padding: 0.5rem 0.7rem;
+  box-shadow: var(--ea-shadow-sm);
+  padding: var(--ea-space-2) var(--ea-space-3);
 }
 
 .ea-audit-note > summary {
@@ -664,9 +718,9 @@
 }
 
 .ea-audit-note p {
-  margin: 0.5rem 0 0;
+  margin: var(--ea-space-2) 0 0;
   font-size: 0.85rem;
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
 .ea-audit-note__hint {
@@ -682,8 +736,8 @@
 /* ---- the policy-editing seam */
 
 .ea-audit-seam {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: var(--ea-space-5);
+  padding-top: var(--ea-space-4);
   border-top: 1px solid var(--ea-border);
 }
 
@@ -697,25 +751,31 @@
 }
 
 .ea-audit-cr__open {
-  padding: 0.3rem 0.8rem;
+  padding: var(--ea-space-2) var(--ea-space-4);
   border: 1px solid var(--ea-border);
   border-radius: var(--ea-radius);
-  background: var(--ea-bg);
+  background: var(--ea-surface);
   color: var(--ea-fg);
   font: inherit;
   font-size: 0.82rem;
   cursor: pointer;
+  transition: border-color var(--ea-transition), background-color var(--ea-transition);
+}
+
+.ea-audit-cr__open:hover {
+  border-color: var(--ea-accent);
 }
 
 .ea-audit-cr__form {
-  margin-top: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--ea-border);
-  border-radius: var(--ea-radius);
-  background: var(--ea-bg-alt);
+  margin-top: var(--ea-space-2);
+  padding: var(--ea-space-4);
+  border: 1px solid var(--ea-border-soft);
+  border-radius: var(--ea-radius-lg);
+  background: var(--ea-surface);
+  box-shadow: var(--ea-shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: var(--ea-space-2);
 }
 
 .ea-audit-cr__about {
@@ -729,12 +789,12 @@
    later record against a policy that did not move. */
 .ea-audit-cr__warning {
   margin: 0;
-  padding: 0.5rem 0.65rem;
+  padding: var(--ea-space-2) var(--ea-space-3);
   border-left: 3px solid var(--ea-warning);
   background: var(--ea-warning-bg);
-  border-radius: 0 var(--ea-radius) var(--ea-radius) 0;
+  border-radius: 0 var(--ea-radius-lg) var(--ea-radius-lg) 0;
   font-size: 0.82rem;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .ea-audit-cr__form label {
@@ -743,35 +803,37 @@
 }
 
 .ea-audit-cr__form textarea {
-  padding: 0.5rem;
+  padding: var(--ea-space-3);
   border: 1px solid var(--ea-border);
   border-radius: var(--ea-radius);
   background: var(--ea-bg);
   color: var(--ea-fg);
   font: inherit;
   font-size: 0.85rem;
+  line-height: 1.6;
   resize: vertical;
 }
 
 .ea-audit-cr__recorded {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--ea-fg-muted);
 }
 
 .ea-audit-cr__actions {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--ea-space-2);
 }
 
 .ea-audit-cr__actions button {
-  padding: 0.35rem 0.9rem;
+  padding: var(--ea-space-2) var(--ea-space-4);
   border: none;
   border-radius: var(--ea-radius);
   background: var(--ea-accent);
   color: var(--ea-accent-fg);
   font: inherit;
   font-size: 0.82rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -794,8 +856,8 @@
 /* ---- conversation sequence */
 
 .ea-audit-conversation {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: var(--ea-space-5);
+  padding-top: var(--ea-space-4);
   border-top: 1px solid var(--ea-border);
 }
 
@@ -823,8 +885,8 @@
   display: block;
   width: 100%;
   text-align: left;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--ea-border);
+  padding: var(--ea-space-2) var(--ea-space-3);
+  border: 1px solid var(--ea-border-soft);
   border-left: 4px solid transparent;
   border-radius: var(--ea-radius);
   background: var(--ea-bg);
@@ -832,6 +894,7 @@
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;
+  transition: border-color var(--ea-transition), background-color var(--ea-transition);
 }
 
 .ea-audit-turn--deny {
