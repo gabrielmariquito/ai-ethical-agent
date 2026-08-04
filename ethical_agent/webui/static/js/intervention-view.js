@@ -1,8 +1,5 @@
-// Renders the compact "intervention" block (collapsed summary + expandable
-// detail) shared by chat.js and demo.js -- both work off objects with the
-// same shape (intervention, system_error, input_verdict, output_verdict),
-// since dto.agent_result_summary() is what builds both a chat turn and a
-// demo case server-side. One rendering, not a second copy per screen.
+// Renderiza o bloco compacto de "intervention" compartilhado por chat.js e
+// demo.js, uma renderização só e não uma cópia por tela.
 
 import { escapeHtml } from "./markdown.js";
 import { renderVerdict } from "./verdict-view.js";
@@ -21,12 +18,9 @@ export function interventionKind(item) {
 
 export function interventionSummary(item) {
   const kind = interventionKind(item);
-  // Verdict.to_dict() (what the API actually sends) has no "intervened" key
-  // -- that's a Python-only computed property on the Verdict object itself,
-  // never serialized. The only way a "rewrite" item can be output-caused is
-  // output_verdict.decision === "REWRITE" (DENY-at-output is already its
-  // own "blocked_output" kind, handled above; FLAG doesn't count as an
-  // intervention at all).
+  // `Verdict.to_dict()` não traz a chave "intervened", que é propriedade
+  // computada só em Python e nunca serializada —
+  // REGISTRO, "Texto movido do código".
   const outputIsRewrite = Boolean(item.output_verdict) && item.output_verdict.decision === "REWRITE";
   const usesOutput = kind === "blocked_output" || (kind === "rewrite" && outputIsRewrite);
   const verdict = usesOutput ? item.output_verdict : item.input_verdict;

@@ -1,10 +1,6 @@
-// The three layers, and all the pt-BR wording for them.
-//
-// The server (webui/audit_view.py) returns neutral structure -- "blocked_input",
-// "deny", "input" -- and this module names it, the same split verdict-view.js
-// already uses for dto.classify_intervention. The gradation itself is the
-// object of study: layer 1 has to be judgeable by someone who has never read
-// a policy file, and layers 2 and 3 have to be there for when it isn't.
+// As três camadas e a redação pt-BR delas: o servidor devolve estrutura
+// neutra e este módulo a nomeia, e a gradação em si é o objeto de estudo —
+// REGISTRO, "Texto movido do código".
 
 import { escapeHtml } from "../markdown.js";
 import { renderVerdict } from "../verdict-view.js";
@@ -29,9 +25,8 @@ const STAGE_WORDS = {
   output: "depois de o modelo responder",
 };
 
-// Layer 1's whole job: say what happened in a sentence, with no vocabulary
-// the reader has to have been taught. No rule identifiers, no spans, no
-// "verdict"/"stage"/"engine".
+// O trabalho inteiro da camada 1: dizer o que aconteceu numa frase, sem
+// vocabulário que o leitor precise ter aprendido.
 const WHAT_HAPPENED = {
   blocked_input: "O sistema recusou o pedido e não chegou a consultar o modelo.",
   blocked_output: "O modelo respondeu, mas o sistema não entregou a resposta.",
@@ -39,11 +34,8 @@ const WHAT_HAPPENED = {
   none: "O sistema deixou passar: nada foi bloqueado nem alterado.",
 };
 
-// The nature of the concern, in the reader's language. A count ("uma norma
-// se aplicou") says how many and when, then sends the reader to layer 2 for
-// what they actually came for -- which puts the basics one click too deep.
-// These two closed vocabularies are what layer 1 can say without borrowing
-// layer 2's: no rule id, no span, no engine name.
+// A natureza da preocupação, na língua do leitor: uma contagem manda o leitor
+// à camada 2 para o que ele veio buscar — REGISTRO, "Texto movido do código".
 const PRINCIPLE_LABELS = {
   security: "segurança",
   privacy: "privacidade",
@@ -160,9 +152,8 @@ export function renderLayer1(detail) {
   const why = el("section", "ea-audit-block");
   why.appendChild(el("h3", null, "Por quê"));
   if (l1.rule_count > 0) {
-    // The concern first, the bookkeeping after. Reversing these is what made
-    // the reader open layer 2 to learn whether this was about privacy or
-    // about self-harm.
+    // A preocupação primeiro, a contabilidade depois: inverter é o que fazia o
+    // leitor abrir a camada 2 só para saber do que se tratava.
     const principles = (l1.principles || []).map(principleLabel);
     if (principles.length > 0) {
       why.appendChild(
@@ -175,17 +166,15 @@ export function renderLayer1(detail) {
         )
       );
     }
-    // Only when unambiguous: a record whose deciding verdict mixes a
-    // prohibition and an obligation cannot be summed up in one of these
-    // sentences, and guessing which to show would misstate the policy.
+    // Só quando não-ambíguo: um veredito que mistura proibição e obrigação não
+    // cabe numa destas frases, e adivinhar qual mostrar diria algo falso.
     const deontics = l1.deontics || [];
     if (deontics.length === 1 && DEONTIC_SENTENCES[deontics[0]]) {
       why.appendChild(el("p", null, DEONTIC_SENTENCES[deontics[0]]));
     }
 
-    // Counting only the deciding verdict's rules: rule_count spans both
-    // stages, and pairing that total with a single stage word would say
-    // something false about half of them.
+    // Contando só as regras do veredito que decidiu, porque `rule_count` cruza
+    // os dois estágios — REGISTRO, "Texto movido do código".
     const stage = STAGE_WORDS[l1.deciding_stage] || "";
     const staged = l1.deciding_rule_count || 0;
     if (staged > 0) {
@@ -222,10 +211,8 @@ export function renderLayer1(detail) {
       )
     );
   }
-  // Last, always: the hand-off closes the block instead of sitting in the
-  // middle of it. It used to be appended inside the rule_count branch, so a
-  // record with a suppressed rule read "...está na camada seguinte." and
-  // then kept going.
+  // Por último, sempre: a passagem de bastão fecha o bloco em vez de sentar no
+  // meio dele — REGISTRO, "Texto movido do código".
   if (l1.rule_count > 0 || l1.suppressed_count > 0) {
     why.appendChild(
       el(
@@ -242,12 +229,9 @@ export function renderLayer1(detail) {
 
 // --- layer 2 --------------------------------------------------------------
 
-// The note that used to explain the matched_text asymmetry here was removed.
-// The explanation itself still exists, in AUDIT_GUIDE.pt-BR.md (Passo 3); what
-// this layer keeps is the *marking* at the point of absence -- "trecho:
-// removido pela própria redação", drawn by verdict-view.js -- which is a
-// label, not a note, and is what distinguishes a deliberate absence from
-// there having been no excerpt at all.
+// A nota que explicava a assimetria do `matched_text` saiu daqui e vive no
+// AUDIT_GUIDE, Passo 3; o que esta camada guarda é a *marcação* no ponto da
+// ausência, que é rótulo e não nota — REGISTRO, "Texto movido do código".
 
 export function renderLayer2(detail, handlers) {
   const l2 = detail.layer2;
@@ -268,18 +252,9 @@ export function renderLayer2(detail, handlers) {
 
   const policy = l2.matched_text_policy || {};
 
-  // Original vs rewritten -- only when something actually was rewritten.
-  //
-  // Which "original" is on offer depends on WHERE the rewrite happened, and
-  // conflating the two would mislabel the evidence:
-  //   input rewritten  -> the before/after is the person's text vs the text
-  //                       the model was actually given. raw_response is the
-  //                       answer to the *rewritten* prompt, so it is not an
-  //                       "original" of anything and must not be offered as
-  //                       one.
-  //   output rewritten -> raw_response IS the text before the rewrite, and
-  //                       that comparison is the only way to judge whether
-  //                       the rewrite was appropriate.
+  // Original vs reescrito, e qual "original" está em oferta depende de ONDE a
+  // reescrita aconteceu — confundir os dois rotularia mal a evidência:
+  // REGISTRO, "Texto movido do código".
   const texts = l2.texts || {};
   const rewroteInput = Boolean(texts.rewritten_input);
   const rewroteOutput = Boolean(texts.rewritten_output);
@@ -312,11 +287,8 @@ export function renderLayer2(detail, handlers) {
           )
         );
         details.appendChild(summary);
-        // The sibling block above carries its own ea-audit-label next to the
-        // text it describes. Without one here, an open <details> shows a bare
-        // quote whose only identification is back up in the summary line --
-        // the reader has to remember what they clicked. This is a label, not
-        // a second note: the asymmetry note stays the only note in this layer.
+        // Rótulo, não uma segunda nota: sem ele um <details> aberto mostra uma
+        // citação cuja única identificação está lá em cima, na linha do summary.
         details.appendChild(el("p", "ea-audit-label", "Resposta original do modelo:"));
         details.appendChild(quoted(texts.raw_response));
         details.addEventListener("toggle", () => {
@@ -402,9 +374,8 @@ function configTable(configVersions, shape) {
   return table;
 }
 
-// Nomes de arquivo de configuração para quem não lê o repositório. `role` vem
-// do código que os carrega (Policy.from_file e relaieo.load_relaieo), não de
-// uma lista escrita à mão aqui.
+// Nomes de arquivo de configuração para quem não lê o repositório; `role` vem
+// do código que os carrega, não de uma lista escrita à mão aqui.
 const ROLE_LABELS = {
   policy: "política de regras",
   ontology: "ontologia",
@@ -413,13 +384,9 @@ const ROLE_LABELS = {
   norms: "normas de verificação",
 };
 
-// A tabela que responde "quais arquivos governaram esta decisão".
-//
-// Traz versão declarada **e** digest do arquivo porque as duas respondem
-// perguntas diferentes: a versão é o que o autor quis dizer, o digest é o que
-// foi de fato carregado. Só o digest pega uma edição sem troca de versão -- e
-// a ontologia RelAIEO não declara versão nenhuma, então para ela o digest é a
-// única identidade que existe.
+// A tabela que responde "quais arquivos governaram esta decisão", com versão
+// declarada **e** digest porque as duas respondem perguntas diferentes:
+// REGISTRO, "Texto movido do código".
 function artifactsTable(configuration) {
   const artifacts = configuration && configuration.artifacts;
   if (!Array.isArray(artifacts) || artifacts.length === 0) {
@@ -499,11 +466,9 @@ export function renderLayer3(detail) {
 
   const model = el("section", "ea-audit-block");
   model.appendChild(el("h4", "ea-audit-verdict-title", "Quem respondeu"));
-  // An output verdict exists only once the model has answered, so its
-  // absence is the reliable signal that nothing was consulted. The record
-  // still carries the *configured* provenance in that case (the agent
-  // attaches it before knowing the input would be refused), and showing it
-  // as though something had answered would be plainly wrong.
+  // Um veredito de saída só existe depois de o modelo responder, então a
+  // ausência dele é o sinal confiável de que nada foi consultado —
+  // REGISTRO, "Texto movido do código".
   const modelWasCalled = Boolean(detail.layer2 && detail.layer2.output_verdict);
   if (!modelWasCalled) {
     model.appendChild(
@@ -521,20 +486,16 @@ export function renderLayer3(detail) {
   } else if (l3.llm_provenance_text) {
     model.appendChild(el("p", null, l3.llm_provenance_text));
   } else if (l3.llm_provenance) {
-    // safe_provenance_text returned nothing: a record written by a version
-    // that knew a provenance kind this one does not. Say so plainly instead
-    // of pretending the field is empty.
+    // `safe_provenance_text` não devolveu nada: registro escrito por uma versão
+    // que conhecia um tipo de procedência que esta não conhece.
     model.appendChild(
       el("p", "ea-audit-absent", "Proveniência registrada num formato que esta tela não reconhece:")
     );
     const pre = el("pre", "ea-audit-pre", JSON.stringify(l3.llm_provenance, null, 2));
     model.appendChild(pre);
   } else if (detail.layer2 && detail.layer2.output_verdict) {
-    // The model *was* called -- there is an output verdict, which only
-    // exists once it answered -- but this record does not say which model.
-    // Demo runs are the usual case (source="demo" already marks them, so
-    // provenance is not written). Saying "no model was consulted" here
-    // would be simply false.
+    // O modelo *foi* chamado, mas este registro não diz qual — dizer "nenhum
+    // modelo foi consultado" aqui seria simplesmente falso.
     model.appendChild(
       el(
         "p",

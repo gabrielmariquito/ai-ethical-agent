@@ -1,23 +1,6 @@
-"""Pure helpers for wizard_gui.py's optional Ollama server/model install step.
-
-Detecting an existing Ollama install, downloading/running the platform
-installer, verifying it, watching for the server to come up, and pulling a
-model are all here as plain functions with injectable subprocess/urlopen
-hooks, so they're testable without tkinter, a display, real network access,
-or a real Ollama install. wizard_gui.py wires these into its
-thread+queue+polling ProgressPage.
-
-Lives inside ethical_agent/ (like gui_choices.py) rather than at the repo
-root so it stays importable as `ethical_agent.ollama_install` regardless of
-the current working directory pytest is run from -- a bare module at the
-repo root is not reliably importable when the CWD differs from the repo
-root, which previously broke test_gui_audit.py.
-
-`process` can answer from Ollama local, Ollama Cloud, or the MockLLM
-fallback. Which one actually produced a given response is not left implicit:
-llm.resolve_llm classifies it, llm.describe_llm_provenance prints it, and
-GuardedAgent._finish (agent.py) stores it in every audit record under
-`llm_provenance`.
+"""Helpers puros do passo opcional de Ollama do `wizard_gui.py`, como funções
+com hooks injetáveis de subprocess/urlopen, testáveis sem tkinter, display,
+rede ou Ollama real: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations
@@ -60,11 +43,8 @@ def estimate_model_size_text(model: str) -> str:
 
 
 def find_ollama_exe(which: Callable[[str], Optional[str]] = shutil.which) -> Optional[Path]:
-    """Looks on PATH first, then well-known install locations.
-
-    A fallback beyond PATH matters right after a fresh install: environment
-    variable changes made by an installer don't propagate to this
-    already-running process, so `which("ollama")` can miss a real install.
+    """Procura no PATH e depois nos locais conhecidos, porque logo após uma
+    instalação as mudanças de ambiente não chegam a este processo.
     """
     found = which("ollama")
     if found:
@@ -210,18 +190,9 @@ def start_ollama_server(
     popen: Callable[..., "subprocess.Popen"] = subprocess.Popen,
     platform: Optional[str] = None,
 ) -> Optional["subprocess.Popen"]:
-    """Starts `ollama serve` detached, so it outlives the wizard.
-
-    On Windows the Ollama app registers itself as a login item: it comes up
-    when the user logs in, not when an installer invokes it. So "installed
-    but not running" is the common state, and nothing else in this project
-    ever starts the server -- without this, wait_for_server() times out on a
-    machine where nothing is actually missing.
-
-    Detaching mirrors wizard_gui's _launch_interface: the server has to stay
-    up for the model pull and for the app afterwards, so it is deliberately
-    never waited on or killed. CREATE_NO_WINDOW because ollama.exe is a
-    console app and the wizard is a GUI -- otherwise a console window flashes.
+    """Sobe `ollama serve` destacado para sobreviver ao wizard, porque no
+    Windows o app é item de login e "instalado mas parado" é o estado comum —
+    sem isto `wait_for_server()` expira onde nada falta: `REGISTRO`, "Texto movido do código".
     """
     platform = platform if platform is not None else sys.platform
     cmd = [str(ollama_exe), "serve"]
@@ -294,16 +265,9 @@ def _upsert_env_var(root: Path, key: str, value: str) -> Path:
 
 
 def remove_env_var(root: Path, key: str) -> Optional[Path]:
-    """Drops every `key=` line from `.env`, leaving the other lines exactly
-    as they were. Returns None when there was nothing to remove -- no file,
-    or a file that never had the key.
-
-    The counterpart to _upsert_env_var, which can only add or replace. A
-    caller that wants a setting *gone* (rather than set to empty) needs this:
-    `KEY=` with an empty value and no `KEY=` line at all are the same thing
-    to the readers here, but only the second one keeps .env honest about
-    what is configured -- and it is what the uninstaller's key listing
-    (uninstall.env_keys_present) reports on.
+    """Remove toda linha `key=` do `.env` preservando as outras, e devolve
+    `None` quando não havia o que remover — contraparte de `_upsert_env_var`,
+    que só sabe acrescentar ou substituir: `REGISTRO`, "Texto movido do código".
     """
     env_path = root / ".env"
     if not env_path.exists():
@@ -326,22 +290,16 @@ def write_env_model(root: Path, model: str) -> Path:
 
 
 def write_env_audit_password(root: Path, password: str) -> Path:
-    """Persists the audit-screen password so `serve` finds it with no flag.
-
-    Stripped before writing because read_env_var strips on the way out: a
-    password stored with a trailing space would silently never match what
-    the reader hands to the login check.
+    """Persiste a senha da tela de auditoria para o `serve` achá-la sem flag,
+    com strip na escrita porque o leitor também faz strip.
     """
     return _upsert_env_var(root, AUDIT_PASSWORD_ENV_VAR, password.strip())
 
 
 def read_env_var(root: Path, key: str) -> Optional[str]:
-    """Reads `key=` from `root`/.env, or None when it isn't set.
-
-    Deliberately hand-rolled rather than python-dotenv: that package only
-    arrives with the `llm` extra, and both callers here -- the uninstaller
-    and the audit-password loader in webui/auth.py -- have to work on an
-    install that never opted into a real model.
+    """Lê `key=` do `.env`, ou `None`; feito à mão em vez de python-dotenv
+    porque aquele só chega com o extra `llm` e os dois chamadores precisam
+    funcionar numa instalação que nunca optou por modelo real.
     """
     env_path = root / ".env"
     if env_path.exists():
@@ -354,73 +312,26 @@ def read_env_var(root: Path, key: str) -> Optional[str]:
     return None
 
 
-# -- one ambient source, and a tripwire on the one that died -----------------
-#
-# .env at the project root -- where the graphical installer writes it -- is
-# the only *ambient* source of the audit-screen password.
-# $ETHICAL_AGENT_AUDIT_PASSWORD is not read as a password any more.
-#
-# It used to be, and the two ranked against each other: the variable won,
-# python-dotenv style, and the startup banner named the loser. That was wrong
-# in a way a banner cannot fix, because the banner is in a terminal nobody is
-# necessarily watching while the consequence lands in the browser, where
-# someone types the password they believe they configured and is rejected
-# with nothing to go on. The first repair made both-defined a startup
-# refusal; this is the second, and it removes the second place a password can
-# live rather than arbitrating between two.
-#
-# .env won the coin-flip on measurement, not taste: it is the only source the
-# installer can write. There is no writer of the environment variable
-# anywhere in this project, and giving it one would mean setx / HKCU /
-# shell-profile edits that nothing here does.
-#
-# What survives of the refusal is a tripwire. A variable somebody still has
-# exported must not be *ignored* in silence -- that is the same defect over
-# again, pointed the other way -- so it is compared against the password that
-# will actually be in effect:
-#
-#   variable absent                      -> nothing to say
-#   variable == the effective password   -> nothing to say (see below)
-#   variable != the effective password   -> refuse
-#   variable set, nothing in effect      -> refuse
-#
-# The equal case is silence rather than a refusal for a reason that is not
-# politeness: python-dotenv's load_dotenv() (llm.py) copies every .env key
-# into os.environ, so a process can populate the variable from .env by
-# itself. A presence-only rule would refuse over one password seen twice, and
-# would do it more often as the LLM path grew. Comparing values is what makes
-# the tripwire immune to the program's own reflection.
-#
-# This lives here, next to the .env reader, because it is the only module
-# both callers can reach: webui/auth.py imports it, and wizard_gui.py imports
-# it while running on the *system* Python before the project is installed
-# (see wizard_gui.py's comment on AUDIT_PASSWORD_ENV_VAR, which is why the
-# installer cannot import webui/auth at all).
+# Uma fonte ambiente só, e um arame de tropeço na que morreu: o `.env` é a
+# única fonte ambiente da senha, e a variável de ambiente não é mais lida como
+# senha — só comparada — `REGISTRO`, "Texto movido do código".
 
 AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 
 
 def exported_audit_password(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
-    """The audit password exported in the environment, or None.
-
-    Stripped, so that an exported-but-empty variable -- how a shell profile
-    leaves a name defined without meaning anything by it -- counts as absent,
-    exactly as read_env_var already treats a bare `KEY=` line in .env. Both
-    sides of the comparison have to agree on what "defined" means.
-
-    This is no longer a password *source*. The value is read only to compare
-    it against the one in effect, and it must never be printed.
+    """A senha exportada no ambiente, ou `None`, com strip para que exportada-e-
+    vazia conte como ausente; não é mais *fonte*, e o valor é lido só para
+    comparação: `REGISTRO`, "Texto movido do código".
     """
     source = os.environ if env is None else env
     return (source.get(AUDIT_PASSWORD_ENV_VAR) or "").strip() or None
 
 
 def env_audit_password_present(env: Optional[Mapping[str, str]] = None) -> bool:
-    """Whether the environment still has the variable set at all.
-
-    Presence, not usability: the variable no longer configures anything, so
-    what callers ask here is "is there a stale one to warn about" -- the
-    uninstaller's wording and the startup banner both want exactly that.
+    """Se o ambiente ainda tem a variável setada — presença, não usabilidade,
+    porque ela não configura mais nada e o que se pergunta é se há uma
+    remanescente sobre a qual avisar.
     """
     return exported_audit_password(env) is not None
 
@@ -431,26 +342,9 @@ def audit_password_conflict_against(
     env: Optional[Mapping[str, str]] = None,
     password_file: Optional[str] = None,
 ) -> Optional[str]:
-    """The message when a stale exported variable disagrees with `effective`
-    -- the password that will actually be in effect -- or None when there is
-    nothing to say. Returning the text, rather than a bool, is what keeps the
-    CLI and the installer saying the same thing.
-
-    `effective` is a parameter rather than something read here so that a
-    caller which has already resolved the password does not read .env twice
-    and cannot disagree with itself if the file changes in between.
-
-    `password_file` is likewise a parameter and not a check the callers do
-    for themselves. The flag silences the refusal -- it is an explicit,
-    per-invocation statement of which password to use -- and that exception
-    has to live in the same place as the rule. Implemented twice, the two
-    callers would drift apart on the *exception* while still appearing to
-    share the rule, which is the divergence nobody notices. Silencing the
-    refusal is not silence: cmd_serve still names the stale variable in the
-    banner.
-
-    Neither message quotes either value, and neither says how they differ --
-    only that they do.
+    """A mensagem quando uma variável remanescente discorda de `effective`, ou
+    `None` quando não há o que dizer — devolver o texto em vez de um booleano
+    é o que mantém CLI e instalador dizendo a mesma coisa: `REGISTRO`, "Texto movido do código".
     """
     if password_file:
         return None
@@ -499,24 +393,15 @@ def audit_password_conflict(
     )
 
 
-# There was a third function here, audit_password_would_conflict(root,
-# candidate, env), for the installer to ask the same question about a password
-# it was *about* to write. It went with the installer's second explanation of
-# the leftover variable: the wizard neither warns about one nor works around
-# one, so it has nothing to ask. One explainer, one message, one place --
-# cmd_serve, which is the only code that actually refuses.
+# Havia aqui uma terceira função para o instalador perguntar o mesmo sobre uma
+# senha que ia escrever; ela saiu junto com a segunda explicação do instalador
+# sobre a variável remanescente — `REGISTRO`, "Texto movido do código".
 
 
 def read_env_model_optional(root: Path) -> Optional[str]:
-    """Reads `OLLAMA_MODEL=` from `root`/.env, or None when it isn't set.
-
-    Separate from read_env_model below because the difference between "not
-    configured" and "configured to the default" matters for a *destructive*
-    decision. In cloud mode the wizard writes only OLLAMA_API_KEY
-    (_run_llm_setup_cloud), never an OLLAMA_MODEL line -- so a defaulting
-    reader would report llama3.2:3b as this project's model on a machine
-    where this project never pulled a model at all, and the uninstaller
-    would offer to delete someone else's.
+    """Lê `OLLAMA_MODEL=` do `.env`, ou `None`; separado do `read_env_model`
+    porque a diferença entre "não configurado" e "configurado no default"
+    importa para uma decisão **destrutiva**: `REGISTRO`, "Texto movido do código".
     """
     return read_env_var(root, "OLLAMA_MODEL")
 

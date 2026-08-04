@@ -18,16 +18,8 @@ def _require_str(body: dict, field: str) -> str:
     "POST", "/api/check", realm="audit", requires_session=True, hidden_without_session=True
 )
 def post_check(state, params, body):
-    """Mirrors the CLI's `ethical_agent check` / the former gui_app.py's
-    CheckTab exactly: evaluate ONE piece of content against the guardrail,
-    no LLM call, via build_check_audit_record -- the same shared function
-    that keeps this and cmd_check from drifting on what gets retained.
-
-    Behind the audit realm: this screen takes arbitrary text and answers with
-    which rules fired and on which excerpt, which is the cheapest way to
-    probe the policy one string at a time. It is the evaluator's instrument,
-    not the employee's. The CLI's `check` is unchanged -- whoever has a shell
-    on this machine can read the policy file anyway.
+    """Espelha o `check` da CLI: avalia UM conteúdo contra o guardrail, sem
+    chamada de LLM, pelo `build_check_audit_record` compartilhado: `REGISTRO`, "Texto movido do código".
     """
     text = _require_str(body, "text")
     stage_raw = body.get("stage") or "input"

@@ -1,31 +1,7 @@
-"""Every removable thing the plan offers reaches a checkbox on the screen.
-
-This is the silent failure the options screen is exposed to. OptionsPage does:
-
-    variables = {"logs": ..., "ollama": ..., "model": ..., "env": ...}
-    for cand in self.app.plan.optional:
-        var = variables.get(cand.key)
-        if var is None:
-            continue
-
--- so a candidate whose key is not in that dict is skipped without a word. No
-exception, no empty frame, nothing in the log. And `Choices` defaults every
-flag to False, so the missing checkbox becomes "the user did not ask for it"
-all the way down: build_plan offers to remove the model, the screen never
-draws the box, `choices()` reports remove_model=False, and the uninstaller
-reports success having left several gigabytes on disk. Nobody finds out until
-someone notices the model is still there.
-
-A COUNT IS THE RIGHT SHAPE HERE, unlike the one this file's sibling used to
-carry (`GUI_SOURCE.count("tk.BooleanVar(value=False)") == 5`, removed for
-being coupled to a number that moved for unrelated reasons). The difference:
-these assertions are coupled to *what they measure*. The set of keys comes
-from build_plan itself, so adding a removable thing forces a checkbox for it
-rather than breaking an unrelated arithmetic.
-
-What this does NOT guarantee, since the suite does not run tkinter: that the
-checkbox is visible, reachable, or labelled correctly. It guarantees the
-wiring exists.
+"""Toda coisa removível que o plano oferece chega a um checkbox na tela,
+porque `variables.get(cand.key)` pula em silêncio o que não conhece e
+`Choices` tem default `False` — a caixa que não é desenhada vira "a pessoa
+não pediu" até o fim: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations
@@ -44,12 +20,8 @@ LIB_SOURCE = (REPO / "ethical_agent" / "uninstall.py").read_text(encoding="utf-8
 
 
 def _optional_keys_build_plan_can_emit() -> set[str]:
-    """The keys build_plan appends to `optional`, read from its own source.
-
-    Taken from the function body rather than by running build_plan, because
-    which candidates appear depends on what exists on the machine -- a run
-    here would only see the subset this checkout happens to have, which is
-    the opposite of the guarantee wanted.
+    """As chaves que `build_plan` emite, lidas do próprio fonte e não de uma
+    execução, que só veria o subconjunto que esta máquina tem.
     """
     tree = ast.parse(LIB_SOURCE)
     build_plan = next(

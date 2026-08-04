@@ -1,13 +1,6 @@
-"""Procedência da configuração: `artifacts[]`, `config_id`, assinatura, rótulo.
-
-O que estes testes guardam é a diferença entre **versão declarada** e **digest
-do arquivo**. `config_versions` já dizia qual versão estava em memória, e essa
-é a afirmação que o autor pode errar: editar uma regra sem subir
-`metadata.version` produz duas execuções que alegam a mesma versão e decidem
-diferente, e a trilha não distingue as duas. É o caso do
-`test_config_id_muda_sem_bump_de_versao` -- o único que justifica o digest
-existir, e por isso o único que não pode ser removido por parecer redundante
-com os outros quatro.
+"""Procedência da configuração, guardando a diferença entre **versão
+declarada** e **digest do arquivo** — e `test_config_id_muda_sem_bump_de_versao`
+é o único que justifica o digest existir, logo o que não pode sair: `REGISTRO`, "Texto movido do código".
 """
 import json
 import shutil
@@ -77,10 +70,8 @@ def test_os_quatro_papeis_vem_do_codigo_que_carrega(caminhos):
 
 
 def test_o_ttl_nao_declara_versao_e_so_o_digest_o_identifica(caminhos):
-    # relaieo.ttl é upstream vendorizado verbatim, e o upstream não declara
-    # versão -- _relaieo_to_ontology_dict monta o metadata com
-    # name/source/creators/license/note e nada mais. É o caso mais limpo da
-    # assimetria: sem digest, este arquivo não teria identidade nenhuma.
+    # `relaieo.ttl` é upstream vendorizado sem versão declarada: é o caso mais
+    # limpo da assimetria, porque sem digest não teria identidade nenhuma: `REGISTRO`, "Texto movido do código".
     configuration = build_configuration(_motor(caminhos))
     ttl = next(a for a in configuration["artifacts"] if a["role"] == "ontology_ttl")
     assert ttl["version"] is None
@@ -88,10 +79,8 @@ def test_o_ttl_nao_declara_versao_e_so_o_digest_o_identifica(caminhos):
 
 
 def test_configuration_e_um_bloco_unico_mesmo_com_engine_composto(caminhos):
-    # A configuração que governa uma decisão é uma coisa só, não importa
-    # quantos motores votaram. Um config_id por motor reconstruiria, um nível
-    # abaixo, o aninhamento que config_versions já obriga a tela a
-    # tratar como caso especial.
+    # A configuração que governa uma decisão é uma coisa só, não importa quantos
+    # motores votaram.
     configuration = build_configuration(_motor(caminhos))
     assert set(configuration) == {"config_id", "config_id_recipe", "artifacts"}
     assert configuration["config_id_recipe"] == CONFIG_ID_RECIPE
@@ -111,11 +100,8 @@ def test_config_id_identico_em_duas_execucoes(caminhos):
 
 @pytest.mark.parametrize("role", sorted(ROLES_ESPERADOS))
 def test_config_id_muda_quando_qualquer_artefato_muda(caminhos, role):
-    # A edição é só espaço em branco no fim do arquivo, de propósito: os
-    # quatro continuam carregando sem erro, o conteúdo semântico é idêntico, e
-    # mesmo assim o config_id tem de se mover. É a forma mais forte da
-    # afirmação -- sensibilidade a byte, não a campo. O caso semântico (regra
-    # editada sem bump de versão) está no teste seguinte.
+    # A edição é só espaço em branco no fim, de propósito: sensibilidade a byte
+    # e não a campo, que é a forma mais forte da afirmação: `REGISTRO`, "Texto movido do código".
     antes = build_configuration(_motor(caminhos))["config_id"]
     alvo = caminhos[role]
     alvo.write_text(alvo.read_text(encoding="utf-8") + "\n", encoding="utf-8")
@@ -124,12 +110,8 @@ def test_config_id_muda_quando_qualquer_artefato_muda(caminhos, role):
 
 
 def test_config_id_muda_sem_bump_de_versao(caminhos):
-    """O caso que justifica o digest existir.
-
-    Edita uma regra de `core_policy.json` **sem** tocar em `metadata.version`.
-    A versão declarada continua `0.6.0` nos dois lados -- `config_versions`
-    sozinho diria que os dois registros foram decididos igual. O digest diz
-    que não.
+    """O caso que justifica o digest existir: edita uma regra **sem** tocar em
+    `metadata.version`, e a versão declarada continua igual dos dois lados.
     """
     antes = build_configuration(_motor(caminhos))
     caminho = caminhos["policy"]
@@ -168,10 +150,8 @@ def test_path_omitido_da_digest_vazio_e_mantem_versao_declarada():
 
 
 def test_o_caminho_nao_entra_no_config_id(caminhos, tmp_path):
-    # Path é ambiente, não regra. Duas cópias idênticas em diretórios
-    # diferentes têm de dar o mesmo config_id, senão a pergunta "estes dois
-    # registros foram decididos sob as mesmas regras?" passa a depender de
-    # onde cada máquina guardou os arquivos.
+    # Path é ambiente, não regra: duas cópias idênticas em diretórios diferentes
+    # têm de dar o mesmo `config_id`: `REGISTRO`, "Texto movido do código".
     outro = _copiar_config(tmp_path / "outro-lugar")
     assert caminhos["policy"] != outro["policy"]
     assert (build_configuration(_motor(caminhos))["config_id"]
@@ -195,10 +175,8 @@ def test_o_registro_de_check_carrega_o_bloco(caminhos):
 
 
 def test_a_tela_reconhece_configuration_e_nao_o_joga_em_unknown_fields():
-    # KNOWN_RECORD_KEYS existe para que um campo novo apareça em
-    # "unknown_fields" em vez de ser descartado -- degradação correta, mas é
-    # o balde do que a tela não sabe posicionar. Um campo que a tela **sabe**
-    # renderizar e mesmo assim cai ali é a tela mentindo sobre si mesma.
+    # Um campo que a tela **sabe** renderizar e mesmo assim cai em
+    # `unknown_fields` é a tela mentindo sobre si mesma.
     from ethical_agent.webui import audit_view
 
     record = {

@@ -21,11 +21,8 @@ ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 LOGS_DIR = ROOT / "logs"
 
-# ethical_agent isn't necessarily pip-installed yet at this point (that's
-# what ProgressPage is about to do) -- but ethical_agent.ollama_install is
-# plain stdlib code sitting on disk right next to this file, importable
-# straight from source the same way DemoPage already imports the rest of
-# the package after install.
+# `ethical_agent.ollama_install` é stdlib puro em disco ao lado deste arquivo,
+# importável de um checkout antes do pip install.
 sys.path.insert(0, str(ROOT))
 
 from ethical_agent._stdio import ensure_utf8_stdio  # noqa: E402
@@ -65,27 +62,10 @@ from ethical_agent.ollama_install import (  # noqa: E402
     write_env_model,
 )
 
-# AUDIT_PASSWORD_ENV_VAR arrives from ollama_install above, and the import
-# list is the whole reason it lives there: this installer runs on the *system*
-# Python, before the project has been pip-installed into the venv, so it can
-# only import what is importable from a bare checkout -- ollama_install is
-# (stdlib only), webui/auth is not. The key name used to be re-declared here
-# as its own literal for that reason.
-#
-# This installer is the only writer of the audit password anywhere in the
-# project. Nothing here, or in the package, ever writes an environment
-# variable -- which is why .env is the source that survived when the pair was
-# cut down to one.
-#
-# It says nothing about a leftover ETHICAL_AGENT_AUDIT_PASSWORD, deliberately.
-# The server refuses to start on one and explains why, and _launch_interface
-# prints that refusal verbatim; a second explanation here would be a second
-# text to keep true, and the one that must be right is the server's.
-
-# A server that is already up answers the first probe right away, so keep it
-# short -- the common Windows case is "installed but stopped", and spending
-# the full default timeout there only delays the `ollama serve` attempt.
-# Starting cold is slower than answering, hence the wider second budget.
+# `AUDIT_PASSWORD_ENV_VAR` vem de `ollama_install` porque este instalador roda
+# no Python do *sistema*, antes do pip install, e só pode importar o que um
+# checkout nu oferece — e ele é o único escritor da senha de auditoria em todo
+# o projeto: `REGISTRO`, "Texto movido do código".
 OLLAMA_PROBE_TIMEOUT = 3.0
 OLLAMA_START_TIMEOUT = 30.0
 
@@ -204,11 +184,9 @@ def _manual_launch_instructions() -> str:
 
 
 def _read_serve_error(path: Path, limit: int = 4000) -> str:
-    """The tail of the server's stderr, or "" if it cannot be read.
-
-    Swallows every error on purpose: failing to launch the interface is
-    never an install failure (see _launch_interface), and neither is failing
-    to explain why it did not launch.
+    """A cauda do stderr do servidor, ou "" se não der para ler, engolindo
+    todo erro de propósito: falhar ao abrir a interface nunca é falha de
+    instalação.
     """
     try:
         return path.read_text(encoding="utf-8", errors="replace").strip()[-limit:]
@@ -239,13 +217,9 @@ def _no_launch_env_requested() -> bool:
 
 
 def _is_headless() -> bool:
-    """Best-effort detection of "no human at the keyboard" environments.
-
-    wizard_gui.py itself is a Tkinter app, so a genuinely headless machine
-    (no display at all) would already fail to even open the wizard window --
-    this check exists for the in-between case of a display that is technically
-    present (e.g. Xvfb in CI) but where auto-launching a second GUI window is
-    still not something anyone will see.
+    """Detecção best-effort de ambiente sem humano no teclado, para o caso
+    intermediário de um display tecnicamente presente onde abrir uma segunda
+    janela ainda não serve a ninguém: `REGISTRO`, "Texto movido do código".
     """
     if any(os.environ.get(v) for v in _CI_ENV_VARS):
         return True
@@ -275,30 +249,14 @@ class WizardApp(tk.Tk):
         # Audit screen. Independent of the LLM choice above -- the audit trail
         # is written on every run, with or without a real model.
         self.audit_password_var = tk.StringVar(value="")
-        # This installer DEFINES an audit password; it never changes or
-        # removes one. Whoever runs an installer is not necessarily whoever
-        # is entitled to decide who may read the audit trail, and a field
-        # that silently overwrites makes those two the same person. Once
-        # .env has the key, the only way through is editing that file.
-        #
-        # The removal checkbox that used to live here went with the same
-        # rule: erasing a password is changing who can read the trail.
+        # Este instalador DEFINE uma senha de auditoria; nunca troca nem remove uma,
+        # porque quem roda um instalador não é necessariamente quem decide quem lê
+        # a trilha: `REGISTRO`, "Texto movido do código".
         self.install_ok = False
         self.llm_ready = False
-        # Snapshot das escolhas com que a instalação REALMENTE rodou, tirado
-        # em ProgressPage.on_show (thread principal). Serve a dois propósitos:
-        #
-        #  1. Variáveis Tk pertencem à thread do mainloop -- lê-las da thread
-        #     de instalação levanta "main thread is not in main loop", que
-        #     cairia no `except Exception` de _run_install e viraria uma falha
-        #     intermitente e sem diagnóstico no primeiro contato de quem for
-        #     avaliar o projeto. Estes são atributos Python comuns, seguros de
-        #     ler de qualquer thread.
-        #  2. O botão Voltar continua habilitado durante a instalação, então a
-        #     pessoa pode voltar às Opções e mexer nas caixas com o pip
-        #     rodando. Sem o snapshot, o rótulo de status e a tela final
-        #     descreveriam uma instalação diferente da que de fato rodou -- e
-        #     esse rótulo é a única coisa que ela lê no fim.
+        # Fotografia das escolhas com que a instalação REALMENTE rodou, tirada na
+        # thread principal: variável Tk pertence à thread do mainloop, e o botão
+        # Voltar continua habilitado durante a instalação — `REGISTRO`, "Texto movido do código".
         self.chosen_want_llm = False
         self.chosen_llm_mode = "local"
         self.chosen_model = DEFAULT_LOCAL_MODEL
@@ -374,11 +332,8 @@ class WizardApp(tk.Tk):
             self.destroy()
 
     def _launch_interface(self) -> None:
-        """Best-effort auto-launch of the web interface once install finishes.
-
-        Never treated as an install failure: any problem here is caught and
-        printed as a warning, with manual-launch instructions as a fallback,
-        and the wizard still exits with success.
+        """Abertura best-effort da interface web ao fim da instalação, nunca
+        tratada como falha de instalação.
         """
         if _is_headless():
             print(
@@ -388,24 +343,9 @@ class WizardApp(tk.Tk):
             print(_manual_launch_instructions())
             return
         port = DEFAULT_WEB_PORT
-        # The server's stderr goes to a file, not DEVNULL and not a PIPE.
-        #
-        # DEVNULL is where this used to send it, and it meant that a server
-        # refusing to start -- two audit passwords defined, the port already
-        # taken -- looked from here exactly like a slow one: "não respondeu a
-        # tempo", with the actual reason discarded a line before it was
-        # printed.
-        #
-        # A PIPE would fix that and introduce something worse: httphandler
-        # writes a line to stderr per request, nobody here ever drains it,
-        # and the web interface would freeze for good once the pipe buffer
-        # filled. A file has no such limit and can be read after the fact.
-        #
-        # The price, stated rather than discovered later: a server that comes
-        # up fine keeps appending one request line here for as long as it
-        # runs, where it used to write to DEVNULL. It is one file per
-        # installer run, in the system temp directory, and it buys the only
-        # channel through which a launch failure can explain itself at all.
+        # O stderr do servidor vai para um arquivo, não `DEVNULL` nem `PIPE`: com
+        # `DEVNULL` a recusa de subir parecia lentidão, e um `PIPE` que ninguém drena
+        # congelaria a interface quando o buffer enchesse — `REGISTRO`, "Texto movido do código".
         stderr_path = Path(tempfile.gettempdir()) / f"ethical-agent-serve-{os.getpid()}.log"
         try:
             stderr_file = open(stderr_path, "w", encoding="utf-8")
@@ -503,16 +443,9 @@ def _autowrap(widget: tk.Widget, container: tk.Widget, padding: int = 48) -> Non
 
 
 def _mono_font(bold: bool = False) -> object:
-    """A fonte fixa que o Tk garante existir no sistema em que está rodando.
-
-    Um family fixo é um palpite que falha calado: "Menlo" não existe no
-    Windows, o Tk cai no font padrão -- proporcional --, e o widget deixa de
-    ser monoespaçado sem que nada acuse. Importa onde a saída só lê alinhada:
-    o log do pip e do `ollama pull` aqui, o plano e o relatório do
-    desinstalador do outro lado.
-
-    Exige um root já criado, então isto é chamado de dentro dos construtores
-    de widget, nunca no import.
+    """A fonte fixa que o Tk garante existir no sistema, porque um family fixo
+    é um palpite que falha calado — o widget deixa de ser monoespaçado sem
+    nada acusar: `REGISTRO`, "Texto movido do código".
     """
     font = tkfont.nametofont("TkFixedFont").copy()
     font.configure(size=10, weight="bold" if bold else "normal")
@@ -590,13 +523,8 @@ class OptionsPage(_Page):
         venv_label.pack(padx=24, pady=(24, 12), anchor="w")
         _autowrap(venv_label, self)
 
-        # ttk e não tk, e com rótulo curto: o Checkbutton clássico desenha o
-        # próprio indicador, e em tela com escala fracionária (`tk scaling`
-        # 1.33 aqui) ele sai cortado -- um traço e meia caixinha, que se lê
-        # como terceiro estado. O ttk desenha pelo tema nativo do Windows e
-        # acerta em qualquer escala. Em troca ele não tem wraplength, então o
-        # texto longo que era rótulo virou a explicação logo abaixo -- que é
-        # onde ele já deveria estar.
+        # `ttk` e não `tk`, com rótulo curto: o Checkbutton clássico sai cortado em
+        # escala fracionária e se lê como terceiro estado — `REGISTRO`, "Texto movido do código".
         llm_check = ttk.Checkbutton(
             self,
             text="Configurar `ethical-agent process` com um modelo real via Ollama",
@@ -682,9 +610,8 @@ class OptionsPage(_Page):
 
         # -- audit screen ---------------------------------------------------
         #
-        # Its own section, outside llm_frame: the audit trail is written on
-        # every run regardless of the LLM choice, and hiding this behind that
-        # checkbox is how someone ends up never learning the screen exists.
+        # Seção própria, fora de `llm_frame`, porque a trilha é escrita em toda
+        # execução: `REGISTRO`, "Texto movido do código".
         audit_frame = tk.Frame(self)
         audit_frame.pack(padx=24, pady=(16, 0), anchor="w", fill="x")
 
@@ -727,29 +654,14 @@ class OptionsPage(_Page):
         self._sync_visibility()
 
     def on_show(self) -> None:
-        # Re-read on every visit: the page can be revisited with Back, and a
-        # reinstall over an existing setup is the whole reason this branch
-        # exists.
-        #
-        # Two states: there is a password in .env, or there is not. This
-        # screen says nothing about a leftover ETHICAL_AGENT_AUDIT_PASSWORD,
-        # on purpose -- explaining it in two places is two texts to keep true,
-        # and the one that has to be right is the server's, because it is the
-        # one that refuses. The installer surfaces that refusal verbatim when
-        # it launches the interface (see _launch_interface).
+        # Re-read on every visit: a página pode ser revisitada com Voltar, e
+        # esta tela não fala da variável de ambiente de propósito — quem
+        # recusa é o servidor: `REGISTRO`, "Texto movido do código".
         self._existing_audit_password = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
 
         if self._existing_audit_password:
-            # An audit password that already exists cannot be changed from
-            # here -- not by typing over it, not by removing it. The field is
-            # disabled rather than ignored: a box that accepts what you type
-            # and discards it is worse than no box, and it is the one shape
-            # this project treats as the worst kind of defect.
-            #
-            # The audit trail is the thing this password gates. Whoever runs
-            # an installer is not necessarily whoever is entitled to change
-            # who can read that trail, and a graphical field makes those two
-            # the same person by default.
+            # Senha já existente não pode ser trocada daqui, e o campo é desabilitado em
+            # vez de ignorado: `REGISTRO`, "Texto movido do código".
             self.audit_entry.config(state="disabled")
             self.app.audit_password_var.set("")
             self.audit_state_label.config(
@@ -807,12 +719,8 @@ class OptionsPage(_Page):
                     '"Ollama local", ou desmarque a opção acima.'
                 )
                 return False
-        # Nothing about the audit password blocks this screen any more. It
-        # either defines one, on a machine that has none, or it does nothing
-        # at all -- and a leftover ETHICAL_AGENT_AUDIT_PASSWORD is the
-        # server's business to complain about, in the one message that has to
-        # be right, rather than a second explanation here that has to be kept
-        # true alongside it.
+        # Nada sobre a senha bloqueia esta tela: ela define uma onde não há, ou não
+        # faz nada — a variável remanescente é assunto do servidor: `REGISTRO`, "Texto movido do código".
         self.validation_label.config(text="")
         return True
 
@@ -883,9 +791,8 @@ class ProgressPage(_Page):
 
     # -- runs on the background thread -------------------------------------
 
-    # O progresso viaja na mesma fila do log, como sentinela prefixada -- o
-    # mesmo canal que __DONE__/__LLM_OK__ já usavam. A thread de trabalho não
-    # toca em widget nenhum: quem move a barra é _poll_queue, na principal.
+    # O progresso viaja na mesma fila do log como sentinela prefixada, e a
+    # thread de trabalho não toca em widget nenhum.
 
     def _phase(self, key: str) -> None:
         self._queue.put(f"__PHASE__{key}")
@@ -965,17 +872,9 @@ class ProgressPage(_Page):
             self._queue.put("__FAILED__")
 
     def _apply_audit_password(self) -> bool:
-        """Defines an audit password, or leaves the existing one alone. Never
-        changes one, never removes one.
-
-        The immutability is enforced *here* and not only in the widget: the
-        options page disables the field, but it does so before the snapshot is
-        taken, and Back stays enabled during the install. A disabled widget is
-        a courtesy; the early return below is the rule.
-
-        Nothing here ever puts a value into the progress log -- only the path
-        of the file it went to, the same rule _run_llm_setup_cloud follows for
-        the Ollama key.
+        """Define uma senha de auditoria ou deixa a existente em paz; nunca troca
+        nem remove, e a imutabilidade é imposta **aqui** e não só no widget:
+        `REGISTRO`, "Texto movido do código".
         """
         ja_gravada = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
 
@@ -1003,14 +902,8 @@ class ProgressPage(_Page):
         return True
 
     def _record_env_key(self, key: str) -> None:
-        """Adds `key` to the install record's env_keys without dropping the
-        ones already there.
-
-        write_record merges field by field, but env_keys is a whole-field
-        replace (install_record.write_record): passing just this key would
-        erase an OLLAMA_API_KEY recorded by the LLM step, and vice versa. The
-        record is what the uninstaller reads to say what it would remove, so
-        losing an entry there means silently under-reporting.
+        """Acrescenta `key` ao `env_keys` do registro sem derrubar as que já
+        estão lá, porque `env_keys` é substituição de campo inteiro.
         """
         existing = read_record(ROOT)
         keys = tuple(existing.env_keys) if existing else ()
@@ -1042,12 +935,8 @@ class ProgressPage(_Page):
 
         self._phase(PHASE_OLLAMA)
         ollama_exe = find_ollama_exe()
-        # Este é o único instante em que "havia um Ollama aqui antes?" é
-        # observável, e é o que decide, numa desinstalação futura, se remover
-        # o servidor é seguro. Gravado já, e não no fim: se o pull falhar
-        # adiante e a função retornar cedo, a observação continua valendo --
-        # e uma instalação que falhou no meio é justamente quando alguém vai
-        # querer desinstalar.
+        # Este é o único instante em que "havia um Ollama aqui antes?" é observável, e
+        # é gravado já, não no fim: `REGISTRO`, "Texto movido do código".
         write_record(ROOT, InstallRecord(ollama_was_present_before=ollama_exe is not None))
         if ollama_exe is None:
             ollama_exe = self._install_ollama_server()
@@ -1090,12 +979,8 @@ class ProgressPage(_Page):
         self._queue.put("__LLM_OK__")
 
     def _start_ollama_server(self, ollama_exe: Path) -> bool:
-        """Last resort before degrading: nothing has started the server yet.
-
-        On Windows the Ollama app only comes up as a login item, so "installed
-        but stopped" is the usual state -- and the old code went straight from
-        a timed-out probe to the "modelo real não configurado" warning with
-        nothing actually missing.
+        """Último recurso antes de degradar: no Windows o Ollama só sobe como
+        item de login, e "instalado mas parado" é o estado usual: `REGISTRO`, "Texto movido do código".
         """
         self._queue.put(
             "O servidor não respondeu -- tentando iniciar `ollama serve` em segundo plano...\n"
@@ -1324,11 +1209,8 @@ class ProgressPage(_Page):
         self.after(80, self._poll_queue)
 
     def _apply_progress_sentinel(self, item: str) -> bool:
-        """Feeds one progress sentinel to the tracker, or reports it isn't one.
-
-        The queue carries pip and `ollama pull` output in this same channel,
-        so a line that merely looks like a sentinel has to fall through to the
-        log rather than disappear.
+        """Consome uma sentinela de progresso ou reporta que não é uma — a fila
+        carrega a saída do pip no mesmo canal, então quase-sentinela cai no log.
         """
         tracker = self._tracker
         if tracker is None:

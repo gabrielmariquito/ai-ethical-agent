@@ -6,13 +6,8 @@ from ethical_agent import LLMClient
 
 
 class ProgressReportingLLM(LLMClient):
-    """Wraps another LLMClient purely to report phase transitions for the
-    chat job's polling status: generation is in flight until .chat() returns,
-    then the guardrail is verifying the output. Delegates every call
-    unchanged and never inspects or alters messages/response -- it observes
-    the boundary GuardedAgent(llm=...) already exposes by dependency
-    injection, it does not duplicate any branch of GuardedAgent.process()
-    (DENY/REWRITE/etc), so it cannot affect what gets decided.
+    """Envolve outro `LLMClient` só para reportar transição de fase, sem tocar
+    no conteúdo.
     """
 
     def __init__(self, inner: LLMClient, on_phase: Callable[[str], None]):

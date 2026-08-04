@@ -57,27 +57,10 @@ _SEVERITY_RANK = {
 }
 
 
-# The closed vocabulary of ethical principles a rule or norm may claim.
-#
-# This is CHECKED, not merely declared: Rule.from_dict (policy.py) and the
-# norm/concept loaders (ontology.py) reject anything outside it, listing the
-# offending id. For a long time nothing read this frozenset, and the name
-# promised a validation that did not happen -- a rule could say
-# principle: "beneficencia" (misspelt) and load without a word, then group
-# under a heading no report expects. A principle nobody recognises is a rule
-# nobody can classify; failing to load is the right answer, the same way an
-# invalid severity or scope already fails.
-#
-# `beneficence` is deliberately here and deliberately unused today: no rule in
-# policies/core_policy.json and no norm in ontologies/relaieo_norms.json
-# claims it. It is reserved -- shrinking a vocabulary because nothing has
-# needed it yet is a policy decision, not a cleanup.
-#
-# NOT applied to the eval datasets. `eval/dataset*.json` also has a
-# "principle" field, but that is a different vocabulary that happens to share
-# a name: evaluate_engine reads it only to group the report, and its most
-# common value is "benign", meaning "no principle applies -- this case should
-# pass". Validating datasets against this set would be a category error.
+# O vocabulário fechado de princípios que uma regra ou norma pode reivindicar,
+# VERIFICADO e não apenas declarado; `beneficence` está reservado de propósito,
+# e isto **não** se aplica aos datasets de avaliação, cujo campo `principle` é
+# outro vocabulário com o mesmo nome — `REGISTRO`, "Texto movido do código".
 KNOWN_PRINCIPLES = frozenset(
     {
         "non_maleficence",
@@ -106,11 +89,8 @@ class Evidence:
         }
 
     def without_matched_text(self) -> "Evidence":
-        """Drop the literal matched substring, keeping only where it was found.
-
-        Used for rules that redact their own match (e.g. PII rewrite rules):
-        the point of redaction is defeated if the raw value survives in the
-        verdict/audit trail via evidence.
+        """Descarta o trecho casado, mantendo só onde ele foi encontrado, porque
+        a redação é derrotada se o valor bruto sobreviver na trilha.
         """
         return Evidence(description=self.description, span=self.span)
 
@@ -212,12 +192,9 @@ class Verdict:
 
     @property
     def suppresses_raw_content(self) -> bool:
-        """True when this REWRITE was (at least partly) caused by a
-        redact=True rule -- in that case pre-rewrite raw content must never
-        be retained anywhere (trace/audit), even if another fired rule also
-        has a rewrite_template (redaction is sticky: it wins). REWRITE
-        caused purely by rewrite_template rules must NOT suppress raw
-        content -- auditors need the original for those.
+        """Verdadeiro quando esta REWRITE veio (ao menos em parte) de uma regra
+        `redact`, e nesse caso o conteúdo bruto anterior nunca pode ser retido
+        em lugar nenhum — redação é pegajosa e vence: `REGISTRO`, "Texto movido do código".
         """
         return self.decision is Decision.REWRITE and any(
             m.redacted for m in self.matches

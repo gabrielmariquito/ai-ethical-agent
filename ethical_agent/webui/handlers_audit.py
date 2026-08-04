@@ -10,23 +10,14 @@ from .auditor_log import EVENT_TYPES, event_type_catalog, sanitize_payload
 from .auth import AUDIT_SESSION_COOKIE, SESSION_TTL_SECONDS
 from .errors import ApiError, bad_request
 
-# The audit screen's HTTP surface. Every route below declares realm="audit"
-# and (except login) requires_session=True; both are enforced centrally in
-# routing.match / httphandler._authorize, so nothing in this file re-checks
-# them. With no password configured, none of these paths exist at all -- for
-# any method -- which is the whole access separation.
-#
-# This module reads the trail and presents it. It never recomputes a verdict
-# and never re-evaluates content: every decision shown here was made by
-# ethical_agent/ when the record was written.
+# A superfície HTTP da tela de auditoria: toda rota declara `realm="audit"` e
+# sessão obrigatória, ambos impostos centralmente, então nada aqui reconfere —
+# `REGISTRO`, "Texto movido do código".
 
 def _audit_log_path(state) -> Path:
-    """Always the trail the server was started with -- never a path from the
-    request. The chat handlers do accept a per-request audit_log because the
-    config panel can point them somewhere else; doing the same here would
-    hand an authenticated auditor a file-existence-and-contents oracle for
-    anything the process can read. The screen displays this path, read-only,
-    so the auditor knows exactly which trail they are looking at."""
+    """Sempre a trilha com que o servidor subiu, nunca um caminho vindo da
+    requisição, que daria ao auditor um oráculo de arquivos.
+    """
     return Path(state.initial_config.get("audit_log") or "logs/audit.jsonl")
 
 
@@ -312,18 +303,9 @@ def get_conversation(state, params, body):
             continue
         matched.append((offset, record))
         if record.get("turn_index") == 1:
-            # Reached this conversation's first turn; nothing earlier to
-            # find. Same early stop archive.build_readonly_transcript uses,
-            # and what keeps this bounded on a months-long trail.
-            #
-            # Known limitation, stated rather than hidden: if the trail
-            # somehow holds *two* turn_index == 1 records for one
-            # conversation, the scan stops at the newer one and the older is
-            # not collected, so turn_index_duplicates cannot report a
-            # duplicate first turn (it does report duplicates at any later
-            # turn). Detecting that would mean scanning past the start of
-            # every conversation on the chance of a duplicate that
-            # uuid4-keyed conversation ids make vanishingly unlikely.
+            # Chegou ao primeiro turno desta conversa; mesma parada antecipada que
+            # `archive.build_readonly_transcript` usa, com a limitação declarada em vez
+            # de descoberta depois: `REGISTRO`, "Texto movido do código".
             complete = True
             break
 
@@ -404,16 +386,9 @@ def post_telemetry(state, params, body):
 
 @routing.route("POST", "/api/audit/change-requests", realm="audit", requires_session=True)
 def post_change_request(state, params, body):
-    """"This should be different", anchored to one record and one rule.
-
-    Records intent; changes nothing. The next change turns these into actual
-    policy edits with versioning and history -- which is exactly why the
-    payload is fixed now (event_id + rule_id + optional note) and why they
-    go to their own file rather than into the behavioural telemetry.
-
-    The note is optional in earnest: no validation, no required flag. An
-    auditor forced to justify every marking produces justifications about
-    being asked, not about the rule.
+    """"Isso deveria ser diferente", ancorado a um registro e uma regra:
+    registra intenção e não muda nada, e o payload é fixado agora porque é o
+    que a edição de política vai precisar: `REGISTRO`, "Texto movido do código".
     """
     session_id = params["_session_id"]
     record_event_id = body.get("record_event_id")

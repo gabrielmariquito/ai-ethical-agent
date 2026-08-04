@@ -1,22 +1,6 @@
-"""KNOWN_PRINCIPLES é verificado, não apenas declarado.
-
-O frozenset existia em types.py sem nenhum leitor. O nome prometia uma
-validação que não acontecia: uma regra podia declarar
-`principle: "beneficencia"` -- com erro de grafia -- e carregar sem uma
-palavra, depois agrupar num cabeçalho que nenhum relatório espera. Aceitação
-silenciosa de algo que ninguém reconhece.
-
-A medição que decidiu isto: policies/core_policy.json (6 princípios distintos),
-ontologies/relaieo_norms.json (5) e relaieo._PRINCIPLE_BY_CONCEPT (6) já usavam
-exclusivamente os 8. Validar não rejeita nada que hoje passa; o risco é sobre
-política futura ou de terceiros, e para essas falhar ao carregar é o
-comportamento certo.
-
-A FRONTEIRA que estes testes escrevem: os datasets de avaliação também têm um
-campo "principle", e o valor mais comum neles é "benign". É outro vocabulário
-com o mesmo nome de campo -- evaluate_engine o lê só para agrupar o relatório,
-e "benign" quer dizer "nenhum princípio se aplica". Validar dataset contra
-KNOWN_PRINCIPLES seria erro de categoria, e é por isso que não se faz.
+"""`KNOWN_PRINCIPLES` é verificado e não apenas declarado, e a fronteira que
+estes testes escrevem é que o campo `principle` dos datasets é **outro**
+vocabulário com o mesmo nome — validá-los seria erro de categoria: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations
@@ -135,9 +119,8 @@ def test_the_shipped_policy_and_ontology_still_load():
 @pytest.mark.parametrize("dataset", sorted((REPO / "eval").glob("dataset*.json")))
 def test_datasets_are_not_validated_against_the_principle_vocabulary(dataset):
     # "benign" é o valor mais comum nos datasets e NÃO está em
-    # KNOWN_PRINCIPLES, de propósito: ali o campo quer dizer "nenhum princípio
-    # se aplica". Se alguém um dia aplicar esta validação aos datasets, este
-    # teste é o que explica por que não deve.
+    # `KNOWN_PRINCIPLES`, de propósito: ali quer dizer "nenhum princípio se
+    # aplica": `REGISTRO`, "Texto movido do código".
     cases = json.loads(dataset.read_text(encoding="utf-8"))["cases"]
     used = {c.get("principle") for c in cases if c.get("principle")}
     assert used - KNOWN_PRINCIPLES, (

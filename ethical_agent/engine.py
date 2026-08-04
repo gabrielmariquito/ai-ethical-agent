@@ -23,24 +23,16 @@ class PolicyEngine(ABC):
         ...
 
     def describe_config(self) -> dict:
-        """Identify the configuration version(s) behind this engine's verdicts.
-
-        Used to tag audit records (which store sensitive inputs/outputs) with
-        exactly which policy/ontology version produced them.
-
-        This reports **declared** versions only. What was actually loaded is
-        `config_artifacts` -- see provenance.py for why both exist.
+        """Identifica a(s) versão(ões) de configuração por trás dos vereditos,
+        para carimbar registros de auditoria — reporta versão **declarada**,
+        e o que foi de fato carregado está em `config_artifacts`: `REGISTRO`, "Texto movido do código".
         """
         return {}
 
     def config_artifacts(self) -> List[ConfigArtifact]:
-        """The configuration files behind this engine's verdicts, **flat**.
-
-        Flat, not nested by child engine, even for CompositeEngine: the
-        configuration governing a decision is one thing regardless of how many
-        engines voted, and a per-engine list would rebuild in artifacts[] the
-        same nesting that config_versions already forces the audit screen to
-        special-case (audit_view.config_versions_shape).
+        """Os arquivos de configuração por trás dos vereditos, **planos** mesmo
+        no `CompositeEngine`, porque a configuração que governa uma decisão é
+        uma coisa só: `REGISTRO`, "Texto movido do código".
         """
         return []
 
@@ -90,12 +82,8 @@ class RuleBasedEngine(PolicyEngine):
                     )
                     if successor is Decision.ALLOW:
                         continue
-                    # The trigger evidence, not the exception's: it is the
-                    # trigger that justifies whatever effect survives, and the
-                    # exception's own evidence already travels in the
-                    # SuppressedMatch above. Handing the exception evidence to
-                    # the match would leave a REWRITE explained by the word
-                    # that was supposed to relax it.
+                    # A evidência do gatilho, não a da exceção: é o gatilho que justifica o
+                    # efeito que sobreviver — `REGISTRO`, "Texto movido do código".
                     fired.append((rule, successor, evidence))
                     continue
             fired.append((rule, rule.effect, evidence))
@@ -181,12 +169,8 @@ class RuleBasedEngine(PolicyEngine):
         for rule, evidence in rewrite_rules:
             if not rule.redact:
                 continue
-            # Redaction must be complete even beyond MAX_EVIDENCE/
-            # MAX_GROUND_EVIDENCE: re-scan this rule's condition without a
-            # cap. `evidence` above (possibly capped) is only for what gets
-            # reported in the verdict/audit trail; this unbounded re-scan is
-            # only reached for fired redact rules, once decision is already
-            # REWRITE, so the hot/common evaluation path stays capped/cheap.
+            # A redação tem de ser completa mesmo além do teto de evidências, então esta
+            # varredura é sem limite — `REGISTRO`, "Texto movido do código".
             full_evidence = rule.condition.evaluate(content, limit=None)
             for item in full_evidence:
                 if item.span is not None:
@@ -195,12 +179,8 @@ class RuleBasedEngine(PolicyEngine):
                     )
 
         if redactions:
-            # Merge overlapping/nested spans into unified intervals before
-            # substitution -- clipping a span against a single "already
-            # redacted" watermark discards content when a later-processed
-            # span is fully contained in an earlier one (its own
-            # non-overlapping tail would otherwise survive). Strict `<`
-            # means touching-but-non-overlapping spans stay separate tags.
+            # Funde spans sobrepostos em intervalos unificados antes de substituir, senão
+            # conteúdo é descartado — `REGISTRO`, "Texto movido do código".
             redactions.sort(key=lambda r: (r[0], r[1]))
             merged: List[List] = []  # [start, end, [(severity_rank, rule_id), ...]]
             for start, end, rule_id, sev in redactions:
@@ -209,13 +189,8 @@ class RuleBasedEngine(PolicyEngine):
                     merged[-1][2].append((sev, rule_id))
                 else:
                     merged.append([start, end, [(sev, rule_id)]])
-            # Build the result in one left-to-right pass over the untouched
-            # `content` (merged groups are already non-overlapping and
-            # sorted ascending) instead of repeatedly slicing/rebuilding the
-            # whole string per redaction -- the latter is O(matches x
-            # content length) and becomes the dominant cost once redaction
-            # is no longer capped at MAX_EVIDENCE (tens of seconds on tens
-            # of thousands of matches).
+            # Uma passada só da esquerda para a direita sobre o `content` intacto, em
+            # vez de refatiar por redação, que seria O(matches × tamanho).
             pieces = []
             cursor = 0
             for start, end, contributors in merged:

@@ -1,8 +1,5 @@
-"""Tests for ethical_agent/install_record.py.
-
-The record only ever makes the uninstaller more cautious or better informed,
-so the important behaviours here are the *degenerate* ones: a missing file, a
-corrupt file and a failed write all have to be non-events.
+"""Testes de `install_record.py`, cujos comportamentos importantes são os
+**degenerados** — arquivo ausente, corrompido ou escrita falha são não-eventos.
 """
 
 import json

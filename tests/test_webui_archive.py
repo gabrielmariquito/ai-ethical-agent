@@ -49,10 +49,8 @@ def _chat_record(conversation_id, turn_index, text, timestamp, **extra):
 
 
 def _write_raw(tmp_path, text):
-    # write_text()/open("w") on Windows translates "\n" -> os.linesep by
-    # default (universal newlines) -- newline="" here writes exactly the
-    # bytes in `text`, so these tests control LF vs. CRLF precisely instead
-    # of getting whatever the host platform's default happens to be.
+    # `newline=""` escreve exatamente os bytes de `text`, em vez do que a
+    # tradução universal de fim de linha do Windows faria: `REGISTRO`, "Texto movido do código".
     path = tmp_path / "f.txt"
     with path.open("w", encoding="utf-8", newline="") as handle:
         handle.write(text)
@@ -87,18 +85,15 @@ def test_iter_lines_reverse_skips_blank_lines(tmp_path):
 
 
 def test_iter_lines_reverse_tolerates_crlf(tmp_path):
-    # AuditLogger.log() opens the file in default text mode, which
-    # translates "\n" to os.linesep -- "\r\n" on Windows -- so a real trail
-    # on this platform is CRLF-separated; confirmed directly against
-    # AuditLogger.log()'s actual output, not assumed.
+    # `AuditLogger.log()` abre em modo texto default, então uma trilha real nesta
+    # plataforma é separada por CRLF — conferido contra a saída, não suposto.
     path = _write_raw(tmp_path, "a\r\nb\r\nc\r\n")
     assert list(_iter_lines_reverse(path)) == ["c", "b", "a"]
 
 
-# --------------------------------------------------------- byte offsets
-# The audit screen pages backward with a byte offset as its cursor and jumps
-# straight to one record without rescanning, so an offset that is off by even
-# one byte silently returns the wrong record.
+# Deslocamentos em bytes: a tela pagina para trás usando byte offset como
+# cursor, então um offset errado por um byte devolve o registro errado em
+# silêncio: `REGISTRO`, "Texto movido do código".
 
 
 def test_offsets_point_at_the_first_byte_of_each_line(tmp_path):
@@ -206,12 +201,9 @@ def test_summarize_conversations_respects_limit_and_reports_truncated(tmp_path):
 
 
 def test_summarize_conversations_stops_scanning_without_reading_whole_file(tmp_path):
-    # A huge amount of non-matching noise sits BEFORE (earlier in the file
-    # than) 3 matching conversations near the end -- the function must not
-    # need to read back through all of it to find `limit` conversations.
-    # (`truncated` is True here by design: reaching `limit` and reaching the
-    # scan cap look the same from the caller's side -- neither proves
-    # there's nothing older left. See summarize_conversations' docstring.)
+    # Muito ruído sem correspondência ANTES de 3 conversas no fim, para que a
+    # função não precise reler tudo. `truncated` é True aqui por desenho:
+    # atingir o limite e atingir o teto de varredura são indistinguíveis: `REGISTRO`, "Texto movido do código".
     noise = [{"status": "ok", "engine": "rule-based", "input": "noise", "input_verdict": _verdict("ALLOW")}] * 10_000
     real = [_chat_record(f"c{i}", 1, f"msg {i}", f"2026-01-01T00:00:{i:02d}+00:00") for i in range(3)]
     path = _write(tmp_path, noise + real)

@@ -1,19 +1,6 @@
-// "Isso deveria ser diferente" -- the seam the next change grows from.
-//
-// Today this records intent and changes nothing. It exists now so that the
-// policy-editing change does not have to invent the anchor point: a marking
-// is (record event_id, rule_id, optional note), which is exactly what an
-// edit will need in order to say what it was reacting to.
-//
-// Two things the wording has to carry, both for research validity:
-//
-// 1. Nothing changes. An auditor who believes they just fixed a rule will
-//    judge the following records against a policy that did not move, and
-//    every observation after that point is contaminated.
-//
-// 2. The note is optional in earnest -- no asterisk, no validation, no
-//    disabled submit. Forcing a justification produces justifications about
-//    being asked for one.
+// "Isso deveria ser diferente" — registra intenção e não muda nada, e as duas
+// coisas que a redação carrega são de validade de pesquisa:
+// REGISTRO, "Texto movido do código".
 
 import { postJSON } from "../api.js";
 import { track } from "./audit-telemetry.js";

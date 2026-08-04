@@ -1,8 +1,6 @@
-"""Pure record-shaping for the audit screen -- no server, no I/O.
-
-The point of these is that a reader of a months-old trail meets record
-shapes the screen was not written for, and must degrade legibly instead of
-crashing or silently dropping what it does not recognise.
+"""Moldagem pura de registro para a tela de auditoria, cujo ponto é que uma
+trilha de meses traz formas que a tela não previu e ela tem de degradar
+legivelmente: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -222,11 +220,8 @@ def test_preview_falls_back_to_message_when_there_is_no_input():
 
 
 def test_matched_text_policy_reports_which_stage_was_redacted():
-    # All that survives of this helper. It used to carry five more fields,
-    # feeding an in-screen note about the matched_text asymmetry; the note
-    # was removed and they went with it, so the tests for them were deleted
-    # rather than adapted. What the screen still needs is the stage: only an
-    # *output* rewrite has a "text before the rewrite" to offer.
+    # Tudo que sobrou deste helper; o que a tela ainda precisa é o estágio,
+    # porque só reescrita de *saída* tem "texto antes da reescrita": `REGISTRO`, "Texto movido do código".
     redacted = {
         "output_verdict": verdict(
             "REWRITE",

@@ -20,17 +20,9 @@ def new_conversation(state, params, body):
 
 @routing.route("GET", "/api/chat/conversations/{conversation_id}")
 def get_conversation(state, params, body):
-    """Used only for the frontend's post-reload reconciliation (see
-    static/js/chat.js): the browser never trusts its sessionStorage mirror of
-    a conversation without checking this first.
-
-    Deliberately not /api/chat/{conversation_id}: that single-segment
-    wildcard would collide with the sibling literal paths /api/chat/new and
-    /api/chat/message (a GET to either would incorrectly match this route,
-    treating "new"/"message" as a conversation_id) -- routing.py matches
-    patterns in registration order without any literal-vs-wildcard
-    precedence, so overlapping single-segment routes must be avoided instead
-    of relied on to sort themselves out.
+    """Usado só na reconciliação do frontend após recarga: o navegador nunca
+    confia no espelho de `sessionStorage` sem conferir aqui, e a rota não é
+    `/api/chat/{id}` porque o curinga engoliria os literais irmãos: `REGISTRO`, "Texto movido do código".
     """
     turn_count = state.conversations.turn_count(params["conversation_id"])
     if turn_count is None:
@@ -116,12 +108,8 @@ def _run_turn(state, conversation_id: str, text: str, config: dict, job_id: str)
                 turn_index=turn_index,
             )
 
-            # Invariant carried over from gui_app.py's ProcessTab.on_done:
-            # append unconditionally, before any formatting/serialization
-            # that could raise -- agent.process() already wrote the audit
-            # record (inside _finish()) before returning, so the in-memory
-            # history and the audit trail's turn_index must stay 1:1
-            # regardless of what happens below.
+            # Invariante herdada do antigo `gui_app.py`: acrescenta incondicionalmente,
+            # antes de qualquer serialização que possa levantar.
             history_list.append(result)
 
             notices = audit_notice_lines(audit, init_warning)

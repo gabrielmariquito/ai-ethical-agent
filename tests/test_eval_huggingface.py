@@ -20,12 +20,9 @@ def _hybrid_engine():
 
 
 def test_huggingface_dataset_loads_and_runs():
-    # Third-party dataset (deepset/prompt-injections, Apache 2.0), converted
-    # offline and committed here so this
-    # test doesn't need network access. Like dataset_holdout.json, it's
-    # expected to score far below eval/dataset.json (see README) -- no
-    # accuracy floor enforced, this only guards against the dataset/engine
-    # breaking.
+    # Dataset de terceiros (deepset/prompt-injections, Apache 2.0), convertido
+    # offline e commitado para dispensar rede; sem piso de acurácia, isto guarda
+    # só contra dataset/motor quebrarem: `REGISTRO`, "Texto movido do código".
     cases = load_dataset(DATASET)
     assert len(cases) >= 500
 

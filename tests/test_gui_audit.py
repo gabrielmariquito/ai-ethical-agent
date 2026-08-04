@@ -79,9 +79,5 @@ def test_build_check_audit_record_input_stage_always_retains_input():
     assert "input_verdict" in record
 
 
-# The former gui_app.py-source-text tests that used to live here
-# (test_gui_app_no_longer_defines_its_own_check_audit_record,
-# test_gui_app_uses_shared_llm_provenance_helpers) are superseded by
-# behavioral equivalents that hit the real web endpoints instead of grepping
-# source text: tests/test_webui_check.py::test_check_endpoint_uses_shared_audit_record_builder
-# and tests/test_webui_chat.py::test_chat_response_includes_llm_provenance_text.
+# Os testes de texto-fonte sobre o antigo `gui_app.py` que moravam aqui foram
+# superados por equivalentes comportamentais contra os endpoints reais.

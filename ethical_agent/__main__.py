@@ -38,13 +38,8 @@ from .relaieo import (
 )
 from .types import ActionContext, Stage
 
-# If the wizard installed a local model it recorded it in <repo root>/.env
-# (OLLAMA_MODEL=...); default to that instead of a model that was never
-# actually pulled. `parent.parent`
-# only lands on the repo root for an editable checkout (the wizard's own
-# install flow) -- for a non-editable install it resolves inside
-# site-packages, where no .env exists, so this just falls back to the
-# previous hardcoded default.
+# Se o wizard instalou um modelo local ele o gravou no `.env`; usar isso evita
+# defaultar para um modelo que nunca foi baixado — `REGISTRO`, "Texto movido do código".
 _DEFAULT_MODEL = read_env_model(Path(__file__).resolve().parent.parent, DEFAULT_LOCAL_MODEL)
 
 
@@ -113,27 +108,15 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def dataset_curado() -> Path:
-    """The curated in-distribution set, which is never split.
-
-    Resolved from the package, not matched by file name: two different files
-    can be called dataset.json, and the one that must not be split is *this*
-    one.
+    """O conjunto curado in-distribution, que nunca é dividido, resolvido pelo
+    pacote e não por nome de arquivo.
     """
     return (default_policy_path().parents[1] / "eval" / "dataset.json").resolve()
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
-    # Intentionally never audited: this runs hundreds of synthetic dataset
-    # cases directly against the engine, and logging them would swamp the
-    # real usage trail with non-real data. args.audit_log exists on this
-    # namespace (it's a global arg) but is never read here.
-    #
-    # eval/dataset.json is not divided. It is the curated set, written by the
-    # author of the rules being tested -- in-distribution by construction, so a
-    # "holdout" carved out of it would measure nothing while looking exactly
-    # like a generalisation claim. It is reported whole and separately. The
-    # refusal is loud rather than a silent fallback to `full`, because a number
-    # labelled `holdout` that is not one is worse than no number.
+    # Deliberadamente nunca auditado: são centenas de casos sintéticos direto no
+    # motor, e registrá-los afogaria a trilha de uso real.
     if args.half != "full" and Path(args.dataset).resolve() == dataset_curado():
         print(
             f"erro: {args.dataset} não é dividido -- é o conjunto curado "
@@ -269,13 +252,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
         "engine": args.engine,
         "audit_log": args.audit_log,
         "model": _DEFAULT_MODEL,
-        # Web-UI-only default -- the CLI's own `process --mock` stays an
-        # explicit opt-in flag, untouched (see cmd_process below). resolve_llm
-        # already falls back to MockLLM (kind="mock_fallback") if the real
-        # model can't be reached, so this doesn't risk a hard failure; it
-        # just means someone opening the chat for the first time gets a real
-        # answer when Ollama is there, instead of a canned string they'd have
-        # to notice and turn off manually.
+        # Default só da interface web; o `--mock` da CLI continua opt-in explícito e
+        # `resolve_llm` já cai para `MockLLM` sozinho.
         "mock": False,
     }
     # The password goes in as its own argument, never through initial_config:
@@ -289,13 +267,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
             change_requests_log=args.change_requests_log,
         )
     except PortInUseError:
-        # Until this was caught, a second `serve` on a busy port did not
-        # fail at all on Windows: it bound alongside the first, printed a
-        # perfectly correct banner, and left the browser talking to the
-        # older process. Whatever that first server was started with -- an
-        # audit password or not -- is what the browser actually gets, which
-        # is how a banner saying "Auditoria: habilitada" ends up next to a
-        # nav item that says the opposite.
+        # Até isto ser pego, um segundo `serve` em porta ocupada não falhava no
+        # Windows: ligava ao lado do primeiro e deixava o navegador falando com o
+        # processo antigo — `REGISTRO`, "Texto movido do código".
         from .uninstall import web_ui_running
 
         print(f"error: a porta {args.port} já está em uso.", file=sys.stderr)

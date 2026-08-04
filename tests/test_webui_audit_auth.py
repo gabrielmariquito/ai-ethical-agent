@@ -1,10 +1,6 @@
-"""Access separation for the audit screen.
-
-The requirement these tests encode is that the separation is *structural*,
-not visual: hiding a link would not do, because the server is local and
-anyone can reach an endpoint from the URL bar or devtools. So with no
-password configured the audit surface must not merely refuse -- it must be
-indistinguishable from a path that was never registered, for every method.
+"""Separação de acesso da tela de auditoria, exigida como **estrutural** e não
+visual: sem senha configurada a superfície tem de ser indistinguível de um
+caminho nunca registrado, em todo método: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -72,10 +68,8 @@ def test_audit_api_requires_password_when_configured(audit_server):
 
 
 def test_audit_endpoints_do_not_exist_in_chat_mode(chat_server):
-    # The reference 404s: one for an unregistered API path, one for a missing
-    # static file (the two answer with different wording, so each gated
-    # surface has to match the right one -- a distinctive body would itself
-    # announce that the thing exists and is merely switched off).
+    # Os 404 de referência: um de rota de API inexistente e um de arquivo
+    # estático ausente — corpo distintivo já anunciaria que a coisa existe.
     _, api_404, _ = chat_server.request("GET", "/api/does-not-exist")
     _, static_404, _ = chat_server.request("GET", "/static/js/nope.js")
 
@@ -106,11 +100,9 @@ def test_audit_endpoints_do_not_exist_in_chat_mode(chat_server):
 
 
 def test_audit_wrong_method_is_404_not_405_in_chat_mode(chat_server):
-    # The regression this guards: _dispatch marks path_known from any pattern
-    # that matches, ignoring the method. If the realm were filtered after
-    # that, a POST to a GET-only audit path would answer 405 and confirm the
-    # route exists. The gate has to happen inside routing.match(), before
-    # path_known is set.
+    # A regressão que isto guarda: `_dispatch` marca `path_known` por qualquer
+    # padrão que case, ignorando o método, então o portão tem de acontecer
+    # dentro de `routing.match()`: `REGISTRO`, "Texto movido do código".
     status, body, _ = chat_server.post("/api/audit/records", {})
     assert status == 404, body
     assert body["error"] == "not_found"
@@ -259,12 +251,8 @@ def test_non_ascii_password_round_trips(tmp_path):
         server.close()
 
 
-# -- the three password sources and their order ------------------------------
-#
-# Every one of these passes root=tmp_path explicitly. The default is the real
-# repository root, so a developer who has configured an audit password for
-# themselves -- which this feature now makes easy -- would otherwise watch
-# these tests start failing for reasons that have nothing to do with the code.
+# As três fontes de senha e sua ordem; todos passam `root=tmp_path` explícito
+# porque o default é a raiz real do repositório: `REGISTRO`, "Texto movido do código".
 
 
 def _dotenv(root, value):
@@ -289,11 +277,8 @@ def test_password_file_takes_precedence_over_env_var(tmp_path):
 
 
 def test_the_env_var_is_not_a_password_source_any_more(tmp_path):
-    # It was, and it outranked .env. What replaced it is not "the variable
-    # loses" -- it is not read at all, so leaving it set has to be refused
-    # rather than ignored: someone who exported it believes they configured
-    # a password, and silence would take the audit screen away without ever
-    # telling them.
+    # A variável não perde: ela não é lida, então deixá-la setada tem de ser
+    # recusado e não ignorado: `REGISTRO`, "Texto movido do código".
     with pytest.raises(AuditPasswordError) as excinfo:
         load_audit_password(
             None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=tmp_path
@@ -331,10 +316,8 @@ def test_a_leftover_variable_that_disagrees_with_dotenv_is_refused(tmp_path):
 
 
 def test_a_leftover_variable_that_repeats_the_dotenv_password_is_silent(tmp_path):
-    # Nothing is ambiguous, so there is nothing to refuse -- and this is the
-    # state python-dotenv's load_dotenv() can produce on its own by copying
-    # .env into os.environ, which a presence-only rule would refuse over one
-    # password seen twice.
+    # Nada é ambíguo, logo não há o que recusar — e é o estado que o
+    # `load_dotenv()` produz sozinho.
     password, source, _ = load_audit_password(
         None,
         {"ETHICAL_AGENT_AUDIT_PASSWORD": "a-mesma"},

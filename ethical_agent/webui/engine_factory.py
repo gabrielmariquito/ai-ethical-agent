@@ -17,15 +17,8 @@ from ethical_agent.audit import audit_init_failure_message
 
 from .state import _WebAuditLogger
 
-# ---------------------------------------------------------------------------
-# Mirrors __main__.py's _build_engine / _build_llm exactly (the same thin
-# dispatch wrappers the former gui_app.py duplicated as build_engine /
-# build_llm) -- no guardrail logic lives here, only construction of the
-# already-imported classes. A third copy of this pattern is the established
-# convention in this project (see ethical_agent/agent.py's own comments on
-# why CLI/GUI drift happened before build_check_audit_record existed); it
-# stays this thin on purpose.
-# ---------------------------------------------------------------------------
+# Espelha o `_build_engine`/`_build_llm` do `__main__.py`, sem nenhuma lógica de
+# guardrail — só construção, e fica fino de propósito: `REGISTRO`, "Texto movido do código".
 
 
 def build_engine(policy_path, ontology_path, grounding_path, norms_path, engine_kind):
@@ -53,11 +46,9 @@ def build_llm(
 
 
 def build_audit(path: str, lock: threading.Lock):
-    """Returns (audit_logger_or_None, init_warning_or_None).
-
-    Same sentence as the CLI's _build_audit (audit.py owns the wording); the
-    difference is that this one also *returns* it, so audit_notice_lines() can
-    put it on screen -- a browser tab has no visible stderr.
+    """Devolve (logger ou None, aviso de inicialização ou None); a mesma frase
+    do `_build_audit` da CLI, mas esta também a **devolve**, porque uma aba de
+    navegador não tem stderr visível.
     """
     try:
         return _WebAuditLogger(path, lock), None

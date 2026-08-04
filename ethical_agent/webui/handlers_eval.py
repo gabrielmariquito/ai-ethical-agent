@@ -24,16 +24,8 @@ def default_dataset_path() -> str:
 
 
 def _resolve_dataset(raw) -> str:
-    """Confines the dataset to eval/.
-
-    Without this, `dataset` is whatever the request names, and post_eval
-    opens it: any JSON on disk with a `cases` array is readable, and even for
-    a file that does not parse the error tells "no such file" apart from "bad
-    JSON" apart from "no cases" -- a file-existence oracle for anything the
-    process can read. handlers_browse.py has ALLOWED_ROOTS and
-    handlers_audit._audit_log_path refuses a request-supplied path for
-    exactly this reason; being behind the audit session does not change it,
-    because that is precisely the caller _audit_log_path declines to trust.
+    """Confina o dataset a `eval/`: sem isto, qualquer JSON com um array
+    `cases` era legível e as mensagens distinguiam os erros — um oráculo: `REGISTRO`, "Texto movido do código".
     """
     if raw is None or raw == "":
         return default_dataset_path()
@@ -64,18 +56,8 @@ def _resolve_dataset(raw) -> str:
     "POST", "/api/eval", realm="audit", requires_session=True, hidden_without_session=True
 )
 def post_eval(state, params, body):
-    """Mirrors the CLI's `ethical_agent eval` / the former gui_app.py's
-    EvalTab exactly. Intentionally never touches AuditLogger, matching
-    cmd_eval's own comment: this runs a batch of synthetic dataset cases
-    directly against the engine, and logging them would swamp the real
-    usage trail with non-real data. `config` here is only ever read for
-    policy/ontology/grounding/norms/engine -- never for audit_log, even if
-    a caller's shared config object happens to carry one.
-
-    Behind the audit realm, and the most clearly so of the three tools: every
-    mismatch it returns carries the case's content, the rules that fired and
-    the engine's reason, so one request maps hundreds of content->rule pairs
-    at once. A dataset is a map of where the policy gives.
+    """Espelha o `eval` da CLI e nunca toca no `AuditLogger`, porque roda um
+    lote de casos sintéticos direto no motor: `REGISTRO`, "Texto movido do código".
     """
     dataset = _resolve_dataset(body.get("dataset"))
     config = body.get("config") or {}
@@ -98,12 +80,8 @@ def post_eval(state, params, body):
     except (FileNotFoundError, ValueError, OSError) as exc:
         raise bad_request("dataset_load_failed", f"{exc.__class__.__name__}: {exc}") from exc
 
-    # This screen always reads the whole dataset -- there is no half selector in
-    # the UI, and adding one is not this batch's job. But `full` is a half like
-    # any other and has to say so: the reporting rule is that no recall figure
-    # travels without the half named beside it, and an audit screen is the last
-    # place that rule should be quietly broken. The block also carries the
-    # standard error, so the auditor sees the noise floor next to the number.
+    # Esta tela lê o dataset inteiro, mas `full` é uma metade como outra qualquer
+    # e tem de se nomear: nenhum recall viaja sem a metade ao lado.
     divisao = resumo_da_divisao(cases, cases, "full")
     results = evaluate_engine(engine, cases, divisao=divisao)
     results["report_text"] = format_report(results)

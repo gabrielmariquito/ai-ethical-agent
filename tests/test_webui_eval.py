@@ -30,13 +30,8 @@ def test_eval_happy_path(server):
 
 
 def test_eval_names_the_half_and_carries_the_noise_floor(server):
-    """The reporting rule reaches the audit screen, not just the CLI.
-
-    b384600 documented "no recall figure travels without the half named beside
-    it" and left this endpoint returning a bare number -- a rule with a
-    counterexample inside the product. The screen reads the whole dataset and
-    has no half selector, but `full` is a half like any other and has to say so.
-    Without this test the block can vanish again and nothing goes red.
+    """A regra de relatório alcança a tela de auditoria, não só a CLI: `full`
+    é uma metade como outra qualquer e tem de se nomear: `REGISTRO`, "Texto movido do código".
     """
     status, body, _ = server.post("/api/eval", {"dataset": REAL_DATASET, "config": {}})
     assert status == 200
@@ -82,13 +77,9 @@ def test_eval_never_writes_to_audit_log_even_if_config_has_one(server):
     assert not Path(server.audit_log_path).exists()
 
 
-# ------------------------------------------- the dataset path is confined
-#
-# Before this, `dataset` was whatever the request named and post_eval opened
-# it: any JSON on disk with a "cases" array was readable, and the error told
-# "no such file" apart from "bad JSON" apart from "no cases" -- a file
-# oracle. Being behind the audit session does not settle it: that is exactly
-# the caller handlers_audit._audit_log_path declines to trust with a path.
+# O caminho do dataset é confinado: antes, qualquer JSON com um array
+# "cases" era legível, e as mensagens distinguiam os erros — um oráculo de
+# arquivos: `REGISTRO`, "Texto movido do código".
 
 
 @pytest.mark.parametrize(

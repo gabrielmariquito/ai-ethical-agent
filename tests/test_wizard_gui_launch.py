@@ -1,10 +1,6 @@
-# Unlike tests/test_wizard_gui.py (which reads wizard_gui.py as source text
-# specifically to avoid a tkinter dependency), these tests exercise
-# _launch_interface's actual behavior -- there was no runtime coverage of it
-# at all before this change (mocked Popen/webbrowser/_is_headless). tkinter
-# is stdlib but not guaranteed present in every environment (minimal/headless
-# CI images), so this whole module is skipped where it's missing rather than
-# failing the run.
+# Ao contrário de `test_wizard_gui.py`, estes exercitam o comportamento real
+# de `_launch_interface`; o módulo inteiro é pulado onde falta tkinter, em
+# vez de deixar a execução vermelha por motivo alheio: `REGISTRO`, "Texto movido do código".
 import pytest
 
 pytest.importorskip("tkinter")
@@ -104,12 +100,9 @@ def test_launch_skips_browser_when_server_never_responds(monkeypatch):
 
 
 def test_launch_prints_the_servers_own_error_when_it_exits_immediately(monkeypatch, capsys):
-    # The installer is the only place a person sees this: the wizard spawns
-    # `serve` with no terminal attached, so whatever the server says on its
-    # way out used to be discarded (stderr=DEVNULL) and reported here as
-    # "não respondeu a tempo" -- a timeout message for something that never
-    # timed out. Refusing to start over two audit passwords is the case that
-    # made it matter.
+    # O instalador é o único lugar onde a pessoa vê isto, e o que o servidor
+    # dizia ao sair era descartado e reportado como "não respondeu a tempo" —
+    # mensagem de timeout para algo que não expirou: `REGISTRO`, "Texto movido do código".
     recusa = "error: há duas senhas de auditoria definidas ao mesmo tempo"
 
     def fake_popen(cmd, **kwargs):

@@ -174,32 +174,9 @@ class GuardedAgent:
     def _build_messages(
         self, safe_input: str, history: Optional[Sequence[AgentResult]]
     ) -> list:
-        """Builds the message list sent to the LLM: system prompt, then one
-        user/assistant pair per prior turn in `history` (in order), then the
-        current turn's guardrail-approved input.
-
-        A prior turn whose INPUT was DENIED is omitted entirely (not even a
-        placeholder): the model never saw it -- it was never called -- and
-        re-injecting the blocked prompt into a later turn's context would
-        defeat the block. Every other prior turn (output DENY, REWRITE by
-        template, REWRITE by redaction, or plain ok) IS included: in all of
-        those cases the model already saw the user's input, and what was
-        withheld/rewritten was the *response*, not the request.
-
-        For every included turn, the assistant side is always
-        `past.message` -- never `past.trace.get("raw_response")` or any
-        other pre-suppression value. This is not a case-by-case audit of
-        "is this particular field safe" -- it's structural: `message` is,
-        by construction in `process()`, the one field that never carries
-        suppressed content (a blocked output never populates it with the
-        blocked text; a redaction REWRITE never populates it with the raw
-        value). Reusing it as the sole channel into history means this
-        method inherits those existing guarantees for free. Do NOT swap it
-        for `raw_response` (or any other trace field) to "give the model
-        more context" -- that would silently reopen exactly the leak the
-        DENY/redaction retention rules elsewhere in this file exist to
-        close, one turn later and one level removed from where the
-        original protection lives.
+        """Monta a lista de mensagens do LLM: system prompt, um par por turno
+        anterior e a entrada aprovada do turno atual — turno cuja entrada foi
+        negada é omitido inteiro, porque o modelo nunca a viu: `REGISTRO`, "Texto movido do código".
         """
         messages = [{"role": "system", "content": self.system_prompt}]
         for past in history or []:

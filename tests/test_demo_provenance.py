@@ -53,24 +53,15 @@ def test_resumir_excludes_demo_records_from_real_counts(policy_path, tmp_path, c
     assert "denied" not in out
 
 
-# The former gui_app.py-source-text test that used to live here
-# (test_gui_demo_tags_source) is superseded by a behavioral equivalent that
-# hits the real /api/demo endpoint and reads the audit trail back:
-# tests/test_webui_demo.py::test_demo_endpoint_tags_all_records_with_demo_source.
-
-
-# ------------------------------------- the fourth demo shares the same parts
-#
-# examples/demo.py is the one caller of this pipeline outside the package, and
-# for a while it was also the one that had drifted: it carried its own
-# build_llm(), written before resolve_llm classified provenance, so every
-# record it wrote came out without llm_provenance -- a fourth copy of the
-# mistake check_audit_record and resolve_llm already cost this project twice.
-#
-# Read as text, not imported: importing it runs the demo, which needs an
-# engine, a policy and (optionally) a live Ollama. Crude in the usual way --
-# it cannot tell you the example works, only that it is still wired to the
-# shared parts instead of to copies of them.
+# O teste de texto-fonte sobre o antigo `gui_app.py` que morava aqui foi
+# superado por um equivalente comportamental contra `/api/demo`.
+# 
+# O quarto demo compartilha as mesmas partes: `examples/demo.py` carregava um
+# `build_llm()` próprio e gravava sem `llm_provenance` — `REGISTRO`, "Texto movido do código".
+# 
+# WHAT THIS DOES NOT GUARANTEE: read as text, not imported. It cannot tell
+# you the example works, only that it is still wired to the shared parts
+# instead of to copies of them.
 
 EXAMPLE = (Path(__file__).resolve().parent.parent / "examples" / "demo.py").read_text(
     encoding="utf-8"

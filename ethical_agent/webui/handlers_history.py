@@ -11,11 +11,9 @@ def _audit_log(state, params: dict) -> str:
 
 @routing.route("GET", "/api/chat/history")
 def get_history(state, params, body):
-    """List of past web-chat conversations, sourced from logs/audit.jsonl --
-    see archive.py. Never touches ConversationStore (in-memory, ephemeral);
-    this is the sidebar's only source of truth so it survives a restart.
-    Bounded to the most recent conversations (archive.LIST_LIMIT) via a
-    reverse scan, not a full-file load -- see archive.py's module docstring.
+    """Lista de conversas passadas, vinda da trilha e nunca do `ConversationStore`
+    (em memória, efêmero): é a única fonte da barra lateral, então sobrevive a
+    um reinício.
     """
     return summarize_conversations(_audit_log(state, params))
 

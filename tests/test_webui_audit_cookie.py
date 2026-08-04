@@ -1,16 +1,6 @@
-"""The side that writes the session cookie and the side that reads it agree.
-
-handlers_audit.py sets it on login; httphandler.py looks it up on every
-request. The name used to be a separate literal in each file with nothing
-tying them together, and getting them out of step fails quietly in the worst
-way: login still answers 200 and still sets a cookie, the dispatcher simply
-never finds it, and every request afterwards answers 401. On screen that
-reads as "a sessão de auditoria expirou" -- immediately, repeatedly, for a
-password that is perfectly correct.
-
-It is now one constant in auth.py. These tests are the behavioural half: they
-would fail on a rename in either module even if someone re-introduced the
-second literal, because they go through real HTTP and never mention the name.
+"""O lado que escreve o cookie de sessão e o lado que o lê concordam, e a
+metade comportamental disto falharia num rename mesmo que alguém
+reintroduzisse o segundo literal, porque passa por HTTP real: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations

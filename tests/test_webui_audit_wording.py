@@ -35,15 +35,9 @@ def verdict_view() -> str:
     return VERDICT_VIEW.read_text(encoding="utf-8")
 
 
-# ------------------------------------------------- the asymmetry note is gone
-#
-# Five tests lived here, all about the shape of an in-screen note explaining
-# why a blocked excerpt is kept and a redacted one is not. The note was
-# removed from layer 2; the explanation lives in AUDIT_GUIDE.pt-BR.md, Passo
-# 3. Those tests were deleted rather than adapted -- they had no object left.
-# What replaces them is one guard that the note does not come back, plus the
-# marking at the point of absence, which is a label and stays (see the
-# verdict-view section at the bottom of this file).
+# A nota de assimetria saiu da camada 2 e vive no AUDIT_GUIDE, Passo 3; os
+# cinco testes dela foram apagados por ficarem sem objeto, e o que os
+# substitui é uma guarda de que ela não volta: `REGISTRO`, "Texto movido do código".
 
 
 def test_the_asymmetry_note_stays_removed(layers):
@@ -159,10 +153,8 @@ def test_the_original_is_offered_only_for_an_output_rewrite(layers):
 
 
 def test_the_branch_distinguishes_absent_from_present_and_null(before_after):
-    # detail_from_record reports the two separately on purpose: a record
-    # without the key and a record with an explicit null are different facts,
-    # and only the first is the redaction case the absence note explains.
-    # Gating on presence alone would render an empty quote for the second.
+    # `detail_from_record` reporta os dois separadamente de propósito: chave
+    # ausente e nulo explícito são fatos diferentes.
     assert "texts.raw_response_present && texts.raw_response !== null" in before_after
 
 
@@ -182,8 +174,6 @@ def test_the_missing_original_is_explained_rather_than_left_blank(before_after):
 
 
 def test_the_label_did_not_become_a_second_note(before_after):
-    # This block gets a label, not an explanation of its own. Scoped to the
-    # branch: a whole-file count of a helper name is brittle enough that a
-    # *comment* mentioning the helper trips it, which is exactly what happened
-    # to the asymmetry test this file used to carry.
+    # Este bloco ganha rótulo, não explicação própria, e fatiado no ramo porque
+    # contagem no arquivo inteiro é derrubada por um *comentário*: `REGISTRO`, "Texto movido do código".
     assert before_after.count('el("details"') == 1

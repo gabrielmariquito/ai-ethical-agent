@@ -1,9 +1,8 @@
 import re
 from pathlib import Path
 
-# Read the source directly rather than `import wizard_gui` -- importing it
-# needs tkinter and a sys.path/CWD setup this test shouldn't depend on, the
-# same reasoning tests/test_gui_audit.py documents for gui_app.py.
+# Lê o fonte em vez de importar, porque importar exige tkinter e um
+# sys.path/CWD do qual este teste não deve depender.
 SOURCE = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(encoding="utf-8")
 
 # WHAT AN ASSERTION AGAINST `SOURCE` DOES NOT GUARANTEE
@@ -32,9 +31,8 @@ SOURCE = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(en
 
 
 def test_old_misleading_checkbox_text_is_gone():
-    # The old label promised "um modelo de verdade via Ollama" for what was
-    # actually just a pip install of the client library -- that exact
-    # wording must not come back.
+    # O rótulo antigo prometia um modelo de verdade para o que era só um pip
+    # install do cliente, e essa redação não pode voltar: `REGISTRO`, "Texto movido do código".
     assert "Instalar dependências de LLM (ollama, python-dotenv)" not in SOURCE
 
 
@@ -61,13 +59,8 @@ def test_options_page_discloses_download_source_before_install():
 
 
 def _windows_disclosure_source() -> str:
-    """Just the download_exe branch, comments stripped.
-
-    Scoped to the branch because "UAC" and "OllamaSetup.exe" are still
-    legitimate further down, inside _install_ollama_windows, where they are
-    log output for a run in progress rather than a choice being explained.
-    Comments dropped because the code is allowed to *name* what it left out
-    and why -- this is a test about what reaches the screen.
+    """Só o ramo download_exe, sem comentários, porque os mesmos termos são
+    legítimos mais abaixo como log de execução: `REGISTRO`, "Texto movido do código".
     """
     body = SOURCE[SOURCE.index('if plan.kind == "download_exe":') :]
     body = body[: body.index("Vai rodar o script")]
@@ -77,10 +70,8 @@ def _windows_disclosure_source() -> str:
 
 
 def test_windows_disclosure_is_written_for_someone_who_never_heard_of_ollama():
-    # This paragraph is read *before* deciding, by someone who has no reason
-    # to know what an installer URL or the acronym UAC is. What they need is
-    # what will appear on their screen, that it takes a while, and that it
-    # won't all happen again next time.
+    # Lido *antes* de decidir, por quem não sabe o que é UAC: o que importa é
+    # o que vai aparecer na tela, que demora, e que não se repete: `REGISTRO`, "Texto movido do código".
     section = _windows_disclosure_source()
     assert "UAC" not in section
     assert "OllamaSetup.exe" not in section
@@ -109,9 +100,8 @@ def test_progress_page_has_persistent_status_label_surviving_finish_page():
 
 
 def test_progress_bar_reflects_real_state_instead_of_animating():
-    # It used to be mode="indeterminate" started once and stopped at the end:
-    # a barber pole that ran for the whole install without saying which step
-    # it was on or how much was left.
+    # Era `mode="indeterminate"` do início ao fim — uma barra que corria sem
+    # dizer em que passo estava: `REGISTRO`, "Texto movido do código".
     assert 'ttk.Progressbar(self, mode="determinate"' in SOURCE
     assert "self.progress.start(" not in SOURCE
     assert "self.progress.stop()" not in SOURCE
@@ -139,9 +129,8 @@ def test_every_phase_is_both_opened_and_closed():
 
 
 def test_a_skipped_step_still_closes_its_phase():
-    # "Ollama já está instalado -- pulando" and "Modelo já baixado -- pulando"
-    # are progress; leaving those phases open would freeze the bar on a
-    # machine where there was nothing left to do.
+    # "já está instalado — pulando" é progresso; deixar essas fases abertas
+    # congelaria a barra em quem não tinha o que fazer: `REGISTRO`, "Texto movido do código".
     local = SOURCE[
         SOURCE.index("def _run_llm_setup_local") : SOURCE.index("def _start_ollama_server")
     ]
@@ -173,18 +162,16 @@ def test_progress_sentinels_fall_through_to_the_log_when_unrecognized():
 
 
 def test_progress_page_never_fails_project_install_because_of_llm_phase():
-    # The pip/venv phase is the only thing allowed to flip install_ok to
-    # False; the LLM phase communicates failure via llm_ready/llm_warning
-    # sentinels instead.
+    # Só a fase pip/venv pode virar `install_ok` para False; a fase de LLM
+    # comunica falha por `llm_ready`/`llm_warning`.
     assert "__LLM_OK__" in SOURCE
     assert "__LLM_WARN__" in SOURCE
     assert "def _fail_llm" in SOURCE
 
 
 def test_stopped_server_is_started_before_degrading_to_the_warning():
-    # On Windows the Ollama app is a login item, so "installed but stopped" is
-    # the common state; the wizard used to go straight from a timed-out probe
-    # to the "modelo real não configurado" warning with nothing missing.
+    # No Windows o Ollama é item de login, então "instalado mas parado" é o
+    # estado comum: `REGISTRO`, "Texto movido do código".
     assert "start_ollama_server(ollama_exe)" in SOURCE
     # A short probe first (an already-running server answers at once), then
     # the launch, then a wider budget for the cold start.
@@ -204,11 +191,8 @@ def _fail_llm_body() -> str:
 
 
 def test_failure_path_offers_manual_instructions():
-    # Scoped to _fail_llm. Against the whole file this passed for the wrong
-    # reason: "ollama pull" and "ollama serve" each appear five times in
-    # wizard_gui.py -- in comments, in progress log lines, in the Ollama
-    # server start attempt -- so deleting the manual instructions entirely
-    # would not have failed it.
+    # Fatiado em `_fail_llm`: contra o arquivo inteiro isto passava pelo motivo
+    # errado, porque os mesmos comandos aparecem cinco vezes: `REGISTRO`, "Texto movido do código".
     body = _fail_llm_body()
     assert "https://ollama.com/download" in body
     assert "ollama pull" in body
@@ -224,17 +208,9 @@ def test_main_reconfigures_stdio_to_utf8_before_any_output():
 
 
 def test_streamed_subprocess_output_is_decoded_as_utf8():
-    # pip install, the Linux Ollama installer script, and `ollama pull` are
-    # all streamed into the progress log via text-mode Popen -- each must
-    # decode child output as UTF-8 (not the locale/cp1252 default) with a
-    # non-fatal error mode, or a non-ASCII byte (e.g. `ollama pull`'s Braille
-    # spinner glyphs) raises UnicodeDecodeError reading it back on Windows.
-    #
-    # No fixed count: pinning "exactly 3" coupled a test about UTF-8
-    # decoding to how many subprocesses the installer happens to stream,
-    # which changes for reasons that have nothing to do with encoding. What
-    # matters is that EVERY streamed block complies -- that is the stronger
-    # statement, and it keeps holding when a fourth is added.
+    # Todo bloco Popen que transmite saída de filho tem de decodificar UTF-8, e
+    # a asserção é sobre TODOS em vez de uma contagem fixa, que acoplaria um
+    # teste de encoding ao número de subprocessos: `REGISTRO`, "Texto movido do código".
     popen_blocks = re.findall(r"subprocess\.Popen\((?:[^()]|\([^()]*\))*\)", SOURCE)
     streamed_blocks = [b for b in popen_blocks if "stdout=subprocess.PIPE" in b]
     assert streamed_blocks, "nenhum subprocess.Popen transmitido encontrado -- regex quebrou?"
@@ -248,19 +224,15 @@ def test_imports_ollama_install_helpers_from_ethical_agent_package():
 
 
 def test_installer_records_what_it_did_for_the_uninstaller():
-    # Without a record the uninstaller has to ask about Ollama in the dark:
-    # nothing on disk distinguishes "this project installed it" from "it was
-    # already here", and that is the distinction that decides whether
-    # removing it is safe.
+    # Sem registro, o desinstalador pergunta no escuro: nada em disco distingue
+    # "este projeto instalou" de "já estava aqui": `REGISTRO`, "Texto movido do código".
     assert "from ethical_agent.install_record import" in SOURCE
     assert "write_record(ROOT" in SOURCE
 
 
 def test_ollama_presence_is_recorded_as_an_observation_not_an_inference():
-    # find_ollama_exe() only checks PATH plus one known location, and both
-    # OllamaSetup.exe and install.sh happily run as an upgrade -- so "I
-    # installed Ollama" is a claim the wizard cannot support. What it can
-    # observe, at one exact moment, is whether one was findable beforehand.
+    # "eu instalei o Ollama" é afirmação que o wizard não sustenta; o que ele
+    # observa, num instante exato, é se havia um encontrável antes: `REGISTRO`, "Texto movido do código".
     assert "ollama_was_present_before=ollama_exe is not None" in SOURCE
     # And it is written right there, not at the end: an install that failed
     # halfway is exactly when someone wants to uninstall.
@@ -277,13 +249,9 @@ def test_model_is_recorded_as_pulled_only_when_the_pull_actually_ran():
 
 
 def test_background_thread_never_reads_tk_variables():
-    # Tk widgets and variables belong to the thread running mainloop. Reading
-    # a tk.BooleanVar from the install thread can raise "main thread is not in
-    # main loop", and _run_install's `except Exception` would swallow that
-    # into a generic "Erro inesperado" -- an installer that fails
-    # intermittently with no usable diagnosis, on the first contact of whoever
-    # is evaluating the project. The options are snapshotted on the main
-    # thread in on_show instead, and the worker only sees plain attributes.
+    # Widget Tk pertence à thread do mainloop, e ler um `BooleanVar` da thread
+    # de instalação levanta erro que o `except Exception` engoliria como "Erro
+    # inesperado": as opções são fotografadas na main thread: `REGISTRO`, "Texto movido do código".
     assert "self.app.chosen_want_llm = self.app.want_llm.get()" in SOURCE
     assert "self.app.chosen_llm_mode = self.app.llm_mode.get()" in SOURCE
 
@@ -307,13 +275,8 @@ def test_options_snapshot_is_taken_before_the_thread_starts():
 
 
 def test_only_the_options_page_reads_the_live_tk_variables():
-    # Back stays enabled during the install, so someone can return to the
-    # options and toggle a checkbox while pip is running. Everything that
-    # describes what *ran* -- the status label and the finish screen, which
-    # is the one thing the person actually reads -- has to report the
-    # snapshot, or it would describe a different install than the one that
-    # happened. OptionsPage itself is the page that owns the variables, so it
-    # is the only place allowed to read them live.
+    # Back segue habilitado durante a instalação, então tudo que descreve o que
+    # *rodou* tem de reportar a fotografia, não o estado vivo: `REGISTRO`, "Texto movido do código".
     for match in re.finditer(r"self\.app\.(\w+)\.get\(\)", SOURCE):
         line_start = SOURCE.rfind("\n", 0, match.start())
         enclosing = SOURCE.rfind("class ", 0, match.start())
@@ -333,14 +296,8 @@ def test_status_label_and_finish_page_report_what_actually_ran():
 
 
 def test_audit_password_field_is_masked_like_the_ollama_key():
-    # The installer must not echo the password on screen. The Ollama Cloud
-    # key already established the pattern.
-    #
-    # Asserted on the audit field's own widget, not on a count of masked
-    # fields in the file: `count('show="*"') == 2` failed whenever a third
-    # masked field was added anywhere -- for reasons unrelated to this
-    # password -- and passing never proved that the two masked ones were the
-    # two that matter.
+    # O instalador não pode ecoar a senha. Asseverado no widget do próprio
+    # campo, não numa contagem de campos mascarados no arquivo: `REGISTRO`, "Texto movido do código".
     section = _options_audit_section()
     assert "audit_password_var" in section
     entry = section[section.index("textvariable=app.audit_password_var") :]
@@ -348,10 +305,8 @@ def test_audit_password_field_is_masked_like_the_ollama_key():
 
 
 def test_audit_password_section_is_outside_the_llm_frame():
-    # The audit trail is written on every run, with or without a real model.
-    # Nesting this inside llm_frame would hide it from exactly the person who
-    # declined the LLM step -- and never learning the screen exists is the
-    # problem the field was added to solve.
+    # A trilha é escrita em toda execução, então aninhar isto em `llm_frame`
+    # esconderia de quem recusou o passo do LLM: `REGISTRO`, "Texto movido do código".
     section = SOURCE[SOURCE.index("# -- audit screen") :]
     section = section[: section.index("self.validation_label")]
     assert "audit_frame = tk.Frame(self)" in section
@@ -364,23 +319,16 @@ def _options_audit_section() -> str:
 
 
 def test_audit_field_is_marked_optional_and_says_what_the_password_unlocks():
-    # Both against the section. The first line used to assert against SOURCE
-    # while its neighbour used the section -- the exact mix this file warns
-    # about below, in test_audit_note_says_what_the_password_is_not.
+    # Ambas contra a seção; a primeira linha usava SOURCE enquanto a vizinha
+    # usava a seção — a mistura exata que este arquivo alerta acima: `REGISTRO`, "Texto movido do código".
     section = _options_audit_section()
     assert "Senha da tela de auditoria (Opcional):" in section
     assert "acessar a área de auditoria" in section
 
 
 def test_audit_note_says_what_the_password_is_not():
-    # Same terms as README.md and AUDIT_GUIDE.pt-BR.md. Promising more than a
-    # role barrier would be the one place the project contradicts itself.
-    #
-    # The caveat used to live in the options note; the options screen now
-    # carries a single sentence about what the field does, and this guarantee
-    # moved to FinishPage -- the screen actually read by whoever configured a
-    # password. Scoped to that class on purpose: asserting against the whole
-    # file is what once let this pass while the text had been deleted.
+    # Os mesmos termos do README e do AUDIT_GUIDE, e fatiado na FinishPage —
+    # que é a tela lida por quem configurou senha: `REGISTRO`, "Texto movido do código".
     finish = SOURCE[SOURCE.index("class FinishPage") :]
     assert "separa dois papéis" in finish
     assert "não é segurança" in finish
@@ -388,10 +336,8 @@ def test_audit_note_says_what_the_password_is_not():
 
 
 def test_widgets_that_on_show_configures_are_created_in_init():
-    # OptionsPage.on_show configures audit_state_label; if the widget is not
-    # built in __init__, showing the page raises AttributeError and the
-    # installer is dead on arrival. Source-text tests cannot see that, so
-    # this at least pins the pairing.
+    # `on_show` configura o rótulo; sem o widget no `__init__` a página levanta
+    # AttributeError e o instalador morre na chegada: `REGISTRO`, "Texto movido do código".
     section = _options_audit_section()
     assert "self.audit_state_label = tk.Label(" in section
     assert "self.audit_entry = tk.Entry(" in section
@@ -403,9 +349,8 @@ def test_widgets_that_on_show_configures_are_created_in_init():
 
 
 def test_the_installer_has_no_way_to_erase_an_audit_password():
-    # Removing a password is deciding who may read the audit trail, which is
-    # not a decision that belongs to whoever happens to run an installer.
-    # There is no checkbox for it and no call that could do it.
+    # Remover senha é decidir quem lê a trilha, e isso não é decisão de quem
+    # roda um instalador.
     assert "remove_env_var" not in SOURCE
     assert "remove_audit_password" not in SOURCE
 
@@ -413,10 +358,8 @@ def test_the_installer_has_no_way_to_erase_an_audit_password():
 def test_the_installer_defines_a_password_but_never_changes_one():
     body = SOURCE[SOURCE.index("def _apply_audit_password") :]
     body = body[: body.index("def _record_env_key")]
-    # The existing password is read first, and the write is unreachable once
-    # there is one -- enforced here rather than only by disabling the widget,
-    # because the widget is disabled before the snapshot and Back stays
-    # enabled during the install.
+    # A senha existente é lida primeiro e a escrita fica inalcançável, em vez
+    # de depender só do widget desabilitado: `REGISTRO`, "Texto movido do código".
     assert body.index("ja_gravada = read_env_var(") < body.index("write_env_audit_password(")
     assert "if ja_gravada is not None:" in body
     assert body.index("if ja_gravada is not None:") < body.index("write_env_audit_password(")
@@ -425,10 +368,8 @@ def test_the_installer_defines_a_password_but_never_changes_one():
 
 
 def test_install_record_env_keys_are_unioned_not_replaced():
-    # write_record merges field by field, but env_keys is a whole-field
-    # replace: the cloud step used to pass just ("OLLAMA_API_KEY",), which
-    # would erase the audit key written moments earlier and make the
-    # uninstaller under-report what it would remove.
+    # `write_record` funde campo a campo, mas `env_keys` é substituição inteira
+    # — passar só uma chave apagaria a outra: `REGISTRO`, "Texto movido do código".
     assert 'InstallRecord(env_keys=("OLLAMA_API_KEY",))' not in SOURCE
     assert 'self._record_env_key("OLLAMA_API_KEY")' in SOURCE
     assert "self._record_env_key(AUDIT_PASSWORD_ENV_VAR)" in SOURCE
@@ -444,18 +385,8 @@ def test_the_password_value_never_reaches_the_progress_log():
 
 
 def test_finish_page_tells_the_person_the_audit_screen_exists():
-    # Configuring a password and never being told there is a screen would
-    # leave the original problem exactly where it was.
-    #
-    # Scoped to the *enabled* branch, not to FinishPage and not to the file.
-    #
-    # Two collisions made the looser versions useless, and the second only
-    # showed up when this test was checked by deleting the sentence it
-    # guards: against the whole file, "/audit" appears five times; against
-    # FinishPage it still appears three, because the slice also contains the
-    # disabled branch ("Existe uma tela em /audit...") and the phrase
-    # "logs/audit.jsonl", which contains "/audit" as a substring. Deleting
-    # the URL from the enabled branch failed neither.
+    # Fatiado no ramo *habilitado*, não na FinishPage nem no arquivo: duas
+    # colisões tornaram as versões mais frouxas inúteis: `REGISTRO`, "Texto movido do código".
     finish = SOURCE[SOURCE.index("class FinishPage") :]
     enabled = finish[finish.index("if self.app.audit_enabled:") : finish.index("        else:")]
     assert "Auditoria: HABILITADA" in enabled
@@ -471,10 +402,7 @@ def test_finish_page_reports_audit_from_the_snapshot_not_the_live_variable():
 
 
 def test_finish_page_points_to_the_uninstaller():
-    # The installer used to be a one-way door; it now says where the way
-    # back is -- naming exactly one entry point. uninstall_gui.py is an
-    # implementation detail that uninstall.py loads when there is a display;
-    # making the user choose between two scripts is a step they should not
-    # have to take.
+    # O instalador diz onde fica a volta, nomeando exatamente um ponto de
+    # entrada: `REGISTRO`, "Texto movido do código".
     assert "uninstall.py" in SOURCE
     assert "uninstall_gui.py" not in SOURCE

@@ -4,24 +4,9 @@ import re
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Pattern, Tuple
 
-# Populated at import time by each handlers_*.py module's @route(...)
-# decorators. server.py imports every handlers_* module explicitly (a fixed,
-# grep-able list, not plugin discovery) before constructing the server, so
-# this is fully populated before the first request is served.
-#
-# A route may declare a `realm`: a named group of routes that only exists
-# when the server was started with the configuration that realm needs (today
-# the only one is "audit", which needs a password -- see auth.py). Routes of
-# a disabled realm are skipped by match() *before* path_known is set, so a
-# request for one is indistinguishable from a request for a path nobody ever
-# registered -- see the comment in match() for why that ordering is the whole
-# point rather than a detail.
-#
-# The "audit" realm covers more than the audit screen: the Check, Demo and
-# Eval tools live behind it too. They are the evaluator's instruments, not
-# the employee's -- Eval alone returns, per mismatched case, the content and
-# the rules that fired, which is the cheapest way to map where the policy
-# gives. One realm, not two: the axis is the role, and there is only one.
+# Populado no import pelos decoradores `@route`, e uma rota pode declarar um
+# `realm`: grupo nomeado que só existe quando o servidor subiu com a
+# configuração daquele realm — `REGISTRO`, "Texto movido do código".
 ROUTES: List["Route"] = []
 
 _PARAM_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -63,15 +48,9 @@ def route(
     requires_session: bool = False,
     hidden_without_session: bool = False,
 ):
-    """Decorator: @route("GET", "/api/chat/{conversation_id}") registers a
-    handler with signature handler(state, params: dict, body: dict).
-
-    `realm` names the configuration gate the route lives behind (see ROUTES'
-    comment). `requires_session` asks httphandler to reject the request with
-    401 unless the caller presented a valid session for that realm -- the
-    check is central, in the dispatcher, so that a handler added later cannot
-    forget to perform it. `hidden_without_session` upgrades that rejection to
-    a 404 in match(); see Route's own docstring for when that is right.
+    """Decorador que registra um handler; `realm` nomeia o portão de
+    configuração e `requires_session` faz o dispatcher recusar centralmente,
+    para que um handler novo não possa esquecer de conferir: `REGISTRO`, "Texto movido do código".
     """
     pattern = _compile_pattern(path)
 
@@ -97,29 +76,9 @@ def match(
     realm_enabled: Optional[Callable[[str], bool]] = None,
     has_session: Optional[Callable[[], bool]] = None,
 ) -> Tuple[Optional["Route"], Optional[dict], bool]:
-    """Returns (route, params, path_known). `path_known` is True if some
-    route's path pattern matched regardless of method, so callers can tell
-    a 404 (no such path) apart from a 405 (right path, wrong method).
-
-    `realm_enabled(realm) -> bool` decides whether a realm's routes exist at
-    all right now; None means "every realm is enabled" (used by tests that
-    exercise the router directly).
-
-    `has_session() -> bool` reports whether the caller presented a valid
-    session. It is a zero-argument callable rather than a bool so the
-    dispatcher can resolve the cookie lazily -- most requests never reach a
-    route that asks. None means "do not hide anything on this ground".
-
-    A route in a disabled realm -- or a hidden_without_session route reached
-    without one -- is skipped *before* path_known is set. That ordering is
-    load-bearing, not tidiness: if it were skipped afterwards, a POST to a
-    GET-only audit path would answer 405 instead of 404 and thereby confirm
-    the endpoint exists to anyone poking at the URL -- which is exactly the
-    thing the password is there to prevent. The whole separation is only as
-    real as this branch.
-
-    Returns the Route (not the bare handler) so the dispatcher can read
-    requires_session from one place instead of every handler re-checking it.
+    """Devolve (rota, params, path_known), com `path_known` distinguindo 404 de
+    405; `realm_enabled` e `has_session` são injetados para que o roteador
+    seja testável direto: `REGISTRO`, "Texto movido do código".
     """
     path_known = False
     for candidate in ROUTES:

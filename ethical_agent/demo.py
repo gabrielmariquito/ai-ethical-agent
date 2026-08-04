@@ -32,13 +32,9 @@ def demo_scripted(messages: List[dict]) -> str:
 
 
 def interactive_mock_response(messages: List[dict]) -> str:
-    """Mock responder for the web chat's Mock mode. Delegates to
-    demo_scripted() for the cases it already covers (defensive-framing
-    request, support-contact PII leak, generic fallback); adds one branch
-    demo_scripted() has no equivalent for -- a response that trips a hard
-    *constraint* (not a rule) at the output stage, since none of the 7 demo
-    cases produce one. Needed so every one of the 5 intervention states is
-    reachable by typing in the chat, without a real model.
+    """Respondedor de mentira do modo Mock do chat, delegando ao
+    `demo_scripted()` e acrescentando um ramo que dispara uma *constraint*
+    dura na saída: `REGISTRO`, "Texto movido do código".
     """
     user = messages[-1]["content"].lower()
     if "unsafe response" in user:

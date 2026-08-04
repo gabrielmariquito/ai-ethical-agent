@@ -6,26 +6,9 @@ from typing import List
 from . import routing
 from .errors import bad_request
 
-# ---------------------------------------------------------------------------
-# Security note: this endpoint lists directory contents on the machine the
-# server runs on. The bind is 127.0.0.1-only (server.py), which limits who
-# can even reach it, but that alone isn't a boundary on *what* it can list --
-# without a restriction here, any process on the same machine able to speak
-# to the port could enumerate the whole filesystem. Two protections:
-#
-# 1. Every requested path is resolved (Path.resolve(), which also collapses
-#    ".." segments and follows symlinks) and then must be that resolved path
-#    itself, or a descendant of it, for at least one entry in ALLOWED_ROOTS
-#    -- the repo root and the user's home directory. That covers the normal
-#    cases (repo-relative default policy/ontology paths, or a file elsewhere
-#    under the user's profile) without exposing the rest of the disk. A path
-#    outside both is rejected with 400, not silently clamped to a boundary --
-#    the user can still just type an absolute path directly into the config
-#    field for anything genuinely outside this, since Browse is a
-#    convenience, not the only way to set a path.
-# 2. Only name + is_dir are ever returned -- no size, mtime, permissions, or
-#    file contents.
-# ---------------------------------------------------------------------------
+# Nota de segurança: este endpoint lista diretórios da máquina, e o bind em
+# 127.0.0.1 limita quem alcança mas não é fronteira por si —
+# `REGISTRO`, "Texto movido do código".
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALLOWED_ROOTS = [REPO_ROOT, Path.home().resolve()]

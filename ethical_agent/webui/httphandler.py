@@ -19,17 +19,9 @@ PAGES = {
     "/": "index.html",
 }
 
-# Pages and static assets that only exist when their realm is configured.
-# Deliberately NOT merged into PAGES: a separate table is a separate lookup,
-# and a separate lookup is one that cannot be reached without passing the
-# gate. Someone adding another ordinary page to PAGES gets no chance to
-# accidentally add a gated one.
-#
-# The third field is whether a *session* is also required. /audit is the one
-# entry that says False: it is the login shell itself, contains no records,
-# and something has to be reachable for the auditor to sign in through. The
-# tools have no login shell of their own, so for them "no session" and "not
-# there" are the same answer.
+# Páginas e assets que só existem quando o realm está configurado,
+# deliberadamente NÃO fundidos em `PAGES`: tabela separada é busca separada, e
+# busca separada é a que não se alcança sem passar pelo portão — `REGISTRO`, "Texto movido do código".
 GATED_PAGES = {
     "/audit": ("audit.html", "audit", False),
     "/check": ("check.html", "audit", True),
@@ -37,14 +29,8 @@ GATED_PAGES = {
     "/eval": ("eval.html", "audit", True),
 }
 
-# ... and the same for those screens' own JS/CSS. Gating the routes and the
-# page but not the assets would leave the whole frontend readable in chat
-# mode, which is why the modules live under two prefixes: one to gate instead
-# of a dozen filenames to remember.
-#
-# js/audit/ is realm-gated but NOT session-gated, because audit.html loads it
-# to draw the login form. js/tools/ is both: nothing there is reachable
-# before signing in, so nothing there should answer before signing in.
+# E o mesmo para o JS/CSS dessas telas: barrar rota e página mas não os assets
+# deixaria o frontend inteiro legível no modo chat.
 GATED_ASSET_PREFIXES = (
     ("js/audit/", "audit", False),
     ("css/audit.css", "audit", False),
@@ -98,12 +84,8 @@ def make_handler(state) -> type:
             self._session = None
             parsed = urllib.parse.urlsplit(self.path)
             path = urllib.parse.unquote(parsed.path)
-            # Query params are merged into the same `params` dict a handler
-            # already receives for path params (e.g. {conversation_id}) --
-            # first-value-only, since nothing here needs repeated keys. Path
-            # params win on a name collision (there isn't one today, but if
-            # there ever is, the explicit part of the URL should be
-            # authoritative over an incidental query string).
+            # Query params entram no mesmo dict dos params de caminho, só primeiro valor,
+            # e os de caminho vencem em colisão.
             query_params = {
                 k: v[0]
                 for k, v in urllib.parse.parse_qs(parsed.query).items()
@@ -140,12 +122,8 @@ def make_handler(state) -> type:
                 if state.realm_enabled(realm) and (
                     not needs_session or self._has_session()
                 ):
-                    # /audit is served without a session on purpose: it is the
-                    # login shell, and it contains no records. Every data
-                    # endpoint behind it still answers 401. That is the one
-                    # deliberate exception to "the screen does not exist" --
-                    # the tool pages get no such exception, because there is
-                    # nothing for an unauthenticated caller to do on them.
+                    # `/audit` é servido sem sessão de propósito: é a casca de login e não contém
+                    # registro nenhum; todo endpoint de dados atrás dela ainda responde 401.
                     self._serve_static(filename)
                     return
             self._not_found(method, path)
@@ -159,11 +137,7 @@ def make_handler(state) -> type:
             )
 
         def _authorize(self, matched, params: dict) -> bool:
-            """Central session check. Returns False having already answered.
-
-            This lives here rather than in each handler so that a route added
-            later is protected by declaring requires_session=True, with no
-            second chance to forget the check in the handler body.
+            """Conferência central de sessão; devolve False já tendo respondido.
             """
             if not matched.requires_session:
                 return True

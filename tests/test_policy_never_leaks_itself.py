@@ -1,30 +1,7 @@
-"""A política não aparece nos lugares que descrevem a política.
-
-Duas portas para o mesmo problema, e as duas estavam abertas.
-
-A PRIMEIRA era a evidência. `NotCondition` descrevia a condição interna com
-`to_dict()`, então `Evidence.description` saía como
-`absence of {'type': 'any', 'conditions': [{'type': 'keyword', 'value': 'not a
-substitute for professional', ...}]}` -- a lista completa das expressões que
-impedem a regra de disparar, ou seja, um bypass servido pronto. E `description`
-viaja: vai para o registro da trilha, para `Verdict.explain()` na CLI, para
-`/api/check` e para as telas.
-
-A SEGUNDA era a mensagem de erro. `ConditionError` é subclasse de `ValueError`;
-`policy.py` embute o texto dela em `PolicyError`; e `handlers_chat.py`
-classifica `ValueError` como `engine_build_failed` e devolve
-`f"{exc.__class__.__name__}: {exc}"` no erro do job -- que o chat renderiza.
-Como o painel de configuração deixa escolher o caminho da política, uma
-política malformada apontada dali imprimia o próprio conteúdo na tela do
-funcionário. Uma política que falha ao carregar não pode se publicar no
-caminho de saída.
-
-O QUE ESTES TESTES NÃO COBREM: a `description` de uma condição que *casou*
-continua nomeando o gatilho -- `keyword 'dosage'`, `regex '<padrão>'`. Isso é
-deliberado e é o que torna a evidência auditável: o auditor precisa saber qual
-condição casou, e ele lê `policies/core_policy.json` de qualquer forma. O caso
-do `not` era diferente por despejar uma estrutura inteira enumerando todas as
-saídas, para uma condição que por definição não casou.
+"""A política não aparece nos lugares que descrevem a política, e eram duas
+portas: a `description` de um bloco `not`, que despejava a lista inteira das
+expressões que impedem a regra de disparar, e a mensagem de erro, que
+imprimia o conteúdo da política na tela do funcionário: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations

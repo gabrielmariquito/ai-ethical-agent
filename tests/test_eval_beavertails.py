@@ -20,12 +20,9 @@ def _hybrid_engine():
 
 
 def test_beavertails_dataset_loads_and_runs():
-    # Third-party dataset (PKU-Alignment/BeaverTails, CC BY-NC 4.0), sampled
-    # and converted offline and
-    # committed here so this test doesn't need network access. Unlike the
-    # other two eval datasets, this one actually surfaces false positives
-    # (see README) -- no accuracy/precision floor enforced here, this only
-    # guards against the dataset/engine breaking.
+    # Dataset de terceiros (PKU-Alignment/BeaverTails, CC BY-NC 4.0), amostrado e
+    # convertido offline; é o único que de fato expõe falsos positivos, e sem
+    # piso de acurácia: `REGISTRO`, "Texto movido do código".
     cases = load_dataset(DATASET)
     assert len(cases) >= 150
 

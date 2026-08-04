@@ -45,20 +45,9 @@ from .types import (
     Verdict,
 )
 
-# Lido da distribuição instalada, não copiado do pyproject.
-#
-# Era `__version__ = "0.3.0"` aqui e `version = "0.3.0"` em pyproject.toml:
-# dois literais que precisam ser iguais, sem nada prendendo os dois. Mesma
-# forma do AUDIT_SESSION_COOKIE duplicado (achado 7 do REGISTRO), e a
-# disposição registrada lá vale aqui -- **dois literais que precisam ser
-# iguais são um literal**, e a solução é unificar, não escrever um teste
-# prendendo os dois. Nenhum leitor de `__version__` existe hoje, então a
-# divergência seria silenciosa até o primeiro, que receberia um número velho
-# com cara de atual: proveniência falsa, que é o defeito que esta leva fecha.
-#
-# O fallback **não** repete o número. Fora de uma instalação a resposta certa
-# é "não sei", não um valor plausível de origem desconhecida -- a mesma regra
-# da coluna de assinatura em branco na tabela de marcos.
+# Lido da distribuição instalada, não copiado do `pyproject`: dois literais que
+# precisam ser iguais são um literal (achado 7 do REGISTRO), e o fallback **não**
+# repete o número — `REGISTRO`, "Texto movido do código".
 try:
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _distribution_version

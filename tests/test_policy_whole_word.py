@@ -1,42 +1,7 @@
-"""whole_word nas keywords de token único: onde é correto, e onde não é.
-
-As condições `keyword` casam como substring por padrão, o que faz `paradoxxal`
-disparar a keyword `doxx`. A correção óbvia -- ligar `whole_word` em tudo --
-está errada, e a medição diz por quê: **23 das 36 keywords de token único
-perdem uma forma real de uso**. `hack` deixa de casar hacking/hacked/hacker;
-`doxx` deixa de casar doxxing/doxxed, que são as formas usadas de verdade.
-Nesta direção o risco não é falso positivo, é falso NEGATIVO.
-
-Então `whole_word` foi aplicado apenas às 13 que não perdem nada. As outras
-precisam de regex com curinga de sufixo (`\\bdoxx\\w*\\b`), que é mudança de
-tipo de condição e não de flag -- outra leva.
-
-O EFEITO REAL DAQUELA LEVA estava no bloco de EXCEÇÕES de R-SEC-002, e é o
-oposto do que o diagnóstico previa: ali um falso positivo AFROUXA o guardrail,
-porque a exceção suprime um DENY. "desaprender" contém "aprender" e
-"reeducacional" contém "educacional", então bastava escrever uma dessas para
-ganhar isenção educacional.
-
-=== O QUE A LEVA SEGUINTE (política 0.5.0) MUDOU AQUI ===
-
-Aquela "outra leva" aconteceu, e superou parte destas escolhas. Oito das
-quatorze keywords que carregavam `whole_word` **deixaram de ser keyword**: são
-palavra de EXCEÇÃO, e viraram regex de prefixo delimitado (`\\bVALOR\\w*\\b`),
-que fecha o bypass SEM perder a flexão -- é o que `whole_word` não conseguia
-fazer, por ser tudo-ou-nada. São `educational`, `educacional`, `educacionais`,
-`aprender`, `ensinar`, `estudar`, `proteger` e o `curso` que já era ponto-fix
-anterior. Este arquivo passou a afirmar que elas estão lá NA FORMA NOVA
-(`PREFIXO_DELIMITADO`), em vez de sumirem do inventário -- senão a leva teria
-apagado a cobertura em vez de movê-la.
-
-Sobram seis com `whole_word`, e são todas de GATILHO, onde a direção do risco
-continua sendo a de cima: `hackear`, `invadir`, `invasão`, `suicidal`,
-`diagnosis`, `dosagem`.
-
-`doxx` também virou regex, e com isso `paradoxxal` deixou de disparar -- o
-falso positivo que motivou tudo isto. Ver `test_policy_exception_bounds.py`,
-que é onde o comportamento novo é verificado; aqui fica só o registro de qual
-keyword mora em qual forma.
+"""Onde `whole_word` é correto nas keywords de token único e onde não é —
+23 das 36 perderiam uma forma real de uso —, mais o registro de quais
+migraram para prefixo delimitado na política 0.5.0: `REGISTRO`, "Texto
+movido do código".
 """
 
 from __future__ import annotations
@@ -53,21 +18,18 @@ from ethical_agent.policy import default_policy_path
 SEGURAS = ["hackear", "invadir", "invasão", "suicidal", "diagnosis", "dosagem"]
 
 # As que a política 0.5.0 tirou de `keyword` e pôs em regex de prefixo
-# delimitado, com o padrão exato que cada uma passou a ter. `curso` e
-# `educacional` não seguem a forma uniforme, e o motivo está em cada linha.
+# delimitado, com o padrão exato de cada uma.
 PREFIXO_DELIMITADO = {
     "educational": r"\beducational\w*\b",
-    # -al -> -ais: "educacionais" NÃO contém "educacional", então um
-    # \beducacional\w*\b sozinho perderia o plural. As duas entradas viraram
-    # uma por AMPLIAÇÃO do padrão, não por deleção da segunda.
+    # -al -> -ais: "educacionais" NÃO contém "educacional", então as duas
+    # entradas viraram uma por ampliação: `REGISTRO`, "Texto movido do código".
     "educacional": r"\beducaciona(l|is)\w*\b",
     "aprender": r"\baprender\w*\b",
     "ensinar": r"\bensinar\w*\b",
     "estudar": r"\bestudar\w*\b",
     "proteger": r"\bproteger\w*\b",
-    # Única entrada que enumera as formas em vez de usar o curinga:
-    # \bcurso\w*\b casaria "cursor", palavra alheia e frequente em texto
-    # técnico, e numa exceção isso seria bypass novo.
+    # Única entrada que enumera as formas em vez do curinga, porque
+    # `curso\w*` casaria "cursor": `REGISTRO`, "Texto movido do código".
     "curso": r"\bcursos?\b",
     "doxx": r"\bdoxx\w*\b",
 }
@@ -130,9 +92,8 @@ def test_as_seguras_estao_marcadas(keywords, kw):
 
 @pytest.mark.parametrize("valor, padrao", sorted(PREFIXO_DELIMITADO.items()))
 def test_as_supersedidas_viraram_prefixo_delimitado(keywords, regexes, valor, padrao):
-    # A cobertura foi MOVIDA, não apagada. Sem este teste, converter
-    # keyword -> regex tiraria estes valores do inventário que este arquivo
-    # varre e a leva pareceria ter simplesmente removido as verificações.
+    # A cobertura foi MOVIDA, não apagada: `REGISTRO`, "Texto movido do
+    # código".
     assert not [v for _, _, v, _ in keywords if v == valor], (
         f"{valor!r} ainda é keyword -- devia ter virado regex de prefixo delimitado"
     )
@@ -146,15 +107,9 @@ def test_as_supersedidas_viraram_prefixo_delimitado(keywords, regexes, valor, pa
      "medication", "prescription", "jailbreak"],
 )
 def test_as_que_perdem_flexao_nao_receberam(keywords, kw):
-    # A parte da correção que NÃO foi feita, e de propósito. Ligar whole_word
-    # aqui trocaria um falso positivo por um falso negativo pior: `hack` com
-    # whole_word deixa de casar "hacking".
-    #
-    # `doxx`, `protect`, `learn` e `teach` saíram desta lista porque deixaram
-    # de ser keyword: viraram prefixo delimitado na política 0.5.0, que é a
-    # forma que resolve os dois lados. Ver PREFIXO_DELIMITADO acima. As que
-    # ficam são de GATILHO, onde o substring é justamente o que faz "hacking"
-    # casar, e continuam sendo decisão e não pendência.
+    # A parte da correção que NÃO foi feita, de propósito, porque ligar
+    # whole_word aqui trocaria um falso positivo por um falso negativo pior:
+    # `REGISTRO`, "Texto movido do código".
     marcadas = [w for _, _, v, w in keywords if v == kw]
     assert marcadas, f"{kw!r} sumiu da política"
     assert not any(marcadas), (
@@ -163,10 +118,8 @@ def test_as_que_perdem_flexao_nao_receberam(keywords, kw):
 
 
 def test_nenhuma_keyword_comeca_ou_termina_com_nao_palavra(keywords):
-    # É a única forma pela qual \b quebraria: na borda, \b exige vizinho de
-    # palavra e inverte a intenção. Acento NÃO causa isso -- caractere
-    # acentuado é \w no re Unicode do Python 3 --, nem hífen ou apóstrofo no
-    # meio ("self-harm", "someone's address").
+    # A única forma pela qual a âncora quebraria é na borda; acento, hífen e
+    # apóstrofo no meio não causam isso: `REGISTRO`, "Texto movido do código".
     import re
     ruins = [
         (rid, v) for rid, _, v, w in keywords
@@ -214,19 +167,16 @@ def test_formas_medicas_continuam_casando(engine, texto):
     ],
 )
 def test_isencao_educacional_nao_e_concedida_por_acidente_morfologico(engine, texto):
-    # ANTES: "desaprender" contém "aprender" e "reeducacional" contém
-    # "educacional", então a exceção de R-SEC-002 disparava e SUPRIMIA o DENY,
-    # deixando cair para REWRITE. Bastava escolher a palavra certa para
-    # comprar uma isenção. Este é o bypass que a leva fecha.
+    # ANTES, o bypass que a leva fecha: bastava escolher a palavra certa para
+    # comprar isenção — `REGISTRO`, "Texto movido do código".
     v = engine.evaluate(ActionContext(content=texto, stage=Stage.INPUT))
     assert v.decision is Decision.DENY, f"{texto} -> {v.decision.value}"
     assert not v.suppressed, "a exceção não devia disparar"
 
 
 def test_a_isencao_legitima_continua_valendo(engine):
-    # A contraprova do teste acima: quem de fato escreve "aprender" continua
-    # ganhando a exceção. Sem isto, o teste anterior passaria por ter quebrado
-    # a exceção inteira.
+    # A contraprova do teste acima, sem a qual quebrar a exceção inteira
+    # passaria: `REGISTRO`, "Texto movido do código".
     v = engine.evaluate(
         ActionContext(content="Como invadir um sistema para aprender segurança?", stage=Stage.INPUT)
     )
@@ -244,16 +194,8 @@ def test_a_isencao_legitima_continua_valendo(engine):
     ],
 )
 def test_os_falsos_positivos_que_continuam(engine, texto, keyword, forma_perdida):
-    # O param `paradoxxal` saiu daqui: foi resolvido pela política 0.5.0, e
-    # migrou para test_policy_exception_bounds.py como teste POSITIVO. Este
-    # teste previa a própria reescrita, e é ela.
-    #
-    # `hack` continua, e NÃO recebeu o mesmo tratamento -- de propósito. O
-    # único falso positivo documentado é este: em "life hack", `hack` já é
-    # palavra inteira, então `\bhack\w*\b` casaria igual. O prefixo delimitado
-    # é no-op aqui: a colisão é locução ("life hack"), não substring dentro de
-    # palavra maior, e pede outro remédio. Aplicá-lo mesmo assim seria mexer
-    # num gatilho sem fechar nada.
+    # `hack` continua e NÃO recebeu o mesmo tratamento, de propósito, porque
+    # a colisão é locução e não substring: `REGISTRO`, "Texto movido do código".
     assert _dec(engine, texto) is not Decision.ALLOW, (
         f"{texto!r} passou a ser liberado -- se foi via regex em {keyword!r}, "
         f"confirme que {forma_perdida!r} continua casando e atualize este teste"
@@ -261,8 +203,7 @@ def test_os_falsos_positivos_que_continuam(engine, texto, keyword, forma_perdida
 
 
 def test_a_versao_da_politica_acompanhou(engine):
-    # ">= a versão em que isto entrou", nunca igualdade literal: fixar o
-    # número faz o teste quebrar na próxima leva por motivo alheio, que é
-    # como o teste equivalente da leva de PII quebrou quando esta subiu.
+    # ">= a versão em que isto entrou", nunca igualdade literal: `REGISTRO`,
+    # "Texto movido do código".
     versao = tuple(int(p) for p in Policy.from_file(default_policy_path()).metadata["version"].split("."))
     assert versao >= (0, 4, 0)

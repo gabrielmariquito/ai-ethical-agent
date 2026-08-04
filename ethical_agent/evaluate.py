@@ -15,84 +15,16 @@ INTERVENING = {Decision.DENY, Decision.REWRITE}
 METADES = ("tune", "holdout", "full")
 
 
-# ---------------------------------------------------------------------------
-# A divisão tune/holdout
-#
-# The recipe, written out. Same discipline as `config-id/v1` in provenance.py
-# and `assinatura/v1` in the snapshot tool: an implicit recipe is what turned
-# three baseline signatures into claims nobody can recompute. A partition that
-# holds up published recall numbers is the same species of thing -- nobody can
-# check it if the recipe is not written down.
-#
-# divisao/v1
-# ----------
-# 1. Assignment, per case:
-#        material = "divisao/v1" + "|" + case_id           (UTF-8)
-#        half     = "tune" if int(sha256(material), 16) % 2 == 0 else "holdout"
-#    The case id enters and *nothing else* -- not expected_decision, not
-#    content, not the file name, not the position in the list. So no dict
-#    order, no set order and no file read order can reach this.
-# 2. Half identifier:
-#        line 1 : the constant "divisao/v1"
-#        then   : one case id per line, sorted lexicographically
-#        joined by "\n", UTF-8, full hex sha256.
-#    Same shape as `assinatura/v1`. Two runs reporting the same identifier
-#    read the same half -- it is config_id applied to the partition.
-# 3. The recipe constant is *inside* both hashes, so bumping to v2 necessarily
-#    re-partitions everything instead of silently producing a different
-#    quantity under the same name. Do not bump it to fix a proportion.
-#
-# **What this scheme sacrifices, said out loud.** The DENY/ALLOW proportion is
-# *verified*, not *constructed*. No per-case scheme can construct it: stability
-# demands that a case's half be a function of that case alone, and every such
-# function is a binomial draw. That is not a limit of this implementation, it
-# is the price of the stability requirement -- adding a case must never move an
-# existing one, or previously published holdout numbers stop being comparable
-# and the contamination comes back through the back door.
-#
-# `expected_decision` deliberately stays out of the material: putting it in
-# would make a *label correction* move a case between halves, which is a second
-# stability leak through the same door. The stratum enters the verification
-# below, never the assignment.
+# A divisão tune/holdout, receita `divisao/v1` escrita por extenso: só o id do
+# caso entra no material, a constante da receita está dentro dos dois hashes, e
+# a proporção DENY/ALLOW é *verificada* e não construída —
+# `REGISTRO`, "Texto movido do código".
 RECEITA_DIVISAO = "divisao/v1"  # also the seed -- see item 3 above
 
-
-# The two limits, and where they come from. A limit without its derivation
-# next to it turns back into a round number on the next reading.
-#
-# **The threatened quantity is the gap between the halves**, not each half's
-# distance from the whole. Two numbers become incomparable by differing from
-# *each other*.
-#
-# **Which metric the gap threatens, and which it does not.** Recall is
-# mathematically invariant to the DENY/ALLOW mix: recall = TP/(TP+FN) counts
-# only DENY cases, so how many ALLOW cases share the half does not move it at
-# all. The metric the lexicon work moves is therefore *not* threatened by a
-# proportion imbalance -- no tolerance on the proportion protects it, and none
-# needs to. Accuracy and F1 *are* threatened, and nearly 1:1:
-#
-#     accuracy = p_D*r + (1 - p_D)*(1 - f)   =>   d(accuracy)/d(p_D) = |1 - r - f|
-#
-# At today's operating point recall is tiny, so that derivative is ~0.92
-# (BeaverTails, r=0.058 f=0.020) and ~0.96 (injections, r=0.038 f=0.000). A gap
-# of G in the DENY share buys ~0.92*G of accuracy gap for free.
-#
-# LIMITE_COMPARABILIDADE is set where the split's own imbalance explains as much
-# as the smallest difference this project already treats as a real distinction.
-# That resolution is in the README: the accuracy spread *between engines* is
-# 0.022 on BeaverTails (rule 0.477 / kg 0.455) and 0.012 on injections
-# (rule 0.616 / kg 0.606). Rounded to the tighter side: 0.02.
-#
-# **Measured today: BeaverTails 0.0216, injections 0.0283 -- both exceed it.**
-# That is not a reason to change the seed. Re-seeding to fix a proportion *is*
-# reshuffling, and the second seed would be chosen against the data, which is
-# the very defect this split exists to prevent. The recorded consequence is
-# normative instead: accuracy and F1 are not comparable across halves on either
-# external dataset; recall is, and recall is what the next batches move.
-#
-# So this limit is a **flag, not an assert** -- it rides along with every number
-# the harness prints. A test that failed here would be permanently red, and a
-# permanently red check becomes noise, which is how a verifier dies.
+# Os dois limites e a derivação deles: a grandeza ameaçada é o *gap entre as
+# metades*, o recall é invariante à mistura DENY/ALLOW e acurácia/F1 não são —
+# e este é **flag, não assert**, porque uma verificação permanentemente
+# vermelha vira ruído: `REGISTRO`, "Texto movido do código".
 LIMITE_COMPARABILIDADE = 0.02
 
 # The hard limit *is* an assert. At a 0.10 gap the induced accuracy gap (~0.096)
@@ -108,13 +40,9 @@ def metade_do_caso(case_id: str) -> str:
 
 
 def _id_obrigatorio(case: dict, indice: int) -> str:
-    """`id` is optional to `evaluate_engine` but mandatory to the split.
-
-    Kept as an explicit error rather than a KeyError because the reason matters:
-    without a stable id the assignment would have to fall back on the position
-    in the list, and then appending a case *would* move the others -- the one
-    thing the whole scheme exists to prevent. Failing loudly beats producing a
-    partition that looks fine and is not reproducible.
+    """`id` é opcional para `evaluate_engine` e obrigatório para a divisão,
+    com erro explícito porque sem id estável a atribuição cairia na posição na
+    lista: `REGISTRO`, "Texto movido do código".
     """
     cid = case.get("id")
     if cid is None or cid == "":
@@ -131,10 +59,8 @@ def tem_ids_estaveis(cases: List[dict]) -> bool:
 
 
 def dividir(cases: List[dict]) -> dict:
-    """{"tune": [...], "holdout": [...]}, original order kept inside each half.
-
-    Per case, never a shuffle of the list: appending only appends, it never
-    moves anyone. That is the whole point -- see requirement 3 of the recipe.
+    """{"tune": [...], "holdout": [...]}, ordem original preservada dentro de
+    cada metade e por caso, nunca embaralhando a lista.
     """
     metades: dict = {"tune": [], "holdout": []}
     for indice, case in enumerate(cases):
@@ -151,10 +77,8 @@ def selecionar_metade(cases: List[dict], metade: str) -> List[dict]:
 
 
 def identificador_da_metade(cases: List[dict]) -> str:
-    """Reproducible identifier of a half: digest of its sorted id list.
-
-    Two runs that report the same identifier read the same half. It is the one
-    line that lets a reader tell "the same holdout" from "a holdout".
+    """Identificador reproduzível de uma metade: é a linha que deixa distinguir
+    "o mesmo holdout" de "um holdout".
     """
     ids = [_id_obrigatorio(case, indice) for indice, case in enumerate(cases)]
     linhas = [RECEITA_DIVISAO] + sorted(ids)
@@ -162,26 +86,18 @@ def identificador_da_metade(cases: List[dict]) -> str:
 
 
 def _proporcao_deny(cases: List[dict]) -> tuple:
-    """(positivos, negativos), where positive is the *intervening* class.
-
-    Called DENY/ALLOW throughout because on the two datasets that are actually
-    split -- BeaverTails and injections -- those are the only two labels, so
-    the two readings coincide. It counts DENY *and* REWRITE because that is the
-    class `recall` is computed over (see INTERVENING); a stratum defined any
-    other way would not be the stratum whose size sets the noise floor.
+    """(positivos, negativos), com positivo sendo a classe *interveniente*,
+    contando DENY **e** REWRITE porque é a classe sobre a qual o recall é
+    computado: `REGISTRO`, "Texto movido do código".
     """
     positivos = sum(1 for c in cases if Decision(c["expected_decision"]) in INTERVENING)
     return positivos, len(cases) - positivos
 
 
 def erro_padrao_do_recall(recall: float, n_deny: int) -> Optional[float]:
-    """Binomial standard error of a recall measured over `n_deny` positives.
-
-    Reported next to recall, never on its own. On the BeaverTails holdout
-    n_deny is 55, which puts the standard error at 0.032 and the 95% interval
-    at +/-0.062 -- wider than today's recall of 0.058. A gain smaller than that
-    is not distinguishable from noise there, however carefully the lexicon is
-    built, and a batch that does not print this number will celebrate it.
+    """Erro padrão binomial do recall, reportado ao lado dele e nunca sozinho:
+    um ganho menor que ele não se distingue de ruído, e uma leva que não
+    imprime este número vai comemorá-lo: `REGISTRO`, "Texto movido do código".
     """
     if not n_deny:
         return None
@@ -190,19 +106,15 @@ def erro_padrao_do_recall(recall: float, n_deny: int) -> Optional[float]:
 
 def resumo_da_divisao(cases_da_metade: List[dict], cases_totais: List[dict],
                       metade: str) -> dict:
-    """The provenance block that travels with every number the harness prints.
-
-    A recall figure without the half named beside it is a claim without
-    provenance; a recall figure without its noise floor is a claim without
-    scale. Both go here.
+    """O bloco de procedência que viaja com todo número que o harness imprime:
+    recall sem metade nomeada é afirmação sem procedência, e sem piso de
+    ruído é afirmação sem escala.
     """
     deny, allow = _proporcao_deny(cases_da_metade)
     n = len(cases_da_metade)
 
-    # `full` is the one half that never needed the split, so it is also the one
-    # that must keep working on a dataset with no ids -- that used to evaluate
-    # fine (`evaluate_engine` reads `id` only to label mismatches) and it still
-    # must. Asking for tune/holdout on such a dataset still fails loudly.
+    # `full` é a metade que nunca precisou da divisão, logo a que tem de continuar
+    # funcionando num dataset sem ids: `REGISTRO`, "Texto movido do código".
     divisivel = metade != "full" or tem_ids_estaveis(cases_totais)
 
     gap = None
@@ -215,10 +127,8 @@ def resumo_da_divisao(cases_da_metade: List[dict], cases_totais: List[dict],
                 proporcoes.append(d / (d + a))
             gap = abs(proporcoes[0] - proporcoes[1])
 
-    # `n_deny` is the size of the stratum recall is measured over. It rides in
-    # this block so that `evaluate_engine` can turn the measured recall into a
-    # standard error -- the gap above does not threaten recall, but a thin DENY
-    # stratum does.
+    # `n_deny` é o tamanho do estrato sobre o qual o recall é medido, e viaja aqui
+    # para virar erro padrão.
     return {
         "metade": metade,
         "receita": RECEITA_DIVISAO,
@@ -324,12 +234,8 @@ def evaluate_engine(engine: PolicyEngine, cases: List[dict],
 
 
 def _linhas_da_divisao(divisao: dict) -> List[str]:
-    """The half, named, at the top -- before any metric.
-
-    A recall number with no half named beside it is a claim without provenance,
-    which is the class of defect the provenance work closed for snapshots. The
-    block prints for `full` too: a silent default is the same defect wearing a
-    different hat.
+    """A metade, nomeada, antes de qualquer métrica — e o bloco imprime para
+    `full` também, porque default silencioso é o mesmo defeito disfarçado: `REGISTRO`, "Texto movido do código".
     """
     identificador = divisao["identificador"]
     rotulo_id = (f"{identificador[:12]}…" if identificador

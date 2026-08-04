@@ -78,23 +78,9 @@ def resolve_llm(
     mock: bool,
     responses: Union[Sequence[str], Callable[[List[dict]], str], None] = None,
 ) -> tuple[LLMClient, dict]:
-    """Builds the LLMClient `process` will use, and a provenance record
-    identifying what actually produced (or will produce) the content: a real
-    model (with its identifier and backend), a simulation the user asked for
-    (--mock / the GUI's Mock checkbox), or a simulation used only because a
-    real model failed (with the failure reason). Shared by the CLI's
-    _build_llm and the GUI's build_llm so the two front-ends cannot
-    independently drift on how this is classified -- same reasoning as
-    audit.build_check_audit_record.
-
-    `responses` is optional and only consulted when `mock` is True: it's
-    forwarded straight to MockLLM, letting a caller that needs varied mock
-    output (e.g. the web chat's interactive Mock mode, via
-    ethical_agent.demo.interactive_mock_response) opt into that without
-    changing behavior for every other caller. Callers that don't pass it
-    (every CLI call site) get MockLLM(None, default=...), which is exactly
-    the fixed-string MockLLM this function always built before this
-    parameter existed.
+    """Monta o `LLMClient` que o `process` vai usar mais um registro de
+    procedência dizendo o que de fato produziu o conteúdo — modelo real,
+    simulação pedida, ou simulação por fallback: `REGISTRO`, "Texto movido do código".
     """
     if mock:
         return (
@@ -110,14 +96,8 @@ def resolve_llm(
             MockLLM(default="[mock response: no model available]"),
             {
                 "kind": "mock_fallback",
-                # Which model was *asked for*. Without it the record says a
-                # simulation ran and cannot say instead of what: "mock because
-                # the operator asked" and "mock because gpt-oss:120b never
-                # answered" are different facts about a decision, and only the
-                # second one means a configured model silently did not run.
-                # model_label is the short form the screen shows; the record
-                # keeps requested_model separately so a reader can filter on
-                # the model without parsing prose.
+                # Qual modelo foi *pedido*: sem isso o registro diz que rodou simulação e não
+                # diz em lugar de quê.
                 "requested_model": model,
                 "model_label": f"mock (fallback from {model})",
                 "fallback_reason": f"{exc.__class__.__name__}: {exc}",

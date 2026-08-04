@@ -1,20 +1,6 @@
-"""R-PRIV-002 cobre os formatos de PII que um LLM de fato escreve.
-
-O defeito que motivou a ampliação não era a omissão em si, era a cobertura
-PARCIAL. Numa resposta com e-mail e telefone `+55` na mesma frase, o e-mail
-saía redigido e o telefone em claro: o leitor vê `[REDACTED]` e conclui que o
-texto foi tratado. Meia redação mente mais do que redação nenhuma.
-
-Esta cobertura vive aqui, e não em `eval/dataset*.json`, de propósito: os
-datasets são a linha de base congelada dos 2787 casos, e acrescentar casos a
-eles muda o instrumento de medida. É decisão própria, não efeito colateral de
-uma mudança de regra.
-
-E é por isso que o benchmark não detecta esta mudança: dos 929 casos, 226 são
-de estágio `output` (o único em que esta regra pode disparar), 5 contêm PII dos
-formatos antigos e **nenhum** contém qualquer formato novo. Zero de 2787 mudam
-de decisão -- não porque a mudança seja inócua, mas porque a suíte de casos não
-a alcança.
+"""R-PRIV-002 cobre os formatos de PII que um LLM de fato escreve, porque o
+defeito não era a omissão e sim a cobertura **parcial** — meia redação mente
+mais que redação nenhuma —, e o benchmark não alcança esta mudança: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations
@@ -85,10 +71,8 @@ def test_formatos_brasileiros_sao_redigidos(engine, nome, texto):
     ],
 )
 def test_o_rotulo_do_cpf_nao_vale_de_outra_frase(engine, texto):
-    # A âncora é proximidade, e proximidade tem de respeitar fronteira de
-    # frase. Uma janela cega de N caracteres casa "precisa do CPF. O número do
-    # pedido é 12345678900" -- rótulo numa frase, número noutro assunto. O
-    # padrão proíbe atravessar `.`, `?`, `!` e quebra de linha.
+    # A âncora é proximidade, e proximidade respeita fronteira de frase: uma
+    # janela cega casaria rótulo numa frase com número de outro assunto: `REGISTRO`, "Texto movido do código".
     v = _saida(engine, texto)
     assert v.decision is Decision.ALLOW, f"casou atravessando frase: {v.rewritten_content}"
 
@@ -139,10 +123,8 @@ BENIGNOS = [
 
 @pytest.mark.parametrize("texto", BENIGNOS)
 def test_texto_benigno_com_numeros_nao_e_redigido(engine, texto):
-    # Padrões numéricos largos casam com o que não é PII. Os colisores
-    # plausíveis estão todos aqui: pedido de 11 dígitos (que um `\d{11}` solto
-    # pegaria), ZIP+4 americano (5 dígitos, hífen, 4 -- vizinho do CEP),
-    # timestamp de 13, versões, dinheiro, número de processo.
+    # Padrões numéricos largos casam com o que não é PII, e os colisores
+    # plausíveis estão todos aqui: `REGISTRO`, "Texto movido do código".
     v = _saida(engine, texto)
     assert v.decision is Decision.ALLOW, f"{texto!r} -> {v.rewritten_content}"
 
@@ -174,10 +156,8 @@ def test_texto_benigno_com_numeros_nao_e_redigido(engine, texto):
     ],
 )
 def test_exclusoes_deliberadas_continuam_passando(engine, nome, texto, razao):
-    # Estes três NÃO são redigidos, e isso está escrito na `description` da
-    # regra. O teste existe para que incluí-los seja um ato deliberado -- quem
-    # acrescentar o padrão vai ver este teste ficar vermelho e ler a razão
-    # antes de decidir que ela não vale mais.
+    # Estes três NÃO são redigidos, e está escrito na `description` da regra —
+    # o teste existe para que incluí-los seja ato deliberado: `REGISTRO`, "Texto movido do código".
     v = _saida(engine, texto)
     assert v.decision is Decision.ALLOW, f"{nome} passou a ser redigido; razão da exclusão: {razao}"
 
@@ -190,14 +170,8 @@ def _versao(policy) -> tuple:
 
 
 def test_a_versao_da_politica_acompanhou_a_mudanca_de_cobertura():
-    # A trilha grava policy_version. Mudar regra sem mudar versão torna
-    # registros antes e depois indistinguíveis para quem auditar.
-    #
-    # ">= a versão em que esta cobertura entrou", não "== 0.3.0": a igualdade
-    # literal quebra em toda leva seguinte, por um motivo que nada tem a ver
-    # com PII -- e foi exatamente o que aconteceu quando a leva do whole_word
-    # subiu para 0.4.0. Contagem ou literal acoplado a número que se move por
-    # razão alheia é o defeito que este projeto já catalogou.
+    # ">= a versão em que esta cobertura entrou", nunca igualdade literal, que
+    # quebra na leva seguinte por motivo alheio: `REGISTRO`, "Texto movido do código".
     assert _versao(Policy.from_file(default_policy_path())) >= (0, 3, 0)
 
 

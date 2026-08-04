@@ -10,18 +10,9 @@ from webui_support import RunningServer, make_initial_config
 
 @pytest.fixture(autouse=True)
 def isolated_password_sources(monkeypatch, tmp_path):
-    """No test in this file may see the developer's own audit password.
-
-    `cmd_serve` resolves the password from three places, and the last one is
-    ETHICAL_AGENT_AUDIT_PASSWORD in <repo>/.env -- the file the graphical
-    installer writes. That is a real file in a real checkout, so the moment
-    whoever runs the suite configures an audit password for themselves,
-    every `main(["serve", ...])` here starts picking it up and assertions
-    like `audit_password is None` fail for reasons that have nothing to do
-    with the code under test. This happened.
-
-    Both sources are neutralised by default; a test that wants one sets it
-    explicitly (see _run_serve below).
+    """Nenhum teste deste arquivo pode enxergar a senha de auditoria do
+    próprio desenvolvedor, porque `<repo>/.env` é arquivo real num checkout
+    real e isto já aconteceu: `REGISTRO`, "Texto movido do código".
     """
     import ethical_agent.webui.auth as auth_module
 
@@ -44,17 +35,9 @@ def test_server_socket_is_bound_to_127_0_0_1_only(server):
 
 
 def test_a_second_server_cannot_take_a_port_already_in_use(tmp_path, server):
-    """The bug this guards against was silent, and only on Windows.
-
-    socketserver.TCPServer sets allow_reuse_address = 1. On POSIX that means
-    "rebind a TIME_WAIT socket", which is wanted. On Windows SO_REUSEADDR
-    means a second socket may bind an address that is *actively in use*, and
-    connections go to one of them non-deterministically -- so a second
-    `serve --port 8765` bound happily, printed "Serving at ..." and a correct
-    audit banner, while the browser kept talking to the older process. The
-    observed symptom was a nav item reporting the audit screen as disabled
-    while the banner of the server the operator was reading said enabled:
-    two servers, and the banner belonged to the one not answering.
+    """O defeito que isto guarda era silencioso e só no Windows: sob
+    `SO_REUSEADDR` um segundo servidor ligava na mesma porta e o navegador
+    seguia falando com o processo antigo: `REGISTRO`, "Texto movido do código".
     """
     port = server.server.server_address[1]
     with pytest.raises(PortInUseError):
@@ -135,16 +118,10 @@ def test_server_unreachable_via_any_other_local_address(server):
 
 
 def test_serve_never_takes_a_password_as_an_argument_value(capsys):
-    # There is deliberately no --audit-password VALUE flag: an argument value
-    # lands in the process list and in shell history, which is a worse home
-    # for a secret than either supported source (a file, or the environment
-    # variable).
-    #
-    # argparse resolves the unambiguous prefix --audit-password onto
-    # --audit-password-file, so someone who types it anyway has their secret
-    # read as a *filename* -- which fails loudly with a readable error rather
-    # than quietly becoming the password. That loud failure is the behaviour
-    # being locked in here; silently accepting it would be the bug.
+    # Não existe flag `--audit-password VALUE`, porque valor de argumento vai
+    # parar na lista de processos e no histórico do shell; o prefixo ambíguo é
+    # resolvido como *nome de arquivo* e falha alto, que é o comportamento
+    # fixado aqui: `REGISTRO`, "Texto movido do código".
     code = main(["serve", "--audit-password", "hunter2", "--port", "0"])
     assert code == 2
     err = capsys.readouterr().err
@@ -235,12 +212,8 @@ def _run_serve(monkeypatch, tmp_path, argv_extra=(), env=None):
 def test_dotenv_password_enables_the_audit_screen_with_no_flag_at_all(
     monkeypatch, tmp_path, capsys
 ):
-    # The whole point of the wizard writing to .env: `ethical-agent serve`,
-    # bare, and the screen is there.
-    #
-    # Also the regression guard for the refusal above: .env is the source
-    # that used to be silently overridden, so it is the one whose ordinary
-    # case has to keep working untouched.
+    # O ponto inteiro de o wizard escrever no `.env`, e a guarda de regressão da
+    # recusa acima: `REGISTRO`, "Texto movido do código".
     (tmp_path / ".env").write_text(
         f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
     )
@@ -385,14 +358,9 @@ def test_the_disabled_banner_no_longer_tells_anyone_to_export_the_variable(
 
 
 def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, capsys):
-    # One sweep over stdout+stderr for each source in turn. The banner is
-    # allowed to name where the password came from and nothing else.
-    #
-    # Each case sets up its own .env, because what a given environment means
-    # now depends on what the file holds. The two refusing cases are here on
-    # purpose: their messages are the only text in the codebase that has to
-    # talk about two passwords at once, which makes them the likeliest place
-    # to leak one by accident.
+    # Uma varredura de stdout+stderr por fonte: o banner pode nomear a origem e
+    # mais nada. Os dois casos que recusam estão aqui de propósito, por serem o
+    # único texto que fala de duas senhas ao mesmo tempo: `REGISTRO`, "Texto movido do código".
     password_file = tmp_path / "senha.txt"
     password_file.write_text(f"{CANARY}\n", encoding="utf-8")
     dotenv = f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n"
@@ -412,11 +380,8 @@ def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, 
         streams = capsys.readouterr()
         assert CANARY not in streams.out, f"vazou em stdout via {label}"
         assert CANARY not in streams.err, f"vazou em stderr via {label}"
-        # And not into initial_config either, which handlers_choices.py
-        # serves verbatim and unauthenticated at /api/choices. This is the
-        # same guarantee test_choices_endpoint_never_exposes_the_password
-        # checks from the HTTP side, asserted here at the source. A refused
-        # case never gets that far, which is itself the assertion for it.
+        # E nem em `initial_config`, que `handlers_choices` serve verbatim e sem
+        # autenticação em `/api/choices`: `REGISTRO`, "Texto movido do código".
         if label in recusados:
             assert code == 2, label
             assert "initial_config" not in captured, label
@@ -436,10 +401,8 @@ def test_serve_exits_nonzero_on_an_empty_password_file(tmp_path, capsys):
 
 
 def test_serve_subcommand_has_no_host_flag():
-    # argparse rejects an unrecognized "--host" and exits (SystemExit) from
-    # inside parse_args(), before `serve`'s handler (which would otherwise
-    # block forever in serve_forever()) is ever reached -- safe to call
-    # main() directly here.
+    # `argparse` rejeita `--host` e sai de dentro de `parse_args()`, antes do
+    # handler que bloquearia em `serve_forever()`.
     with pytest.raises(SystemExit):
         main(["serve", "--host", "0.0.0.0", "--port", "0"])
 
@@ -456,14 +419,9 @@ def test_serve_subcommand_accepts_port_flag():
 
 
 def test_serve_default_config_calls_the_real_model_not_mock(monkeypatch):
-    # Web-UI-only default: `ethical-agent serve` seeds the chat's config
-    # panel with mock=False, so a first-time visitor with Ollama running
-    # gets a real answer -- resolve_llm() still falls back to MockLLM on its
-    # own if the model can't be reached, this only changes what's *tried*
-    # first. Verified by intercepting webui.server.make_server (cmd_serve
-    # does `from .webui.server import make_server` at call time, so
-    # patching the module attribute here is picked up), never binding a
-    # real socket.
+    # Default só da interface web: `serve` semeia o painel com `mock=False`, e
+    # `resolve_llm` ainda cai para `MockLLM` sozinho — isto muda só o que é
+    # *tentado* primeiro: `REGISTRO`, "Texto movido do código".
     captured = {}
 
     class FakeServer:
@@ -485,9 +443,7 @@ def test_serve_default_config_calls_the_real_model_not_mock(monkeypatch):
     code = main(["serve", "--port", "0"])
     assert code == 0
     assert captured["initial_config"]["mock"] is False
-    # The audit password reaches make_server as its own argument and never
-    # through initial_config, which handlers_choices.py serves verbatim to
-    # the chat screen. Here there is no password at all, so the audit screen
-    # does not exist.
+    # A senha chega a `make_server` como argumento próprio e nunca por
+    # `initial_config`: `REGISTRO`, "Texto movido do código".
     assert captured["kwargs"]["audit_password"] is None
     assert not any("password" in key for key in captured["initial_config"])

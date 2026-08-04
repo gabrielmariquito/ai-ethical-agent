@@ -1,10 +1,5 @@
-// Entry point for the audit screen.
-//
-// Two views in one page: the login shell (served without a session, holds no
-// records) and the screen proper. Any audit request coming back 401 drops
-// straight back to login -- sessions are in-process, so a server restart
-// invalidates them, and pretending otherwise would leave the auditor
-// clicking a dead screen.
+// Ponto de entrada da tela de auditoria, com duas visões numa página: a
+// casca de login e a tela propriamente — REGISTRO, "Texto movido do código".
 
 import { getJSON, showErrorBanner } from "../api.js";
 import { renderNav } from "../nav.js";
@@ -95,11 +90,8 @@ async function startSession(session) {
 }
 
 async function init() {
-  // auditEnabled is true by definition here: this page only exists when the
-  // realm is configured (httphandler's GATED_PAGES), so reaching this code
-  // at all means the item should link. sessionActive is deliberately left
-  // unset until login succeeds -- this render is the one the login form sits
-  // under, and the tools do not exist yet for whoever is looking at it.
+  // `auditEnabled` é verdadeiro por definição aqui, e `sessionActive` fica
+  // deliberadamente sem valor até o login passar.
   renderNav(els.nav, "/audit", { auditEnabled: true });
   renderCaveat(els.caveatLogin);
   createLogin(

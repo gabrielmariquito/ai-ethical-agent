@@ -32,12 +32,8 @@ let conversationId = null;
 let turns = []; // mirrored, display-only -- the server holds the real history
 let configPanel = null;
 let sidebar = null;
-// Non-null while looking at a past conversation reconstructed from
-// logs/audit.jsonl (see archive.py) instead of the live one -- the composer
-// is disabled the whole time this is set, because a read-only turn was
-// never fed back into agent.process() and never will be (see ARCHITECTURE
-// notes in archive.py for why: no second copy of _build_messages's
-// retention rules, and no ambiguity about what the model "remembers").
+// Não-nulo enquanto se olha uma conversa passada reconstruída da trilha, com
+// o compositor desabilitado o tempo todo — REGISTRO, "Texto movido do código".
 let viewingArchivedId = null;
 
 // -------------------------------------------------------------- persistence
@@ -136,10 +132,8 @@ async function bootstrapConversation() {
       renderTranscript();
       return;
     }
-    // The live conversation is gone (server restarted) or diverged from
-    // what's mirrored -- the mirror is never partially trusted (see the
-    // plan's "Reconciliação após F5"). If the trail still has it, offer it
-    // read-only instead of losing it outright; otherwise just start fresh.
+    // A conversa viva sumiu ou divergiu, e o espelho nunca é parcialmente
+    // confiado — REGISTRO, "Texto movido do código".
     clearMirror();
     try {
       await openArchivedConversation(storedId, {
@@ -274,12 +268,9 @@ function buildAssistantTurnEl(turn) {
   const el = document.createElement("div");
   el.className = "ea-turn ea-turn--assistant";
 
-  // Surfaced as a visible notice in the transcript, not just the status
-  // bar: with Mock unchecked by default, this fallback is the first thing
-  // someone without Ollama running will hit, and a status-bar-only mention
-  // is too easy to miss to explain why the reply is a canned string.
-  // Doesn't apply to blocked_input -- the model was never called there, so
-  // "couldn't be reached" would describe something that was never tried.
+  // Exposto como aviso visível na transcrição e não só na barra de status,
+  // porque é a primeira coisa que quem não tem Ollama encontra —
+  // REGISTRO, "Texto movido do código".
   const showFallbackNotice =
     kind !== "blocked_input" && turn.llm_provenance && turn.llm_provenance.kind === "mock_fallback";
   if (showFallbackNotice) {
@@ -412,10 +403,8 @@ async function init() {
   setComposerEnabled(false);
   try {
     configPanel = await initConfigPanel(els.configPanel, els.configToggle);
-    // Re-render now that we know whether the audit screen exists on this
-    // server (initConfigPanel already fetched /api/choices) and whether this
-    // browser holds an audit session. The employee's chat has neither, and
-    // renders one item; the evaluator's has both, and renders all five.
+    // Re-renderiza agora que sabemos se a tela de auditoria existe neste
+    // servidor e se este navegador tem sessão.
     const sessionActive = await probeSessionActive(configPanel.auditScreenEnabled);
     renderNav(els.nav, "/", {
       auditEnabled: configPanel.auditScreenEnabled,

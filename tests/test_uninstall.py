@@ -1,16 +1,6 @@
-"""Tests for ethical_agent/uninstall.py.
-
-Hard rule for this file: **no test ever passes the real repository root**.
-Every one builds a fake root under tmp_path and passes root= explicitly, and
-no test calls os.chdir. That is what keeps the suite from interfering with
-itself -- .pytest_cache and __pycache__ under the real root are things the
-uninstaller reports as removable, and they are also things the very pytest
-run executing these tests creates and uses. Only the shells derive a root
-from their own __file__, and that path is never exercised here.
-
-Subprocess, network and platform are all injected (run=, urlopen=,
-platform=, verify=, which=), following ollama_install.py's pattern, so
-nothing here touches a real Ollama, a real network or a real venv.
+"""Testes de `ethical_agent/uninstall.py`, com a regra dura de que **nenhum
+teste passa a raiz real do repositório** — subprocesso, rede e plataforma
+são todos injetados: `REGISTRO`, "Texto movido do código".
 """
 
 import json
@@ -398,10 +388,8 @@ def test_env_question_says_which_keys_without_printing_the_value(tmp_path):
 
 
 def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path, monkeypatch):
-    # The variable has to be cleared explicitly: on a machine that exports
-    # one, removing .env does *not* disable the screen, and this text would
-    # be a promise the uninstaller cannot keep (see the test below). That is
-    # not hypothetical -- it is the setup this project's own author runs.
+    # A variável tem de ser limpa explicitamente: numa máquina que a exporta,
+    # remover o `.env` não desliga a tela: `REGISTRO`, "Texto movido do código".
     monkeypatch.delenv("ETHICAL_AGENT_AUDIT_PASSWORD", raising=False)
     root = _make_root(
         tmp_path,
@@ -423,10 +411,8 @@ def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path,
 def test_env_question_says_the_exported_variable_is_not_a_spare_password(
     tmp_path, monkeypatch
 ):
-    # The variable is not a source, so it does not take over when this file
-    # goes: removing one without clearing the other leaves the screen off AND
-    # a server that refuses to start. Saying nothing here would let someone
-    # discover that at the next launch.
+    # A variável não é fonte, então não assume quando o arquivo sai: remover um
+    # sem limpar o outro deixa a tela desligada E um servidor que recusa subir.
     monkeypatch.setenv("ETHICAL_AGENT_AUDIT_PASSWORD", "do-ambiente")
     root = _make_root(
         tmp_path,
@@ -481,11 +467,8 @@ def test_build_plan_reports_the_web_ui_so_the_shells_can_warn(tmp_path):
 
 
 def test_stop_hint_is_commands_only_and_stop_note_carries_the_prose():
-    # These were one list with the prose as item 0, and every caller then
-    # glued the whole thing together as commands: the GUI joined with "; "
-    # and rendered "...bandeja do sistema, ou:; taskkill /IM ollama.exe /F".
-    # The shells now show stop_hint as a copyable block, so a line of prose
-    # in here is a line that fails when pasted.
+    # Isto era uma lista só com a prosa no item 0, e cada chamador colava tudo
+    # como comandos: uma linha de prosa aqui é uma linha que falha ao colar: `REGISTRO`, "Texto movido do código".
     for service in ("web_ui", "ollama"):
         for platform in ("win32", "linux", "darwin"):
             for line in stop_hint(service, platform=platform, port=8765):

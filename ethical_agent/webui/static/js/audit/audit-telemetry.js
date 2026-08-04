@@ -1,21 +1,6 @@
-// Instrumentation of the auditor's own session.
-//
-// Everything here is disclosed to the auditor before they log in and again,
-// permanently, while they work (audit-session-banner.js). Instrumenting
-// someone silently inside an application whose subject is transparency would
-// be self-refuting, so the disclosure is part of the feature, not a footnote.
-//
-// Two deliberate design points:
-//
-// 1. Durations come from performance.now(), which is monotonic -- immune to
-//    clock changes and NTP steps that would otherwise produce negative or
-//    absurd dwell times in a file meant to be analysed months later.
-//
-// 2. Every record view reports TWO numbers: dwell_ms (open -> close, wall
-//    clock) and visible_dwell_ms, accumulated only while the tab is visible
-//    AND the window has focus. A tab left open overnight would otherwise
-//    report eight hours of "attention"; publishing that as reading time
-//    would be indefensible.
+// Instrumentação da própria sessão do auditor, divulgada antes do login e
+// permanentemente durante o trabalho, com relógio monotônico e dois números de
+// permanência — REGISTRO, "Texto movido do código".
 
 const FLUSH_EVERY_MS = 10_000;
 const FLUSH_AT_QUEUED = 20;
@@ -35,10 +20,8 @@ function isAttending() {
   return document.visibilityState === "visible" && document.hasFocus();
 }
 
-// One stopwatch per thing being timed. The session and the record currently
-// open need separate accumulators: a single shared one would be reset every
-// time a record is opened, and the session's own visible duration would then
-// only ever report the last record's.
+// Um cronômetro por coisa cronometrada: um acumulador só seria zerado a cada
+// registro aberto.
 function createAttentionClock() {
   let accumulated = 0;
   let running = isAttending();
@@ -103,10 +86,8 @@ export async function flush() {
     if (!response.ok) return;
     const data = await response.json();
     if (typeof data.last_seq === "number") {
-      // A gap means events were written for seq numbers we never saw
-      // acknowledged -- most likely a beacon dropped on page-hide. Recording
-      // the gap turns silent data loss into a visible hole in the file,
-      // which is the difference between a short file and a wrong one.
+      // Uma lacuna significa evento gravado sem confirmação, e registrá-la
+      // transforma perda silenciosa em buraco visível no arquivo.
       if (data.last_seq > lastAckedSeq + batch.length) {
         emitGap(lastAckedSeq + 1, data.last_seq);
       }
@@ -127,10 +108,8 @@ function emitGap(expected, received) {
   });
 }
 
-// sendBeacon survives page-hide where fetch does not; it carries same-origin
-// cookies (which is why the session is a cookie and not a header) but cannot
-// read a response, so a batch sent this way is never acknowledged -- hence
-// the gap detection above.
+// `sendBeacon` sobrevive ao page-hide onde o `fetch` não, mas não lê resposta
+// — daí a detecção de lacuna acima.
 export function flushBeacon() {
   if (queue.length === 0) return;
   const batch = queue;

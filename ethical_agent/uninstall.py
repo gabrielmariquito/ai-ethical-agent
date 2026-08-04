@@ -1,34 +1,6 @@
-"""Pure helpers for the uninstaller -- the counterpart to ollama_install.py.
-
-wizard_gui.py creates a venv, installs the package, optionally installs the
-Ollama server and pulls a multi-gigabyte model, and writes .env. Nothing
-undid any of that. This module works out what is there, how big it is, what
-is currently running, and removes what it is told to -- as plain functions
-with injectable subprocess/urlopen hooks, so it is testable without tkinter,
-a real venv, a real Ollama or network access. uninstall.py (CLI) and
-uninstall_gui.py (Tk) are thin shells over it.
-
-The rule the whole module is built around: *the uninstaller must not be more
-confident than the installer was.* It deletes without asking only what
-nothing else could plausibly own -- the venv and build artifacts -- and
-everything else is an opt-in that defaults to off. Two consequences worth
-naming, because they look like omissions:
-
-  * `dist/` and `*.spec` are gitignored build output, but the wizard never
-    creates them, so they are deliberately NOT removed. A `.spec` file in
-    particular is usually hand-written. Do not "fix" this.
-  * The Ollama server is never uninstalled by a guessed silent command. The
-    installer verifies an Authenticode signature before executing the
-    installer it downloaded (wizard_gui.py); running some `unins*.exe` found
-    by wildcard without the same check would leave the uninstaller with a
-    *worse* security posture than the installer, which is precisely what the
-    rule forbids. So: verify, or print the manual steps.
-
-Lives inside ethical_agent/ (like ollama_install.py) so it stays importable
-as `ethical_agent.uninstall` regardless of the current working directory.
-Stdlib only, plus ollama_install -- it has to run on the system Python with
-nothing installed, since the venv it removes is the thing that would have
-held the dependencies.
+"""Helpers puros do desinstalador, contraparte de `ollama_install.py`: apuram
+o que existe, o tamanho, o que está rodando, e removem o que mandarem — como
+funções com hooks injetáveis, testáveis sem tkinter: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations
@@ -156,11 +128,9 @@ class UninstallPlan:
 
 
 def looks_like_project_root(root: Path) -> bool:
-    """Cheap belt-and-braces: is this actually the ai-ethical-agent repo?
-
-    The shells derive the root from their own __file__, so this only ever
-    catches someone copying uninstall.py somewhere else -- but that is
-    exactly the case where being wrong deletes a stranger's directory.
+    """Cinto e suspensório barato: isto é mesmo o repositório? Só pega quem
+    copiou o arquivo para outro lugar — que é exatamente o caso em que errar
+    apaga o diretório de um estranho.
     """
     try:
         text = (root / "pyproject.toml").read_text(encoding="utf-8")
@@ -182,18 +152,9 @@ def running_inside_venv(
     executable: Optional[str] = None,
     env: Optional[Mapping[str, str]] = None,
 ) -> Optional[str]:
-    """Returns a pt-BR reason to refuse, or None when it is safe to proceed.
-
-    On Windows a running executable is locked by the OS: deleting
-    `.venv\\Scripts\\python.exe` while it *is* the running interpreter cannot
-    succeed, so `ethical-agent uninstall` as a console script inside the venv
-    would not merely fail -- it would leave a half-deleted venv, which is
-    worse than not offering it. Hence both shells run under the system
-    Python, and this refuses when they don't.
-
-    A merely *activated* venv (VIRTUAL_ENV set, but the running interpreter
-    is elsewhere) locks nothing -- that is a stale PATH, so it warns rather
-    than refusing.
+    """Devolve uma razão pt-BR para recusar, ou `None` quando é seguro seguir:
+    no Windows apagar o interpretador em execução deixaria um venv pela
+    metade, que é pior que não oferecer — `REGISTRO`, "Texto movido do código".
     """
     prefix = sys.prefix if prefix is None else prefix
     executable = sys.executable if executable is None else executable
@@ -276,11 +237,8 @@ def dir_size(path: Path) -> int:
 
 
 def iter_pycache_dirs(root: Path, pruned: AbstractSet[str] = PRUNED_DIRS) -> Iterator[Path]:
-    """Yields every __pycache__ under `root`, pruning in place.
-
-    The pruning has to happen by mutating `dirnames` during the walk, not by
-    filtering results afterwards: post-filtering still pays the cost of
-    walking all of .venv/Lib/site-packages.
+    """Devolve todo `__pycache__` sob `root`, podando durante a caminhada e não
+    filtrando depois, senão paga-se o custo de andar o `site-packages` inteiro.
     """
     for dirpath, dirnames, _filenames in os.walk(root, followlinks=False):
         dirnames[:] = [d for d in dirnames if d not in pruned]
@@ -309,11 +267,8 @@ def find_build_artifacts(root: Path) -> List[Path]:
 
 
 def count_lines(path: Path, chunk_size: int = 1 << 16) -> int:
-    """Counts records in a .jsonl without json.loads per line.
-
-    Counting b"\\n" in chunks is CRLF-safe by construction (\\r\\n holds one
-    \\n), which matters because AuditLogger opens the trail in text mode, so
-    on Windows every record ends \\r\\n.
+    """Conta registros num `.jsonl` sem `json.loads` por linha, contando bytes
+    de nova linha em blocos, o que é CRLF-safe por construção.
     """
     total = 0
     last = b""
@@ -345,11 +300,8 @@ def first_nonblank_line(path: Path) -> Optional[str]:
 
 
 def tail_lines(path: Path, count: int = 3, chunk_size: int = 1 << 16) -> List[str]:
-    """Last `count` non-blank lines, read backwards from the end.
-
-    More than one, because a run killed mid-write leaves a truncated final
-    line -- the caller falls back to the one before it rather than reporting
-    an unknown period.
+    """As últimas `count` linhas não-vazias, lidas de trás; mais de uma porque
+    uma execução morta no meio da escrita deixa a última truncada.
     """
     data = b""
     try:
@@ -522,12 +474,8 @@ def find_ollama_uninstaller(
     platform: Optional[str] = None,
     verify: Callable[[Path], bool] = verify_windows_signature,
 ) -> Optional[Path]:
-    """The official uninstaller next to ollama.exe, only if its signature checks out.
-
-    Fail-closed by design, and the manual path is expected to be the common
-    one: uninstallers generated at install time are frequently unsigned. That
-    is not a degradation -- executing an unverified binary found by wildcard
-    would be a lower bar than the installer holds itself to.
+    """O desinstalador oficial ao lado do `ollama.exe`, só se a assinatura
+    conferir: fail-closed por desenho, e o caminho manual é o comum.
     """
     platform = platform if platform is not None else sys.platform
     if platform != "win32":
@@ -574,12 +522,9 @@ def web_ui_running(
     timeout: float = 1.0,
     urlopen: Callable[..., object] = urllib.request.urlopen,
 ) -> bool:
-    """Asks the web UI's own API, not a bare socket connect.
-
-    "Something is listening on 8765" could be a stranger's process, and
-    telling the user to kill a stranger's process is exactly the kind of
-    confidence this uninstaller is not allowed to have. Only a 200 from
-    /api/choices counts as ours.
+    """Pergunta à API da própria interface, não a um socket: "algo escutando na
+    8765" pode ser processo de terceiro, e mandar matá-lo é confiança que
+    este desinstalador não tem.
     """
     url = f"http://127.0.0.1:{port}/api/choices"
     try:
@@ -603,13 +548,8 @@ def detect_running(
 
 
 def stop_hint(service: str, platform: Optional[str] = None, port: int = 0) -> List[str]:
-    """How to stop it: COMMANDS ONLY, one per line, nothing else.
-
-    Discovery commands at that -- we have no PID, so nothing here is ever run
-    for the user. Every line must be something they can copy and paste
-    verbatim, because the shells render this as a block and offer to copy it;
-    a line of prose in here becomes a line that fails in their terminal.
-    Guidance that is not a command belongs in stop_note().
+    """Como parar: SÓ COMANDOS, um por linha, porque as cascas renderizam isto
+    como bloco copiável e prosa aqui vira linha que falha no terminal: `REGISTRO`, "Texto movido do código".
     """
     platform = platform if platform is not None else sys.platform
     windows = platform == "win32"
@@ -629,14 +569,8 @@ def stop_hint(service: str, platform: Optional[str] = None, port: int = 0) -> Li
 
 
 def stop_note(service: str, platform: Optional[str] = None) -> Optional[str]:
-    """The prose that goes NEXT TO stop_hint's commands, never inside them.
-
-    These two lived in one list, prose as item 0, and every caller then glued
-    the list together as if it were all commands: the GUI joined it with "; "
-    and rendered "Saia do Ollama pelo ícone na bandeja do sistema, ou:;
-    taskkill ..." -- the double punctuation being the seam showing. The POSIX
-    branch had the same defect more quietly, shipping "ou: pkill -f 'ollama
-    serve'" as if the "ou: " were part of the command.
+    """A prosa que vai AO LADO dos comandos de `stop_hint`, nunca dentro deles:
+    as duas moravam numa lista só e os chamadores colavam tudo como comando: `REGISTRO`, "Texto movido do código".
     """
     platform = platform if platform is not None else sys.platform
     windows = platform == "win32"
@@ -904,14 +838,9 @@ def remove_path(
     rmdir: Callable[[str], None] = os.rmdir,
     chmod: Callable[[str, int], None] = os.chmod,
 ) -> RemovalResult:
-    """Deletes a file or tree, collecting per-entry errors instead of raising.
-
-    Deliberately not shutil.rmtree: "a failure to remove one item must not
-    abort the rest" applies *inside* the venv too. One locked python.exe
-    (held by a web server the wizard started) must not abandon the other few
-    thousand files, and the report should say "3120 de 3124, 4 em uso"
-    instead of surfacing a bare PermissionError. Sidesteps rmtree's
-    onerror/onexc signature change across 3.10-3.12 as a bonus.
+    """Apaga arquivo ou árvore coletando erros por entrada em vez de levantar,
+    porque "falhar em remover um item não pode abortar o resto" vale *dentro*
+    do venv também: `REGISTRO`, "Texto movido do código".
     """
     target = str(path)
     if not path.exists() and not path.is_symlink():
@@ -965,11 +894,9 @@ def move_logs(
     *,
     move: Callable[[str, str], object] = shutil.move,
 ) -> List[RemovalResult]:
-    """Moves the audit trail instead of deleting it.
-
-    Move-or-fail, never move-then-delete: if anything goes wrong the
-    originals are still there. This is the most consequential branch in the
-    program -- the trail may be the only copy of a study's data.
+    """Move a trilha em vez de apagá-la, mover-ou-falhar e nunca mover-e-apagar:
+    é o ramo mais consequente do programa, porque a trilha pode ser a única
+    cópia dos dados de um estudo.
     """
     logs_dir = (root / "logs").resolve()
     try:
@@ -1052,11 +979,8 @@ def remove_ollama(
     verify: Callable[[Path], bool] = verify_windows_signature,
     run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
 ) -> RemovalResult:
-    """Runs the official uninstaller if -- and only if -- it is signed.
-
-    Otherwise this reports the manual steps and returns MANUAL, not FAILED:
-    nothing failed, it simply isn't this program's place to guess how to
-    uninstall someone else's software.
+    """Roda o desinstalador oficial se — e só se — ele estiver assinado; caso
+    contrário reporta os passos manuais e devolve MANUAL, não FAILED.
     """
     platform = platform if platform is not None else sys.platform
     uninstaller = find_ollama_uninstaller(ollama_exe, platform=platform, verify=verify)
@@ -1099,14 +1023,8 @@ def execute(
     platform: Optional[str] = None,
     verify: Callable[[Path], bool] = verify_windows_signature,
 ) -> List[RemovalResult]:
-    """Runs the plan, isolating every item. Never raises.
-
-    Ordering matters: the model goes before the Ollama server (removing it
-    needs the binary), and the install record goes last (it is what tells a
-    later run what happened).
-
-    With dry_run=True nothing is called -- not one filesystem hook -- so a
-    test can assert both the reported statuses and that the tree is untouched.
+    """Roda o plano isolando cada item e nunca levanta; a ordem importa, e com
+    `dry_run=True` nada é chamado — nem um hook de sistema de arquivos.
     """
     results: List[RemovalResult] = []
 

@@ -13,20 +13,8 @@ from ethical_agent.llm import describe_llm_provenance
 
 
 def classify_intervention(input_decision: str, output_decision: Optional[str]) -> str:
-    """One of the four situations the chat UI must distinguish visually,
-    plus a fifth ("system_error", surfaced separately in turn_result_to_dict)
-    for an LLM failure. Order matters: a DENY always wins over a REWRITE
-    (matches AgentResult.status, which is "denied" in both DENY cases).
-
-    Takes plain decision strings (Decision.value), not Verdict objects, on
-    purpose: this is the one classification rule the whole webui package
-    uses, for both a live turn (called from turn_result_to_dict, right below,
-    off the real Verdict objects) and an archived one reconstructed from
-    logs/audit.jsonl (called from archive.py, off the already-serialized
-    dicts a Verdict.to_dict() call produced when the record was written --
-    there's no live Verdict object to read .decision off of there). Two
-    separate implementations of "what counts as an intervention" is exactly
-    the kind of drift this project has been bitten by before.
+    """Uma das quatro situações que a interface tem de distinguir visualmente,
+    mais uma quinta para falha de LLM; a ordem importa, e DENY vence REWRITE: `REGISTRO`, "Texto movido do código".
     """
     if input_decision == Decision.DENY.value:
         return "blocked_input"
@@ -38,16 +26,9 @@ def classify_intervention(input_decision: str, output_decision: Optional[str]) -
 
 
 def _response_safe_for_display(result: AgentResult) -> Optional[str]:
-    """AgentResult.response (unlike .message) is *not* suppressed by
-    agent.py itself when the output was redacted -- it always holds the
-    pre-redaction text whenever status != "denied", the same way the CLI's
-    `process --json` exposes it (arguably useful there for whoever is
-    calibrating a redact rule). The web chat's "copy record" button has no
-    such audience: it's for reading a decision, not tuning a policy, so it
-    must never be able to hand back the exact content a redact:true rule
-    exists to hide. Applies the same test build_check_audit_record /
-    GuardedAgent._finish already apply to the audit trail's raw_response, at
-    one more site.
+    """`AgentResult.response` não é suprimido por `agent.py` quando a saída foi
+    redigida, então é anulado aqui sempre que o veredito suprime conteúdo
+    bruto — espelhando a regra que a trilha já aplica: `REGISTRO`, "Texto movido do código".
     """
     output_verdict = result.output_verdict
     if output_verdict is not None and output_verdict.suppresses_raw_content:
@@ -65,12 +46,8 @@ def _is_system_error(result: AgentResult) -> bool:
 
 
 def agent_result_summary(result: AgentResult) -> dict:
-    """Fields shared by every JSON view of an AgentResult -- a live chat
-    turn (turn_result_to_dict, below) and a demo case (handlers_demo.py):
-    status, message, both verdicts, the intervention classification, and
-    whether an LLM failure happened. Each caller adds its own extra fields
-    on top (turn_index/llm_provenance/response for chat; text for demo)
-    instead of re-deriving this shaping a second time.
+    """Campos comuns a toda visão JSON de um `AgentResult`, com cada chamador
+    acrescentando os seus.
     """
     output_verdict = result.output_verdict
     return {
@@ -90,26 +67,9 @@ _MATCH_FIELDS_FOR_CHAT = ("rule_id", "principle", "deontic", "severity", "effect
 
 
 def _verdict_without_evidence(verdict: Optional[dict]) -> Optional[dict]:
-    """The chat's view of a verdict: which rule, on what grounds, how grave --
-    and nothing about *how* the rule decides.
-
-    The employee is told a rule applied, its principle, its deontic force and
-    its severity. Not the excerpt that matched, not where in their text it
-    matched, not the condition. Each of those is a step of a bypass: the
-    excerpt names the trigger, the span narrows it, and the condition -- for a
-    rule with a `not` clause -- hands over the phrase that switches the rule
-    off. The evaluator's screens (Check, Demo, Eval, /audit) keep all of it,
-    which is what the audit realm now separates.
-
-    `rationale` stays: it is prose written by the policy author about why the
-    norm exists, which is what someone whose message was intervened on is
-    owed. `suppressed` goes entirely -- its `reason` carries the exception
-    text that matched, i.e. a working bypass, already found.
-
-    Applied here rather than in verdict-view.js because chat.js's "Copiar
-    registro" serializes the whole turn object to the clipboard: hiding this
-    in the renderer would leave it one Ctrl+V away. Same reason
-    _response_safe_for_display sits at this layer.
+    """A visão do chat sobre um veredito: qual regra, com que fundamento e quão
+    grave — e nada sobre *como* a regra decide, porque cada um desses campos
+    é um passo de um bypass: `REGISTRO`, "Texto movido do código".
     """
     if verdict is None:
         return None

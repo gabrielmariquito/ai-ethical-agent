@@ -27,23 +27,9 @@ class AuditLogger:
         return event_id
 
 
-# ---------------------------------------------------------------------------
-# The three sentences the audit trail says to a human. Built here, in one
-# place, and nowhere else.
-#
-# They used to be written out four times -- _CliAuditLogger and _build_audit in
-# __main__.py, _WebAuditLogger in webui/state.py, build_audit in
-# webui/engine_factory.py -- each an independent copy of the same wording. That
-# is the shape that let check_audit_record and resolve_llm drift apart before
-# they were consolidated, and these strings are load-bearing: AUDIT_GUIDE
-# quotes the first two verbatim, and the mandatory-trail claim in README rests
-# on the disclosure actually appearing.
-#
-# What is deliberately NOT unified is what each caller *does* with the text.
-# The CLI prints to stderr and stops there; the web server also keeps the
-# string on the logger instance so the browser can show it, because a browser
-# tab has no visible stderr (see engine_factory.audit_notice_lines). That
-# difference is real and documented -- only the wording is shared.
+# As três frases que a trilha diz a um humano, construídas aqui e em nenhum
+# outro lugar; eram escritas quatro vezes, e o AUDIT_GUIDE cita duas delas
+# literalmente — `REGISTRO`, "Texto movido do código".
 
 
 def audit_write_failure_message(path, exc: BaseException) -> str:
@@ -72,13 +58,9 @@ def audit_init_failure_message(path, exc: BaseException) -> str:
 
 
 def build_check_audit_record(engine, verdict: Verdict, stage: Stage, text: str) -> dict:
-    """Builds the audit record for a single stateless `check` (no LLM call).
-
-    Shared by the CLI's `cmd_check` and the GUI's Check tab so the two
-    front-ends cannot independently drift on what content gets retained --
-    in particular, raw content is withheld when the verdict's REWRITE was
-    caused by a redact:true rule (verdict.suppresses_raw_content), matching
-    the same rule GuardedAgent.process() applies to trace["raw_response"].
+    """Monta o registro de um `check` isolado, compartilhado pelas duas frentes
+    para que não divirjam sobre o que é retido — em particular o conteúdo
+    bruto é omitido quando a REWRITE veio de regra `redact`: `REGISTRO`, "Texto movido do código".
     """
     record = {
         "status": "denied" if verdict.decision is Decision.DENY else "ok",

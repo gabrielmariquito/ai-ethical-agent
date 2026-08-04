@@ -1,16 +1,6 @@
-"""Tests for the two uninstaller shells: uninstall.py and uninstall_gui.py.
-
-uninstall.py is imported and driven for real -- main(argv, root=..., ask=...,
-isatty=...) -- rather than asserted on as source text. The reason
-tests/test_wizard_gui.py reads its target as a string (importing it needs
-tkinter and a display-dependent setup) simply does not apply to the CLI
-shell: it is plain stdlib, and tests/conftest.py already puts the repo root
-on sys.path. Driving it exercises the argument parsing, the guards, the
-prompts and the exit codes together, which source text cannot.
-
-uninstall_gui.py does need tkinter, so it keeps the source-text technique.
-
-As in tests/test_uninstall.py, no test here passes the real repository root.
+"""As duas cascas do desinstalador: `uninstall.py` é importado e dirigido de
+verdade, e `uninstall_gui.py` mantém a técnica de texto-fonte porque precisa
+de tkinter — e nenhum teste aqui passa a raiz real do repositório: `REGISTRO`, "Texto movido do código".
 """
 
 import json
@@ -205,11 +195,9 @@ def test_move_logs_to_implies_remove_logs_and_moves_instead_of_deleting(tmp_path
 
 
 def test_main_exits_nonzero_when_something_failed(tmp_path, monkeypatch, capsys):
-    # execute() resolves remove_path from the module namespace at call time,
-    # so replacing it here is enough. (The real in-use detection is covered
-    # against the filesystem in tests/test_uninstall.py; what this asserts is
-    # that the shell surfaces a failure as a non-zero exit and readable text
-    # rather than swallowing it.)
+    # `execute()` resolve `remove_path` do namespace do módulo em tempo de
+    # chamada; o que se assevera aqui é que a casca expõe a falha como código
+    # de saída e texto legível: `REGISTRO`, "Texto movido do código".
     import ethical_agent.uninstall as lib
 
     root = _make_root(tmp_path)
@@ -244,15 +232,9 @@ def test_nothing_to_remove_reports_so_and_exits_zero(tmp_path, capsys):
     assert "Nada a remover." in capsys.readouterr().out
 
 
-# -- interactive prompts ---------------------------------------------------
-
-
-# Interactive question order with --no-probe on a root built by _make_root:
-#   1. mover a trilha?        2. apagar a trilha? (+ palavra digitada)
-#   3. remover o modelo?      4. remover o .env?
-#   5. confirmação final
-# Answering "yes" to (1) consumes an extra reply for the destination and
-# skips (2).
+# Ordem das perguntas interativas com `--no-probe` numa raiz de `_make_root`:
+# mover a trilha, apagar a trilha, remover o modelo, remover o `.env`,
+# confirmação final — responder "sim" à primeira consome uma resposta extra.
 
 
 def test_an_empty_answer_is_no_for_every_optional_question(tmp_path):
@@ -357,21 +339,14 @@ def test_removing_env_while_keeping_the_model_prints_how_to_remove_it_later(tmp_
     assert "ollama rm llama3.2:3b" in capsys.readouterr().out
 
 
-# -- the single entry point ------------------------------------------------
-#
-# run() decides between the window and text mode; main() stays purely the
-# CLI, which is what every test above drives -- so no CLI test can ever
-# accidentally open a window.
+# O ponto de entrada único: `run()` decide entre janela e modo texto, e
+# `main()` fica puramente CLI, então nenhum teste de CLI abre janela.
 
 
 @pytest.fixture
 def dispatch(monkeypatch):
-    """Espiões para os dois destinos de run().
-
-    run() só decide para onde ir; o que o modo texto faz depois já é coberto
-    pelos testes de main() acima. Substituir main() aqui mantém estes testes
-    focados na decisão -- e impede que eles montem um plano de verdade, que
-    sondaria a rede e o `ollama list` da máquina.
+    """Espiões para os dois destinos de `run()`, que só decide para onde ir —
+    substituir `main()` impede que estes testes montem um plano de verdade: `REGISTRO`, "Texto movido do código".
     """
 
     class Spy:
@@ -463,11 +438,9 @@ def test_graphical_detection_reuses_the_wizards_headless_check():
 
 
 def test_importing_the_entry_point_never_imports_tkinter():
-    # O ponto mais frágil desta mudança. Se o import de tkinter subir para o
-    # topo de uninstall.py, o modo texto passa a exigir Tk instalado -- numa
-    # imagem mínima ou num servidor, o caminho de volta simplesmente deixa de
-    # existir. Rodado num subprocesso porque nesta mesma sessão do pytest
-    # outro módulo (test_wizard_gui_launch) já pode ter importado tkinter.
+    # O ponto mais frágil desta mudança: se o import de tkinter subir para o
+    # topo, o modo texto passa a exigir Tk e o caminho de volta deixa de
+    # existir. Roda em subprocesso por isso: `REGISTRO`, "Texto movido do código".
     repo_root = Path(__file__).resolve().parent.parent
     proc = subprocess.run(
         [sys.executable, "-c",
@@ -516,15 +489,9 @@ def test_gui_disables_bytecode_writing_before_importing_the_package():
 
 
 def test_gui_options_all_start_unchecked():
-    # The central requirement of the options screen: nothing is removed
-    # because the person did not look.
-    #
-    # Stated as "none of them starts checked" rather than "there are exactly
-    # five unchecked ones". The count was coupled to how many options the
-    # screen happens to offer -- it broke when one was added for reasons
-    # having nothing to do with defaults, and it never proved that the five
-    # counted were the five that matter. The negative is what carries the
-    # requirement, and it keeps holding as the screen grows.
+    # O requisito central da tela de opções — nada é removido porque a pessoa
+    # não olhou —, dito como "nenhuma começa marcada" e não como contagem:
+    # `REGISTRO`, "Texto movido do código".
     assert "tk.BooleanVar(value=True)" not in GUI_SOURCE
     assert "tk.BooleanVar(value=False)" in GUI_SOURCE
     # Every BooleanVar in the file is explicitly initialised: a bare
@@ -542,11 +509,8 @@ def test_gui_has_a_summary_page_that_is_the_simulation():
 
 
 def test_gui_requires_a_separate_confirmation_before_deleting_the_audit_trail():
-    # A checkbox here, a second question in the CLI (see
-    # test_removing_the_audit_trail_requires_a_second_confirmation) -- the
-    # same two steps on both sides. Ticking "remove the audit trail" is not by
-    # itself enough, because moving it is right there as the non-destructive
-    # answer.
+    # Um checkbox aqui, uma segunda pergunta na CLI: os mesmos dois passos dos
+    # dois lados, porque mover a trilha é a resposta não-destrutiva.
     assert "logs_confirm" in GUI_SOURCE
     body = GUI_SOURCE[GUI_SOURCE.index("class OptionsPage") : GUI_SOURCE.index("class SummaryPage")]
     assert "def can_advance" in body
@@ -572,10 +536,8 @@ def test_gui_warns_about_running_services_before_removing():
 
 
 def test_gui_grades_the_warnings_instead_of_painting_them_all_red():
-    # The three are not equivalent: an activated venv locks nothing, the web
-    # UI genuinely makes the .venv removal fail in part, and a running Ollama
-    # blocks neither. In one uniform red the eye treated them as equally
-    # grave and skipped all three -- including the one that matters.
+    # Os três não são equivalentes, e num vermelho uniforme o olho tratava
+    # todos como igualmente graves e pulava os três: `REGISTRO`, "Texto movido do código".
     assert "SEVERITY_FG" in GUI_SOURCE
     poll = GUI_SOURCE[
         GUI_SOURCE.index("def _poll", GUI_SOURCE.index("class WelcomePage")) :
@@ -592,10 +554,8 @@ def test_gui_shows_the_stop_commands_as_a_block_it_can_copy():
     assert '"; ".join(stop_hint' not in GUI_SOURCE, "comandos de volta para dentro da prosa"
     assert "stop_note" in GUI_SOURCE, "a prosa dos comandos tem função própria"
     assert "clipboard_append" in GUI_SOURCE
-    # A fixed family ("Menlo", "Consolas") is a guess that fails silently --
-    # Tk falls back to the proportional default and the block stops being
-    # monospaced with nothing to show for it. The helper lives in wizard_gui
-    # (one copy, both shells), so the intent is pinned on both sides.
+    # Família fixa é um palpite que falha em silêncio — o Tk cai para a
+    # proporcional e o bloco deixa de ser monoespaçado sem avisar: `REGISTRO`, "Texto movido do código".
     assert "_mono_font()" in GUI_SOURCE
     assert '("Menlo"' not in GUI_SOURCE
     wizard = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(
@@ -610,10 +570,8 @@ def test_gui_reuses_the_wizards_helpers_instead_of_copying_them():
 
 
 def test_gui_reads_the_options_on_the_main_thread_not_in_the_worker():
-    # Reading a tk.BooleanVar from the worker thread raises "main thread is
-    # not in main loop": Tk widgets belong to the thread running mainloop.
-    # This bit really did fail that way -- the whole removal was swallowed
-    # into "Erro inesperado" and nothing was deleted.
+    # Ler um `BooleanVar` da thread de trabalho levanta "main thread is not in
+    # main loop", e isto falhou assim de verdade: `REGISTRO`, "Texto movido do código".
     assert "self.app.executed_choices = self.app.choices()" in GUI_SOURCE
     run_body = GUI_SOURCE[GUI_SOURCE.index("    def _run(self)") :]
     run_body = run_body[: run_body.index("    def _poll")]

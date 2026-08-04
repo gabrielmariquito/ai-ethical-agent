@@ -6,39 +6,9 @@ from ethical_agent.llm import describe_llm_provenance
 
 from .dto import classify_intervention
 
-# Shapes an already-written audit record for the audit screen. Pure: no I/O,
-# no verdict recomputation, no re-evaluation of content. Everything here
-# *reads* fields that were decided and serialized when the record was
-# written; if a number looks wrong on screen, the bug is upstream in
-# agent.py/engine.py, not here.
-#
-# The layering is the point of the screen, and therefore of this module.
-# Showing an auditor all of a record at once drowns them; showing too little
-# stops them judging. So:
-#
-#   layer 1  what happened          -- always visible, plain language, built
-#                                      only from fields whose meaning needs
-#                                      no vocabulary (the text asked, the
-#                                      text delivered, status, counts)
-#   layer 2  the claim and its proof -- rule_id, rationale, evidence with
-#                                      matched text and position, suppressed
-#                                      exceptions, original vs rewritten
-#   layer 3  what produced the claim -- engine, config versions, model
-#                                      provenance, position in a conversation
-#
-# Note what this module does NOT do: it never hides content. Blocked output
-# and pre-redaction values are absent from the record itself, by a retention
-# decision taken in earlier rounds (agent.py:136-161). If either ever shows
-# up here, that is a retention bug upstream, not a presentation bug to patch
-# with a filter.
-#
-# The pt-BR wording lives in the frontend (static/js/audit/audit-layers.js),
-# the way verdict-view.js already renders labels for dto.classify_intervention's
-# neutral strings. This module returns structure; the screen names it.
-
-# Mirrors audit_tools.py's synthetic marker. Duplicated rather than imported
-# because audit_tools.py is a root-level script, not part of the package --
-# a test asserts the two literals still agree.
+# Molda um registro já escrito para a tela — puro, sem I/O e sem recomputar
+# veredito —, com a estratificação em três camadas como ponto da tela e a
+# redação pt-BR no frontend: `REGISTRO`, "Texto movido do código".
 SYNTHETIC_ENGINE = "SYNTHETIC-SAMPLE-DATA"
 DEMO_SOURCE = "demo"
 
@@ -50,12 +20,8 @@ KIND_SYNTHETIC = "synthetic"
 
 RECORD_KINDS = (KIND_WEB_CHAT, KIND_CLI_PROCESS, KIND_DEMO, KIND_CHECK, KIND_SYNTHETIC)
 
-# The default view is deliberately narrow: only real conversations held
-# through the web chat. A study session's time is the scarcest resource in
-# this whole design, and a trail with months of demo/check/dev runs in it
-# spends that time on noise. Every other kind stays one click away behind
-# "mostrar tudo", and the count of what the filter is hiding is always on
-# screen -- a filter whose cost is invisible is a filter that misleads.
+# A visão padrão é deliberadamente estreita, e o custo do filtro fica sempre na
+# tela — filtro de custo invisível é filtro que engana: `REGISTRO`, "Texto movido do código".
 DEFAULT_KINDS = (KIND_WEB_CHAT,)
 
 # Per-request scan budget for one page of the list. Deliberately NOT
@@ -69,12 +35,9 @@ MAX_PAGE_LIMIT = 200
 
 PREVIEW_CHARS = 160
 
-# Every record key this screen knows how to place in a layer. Anything else
-# a record carries is surfaced verbatim in layer 3 under "unknown_fields"
-# rather than dropped -- a reader of historical records that silently
-# discards fields it was not written for is not an audit tool. The schema
-# has grown before (conversation_id/turn_index arrived in Etapa 1) and will
-# grow again.
+# Toda chave que esta tela sabe posicionar; o resto sai verbatim em
+# `unknown_fields` da camada 3 em vez de ser descartado — leitor de registro
+# histórico que descarta em silêncio não é ferramenta de auditoria: `REGISTRO`, "Texto movido do código".
 KNOWN_RECORD_KEYS = frozenset(
     {
         "event_id",
@@ -100,17 +63,9 @@ KNOWN_RECORD_KEYS = frozenset(
 
 
 def classify_record_kind(record: dict) -> str:
-    """Which activity produced this record. Distinguishable by presence
-    alone, because that is all the writer left behind:
-
-      engine == SYNTHETIC-SAMPLE-DATA -> audit_tools.py gerar
-      source == "demo"                -> a demo run
-      has conversation_id             -> a web chat turn
-      has no "message" key            -> a `check` (never calls process())
-      otherwise                       -> the CLI's single-turn `process`
-
-    Order matters: a synthetic record also has no "message", so it has to be
-    recognised before the check branch or it would be mislabelled.
+    """Qual atividade produziu este registro, distinguível só por presença
+    porque é tudo que o escritor deixou — e a ordem importa, porque o
+    sintético também não tem "message": `REGISTRO`, "Texto movido do código".
     """
     if record.get("engine") == SYNTHETIC_ENGINE:
         return KIND_SYNTHETIC
@@ -256,21 +211,9 @@ def summarize_record(record: dict, offset: int) -> dict:
 
 
 def _matched_text_policy(record: dict) -> dict:
-    """Where in this record a redact rule scrubbed its own matched_text.
-
-    This used to compute six fields, five of which fed an in-screen note
-    explaining the deliberate asymmetry: evidence[].matched_text on a DENY
-    constraint carries the blocked excerpt, because an auditor who cannot see
-    what was blocked cannot judge the block; a redact=true rule scrubs its own
-    (Evidence.without_matched_text, in engine.py), because removing that value
-    is what the rule is for. That note was removed from the screen, and the
-    fields that only fed it went with it. The explanation still lives in
-    AUDIT_GUIDE.pt-BR.md, Passo 3.
-
-    `redacted_stages` stays because it answers a question the screen still
-    asks: raw_response is only "the text before the rewrite" when the *output*
-    was the thing rewritten, so layer 2 needs to know which stage the
-    redaction happened at before it offers a before/after.
+    """Onde neste registro uma regra `redact` limpou o próprio `matched_text`;
+    `redacted_stages` fica porque a camada 2 precisa saber em que estágio a
+    redação ocorreu antes de oferecer um antes/depois: `REGISTRO`, "Texto movido do código".
     """
     redacted_stages: List[str] = []
 
@@ -301,18 +244,9 @@ def detail_from_record(record: dict, offset: int) -> dict:
 
     llm_provenance = record.get("llm_provenance")
 
-    # What layer 1 is allowed to say about *why*. A count is not a reason:
-    # "one rule applied" tells the reader how many and when, then sends them
-    # to layer 2 for the thing they actually came for. The nature of the
-    # concern has to survive at layer 1 or the split is in the wrong place.
-    #
-    # Note what is deliberately NOT promoted here. Verdict.reason reads
-    # "rule-based: DENY (1 rule(s) triggered (R-INJ-001)) | knowledge-graph:
-    # ALLOW (no rule matched)" -- engine names, English, rule ids, i.e. every
-    # kind of vocabulary layer 1 exists to do without. match.rationale is a
-    # real sentence but also English, and carries appended RelAIEO
-    # provocations. principle and deontic are short closed vocabularies, so
-    # they translate the way gravity and kind already do.
+    # O que a camada 1 pode dizer sobre o *porquê*: contagem não é razão, e a
+    # natureza da preocupação tem de sobreviver aqui ou o corte está no lugar
+    # errado — `REGISTRO`, "Texto movido do código".
     principles: List[str] = []
     deontics: List[str] = []
     has_hard_rule = False

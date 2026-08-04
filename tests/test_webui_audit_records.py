@@ -1,9 +1,6 @@
-"""Listing, paging and record lookup over a real trail, through real HTTP.
-
-The requirement behind most of these: the trail can be months long, so the
-screen never loads it whole, and every bound it imposes on itself has to be
-visible in the response rather than silently shortening what the auditor
-believes they are looking at.
+"""Listagem, paginação e busca de registro sobre uma trilha real via HTTP
+real, com o requisito de que todo limite que a tela se impõe apareça na
+resposta em vez de encurtar em silêncio o que o auditor pensa estar vendo: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -158,10 +155,8 @@ def test_pagination_cursor_walks_backward_without_repeats_or_gaps(server):
 def test_scan_budget_is_reported_and_cursor_still_advances_on_a_zero_match_page(
     server, monkeypatch
 ):
-    # A narrow filter over a long stretch of noise: the page can legitimately
-    # return nothing. next_cursor must still advance to the last line
-    # *examined*, or "continue scanning" would hand back the cursor it was
-    # given and spin forever.
+    # Um filtro estreito sobre um trecho longo pode legitimamente não devolver
+    # nada, e `next_cursor` tem de avançar até a última linha *examinada*.
     from ethical_agent.webui import audit_view
 
     monkeypatch.setattr(audit_view, "AUDIT_PAGE_SCAN_LIMIT", 3)
@@ -327,13 +322,9 @@ def test_conversation_reports_duplicate_turn_indices(server):
 
 
 def test_conversation_scan_stops_at_the_first_turn_one_it_meets(server):
-    # Documents a known, bounded limitation rather than leaving it to be
-    # discovered: the backward scan stops at turn_index == 1, so a second
-    # turn-1 record *older* than that one is not collected and cannot be
-    # reported as a duplicate. Detecting it would mean scanning past the
-    # start of every conversation for a case uuid4 conversation ids make
-    # vanishingly unlikely. Duplicates at any later turn are still caught
-    # (see the test above).
+    # Documenta uma limitação conhecida e delimitada: a varredura para em
+    # `turn_index == 1`, então um segundo registro de turno 1 mais antigo não é
+    # coletado: `REGISTRO`, "Texto movido do código".
     write_trail(
         server.audit_log_path,
         [
@@ -355,10 +346,8 @@ def test_unknown_conversation_is_404(server):
 
 
 def test_audit_reader_ignores_any_client_supplied_audit_log_path(server, tmp_path):
-    # The chat handlers accept a per-request audit_log because the config
-    # panel can point them elsewhere. Doing the same here would hand an
-    # authenticated auditor a file-existence-and-contents oracle for anything
-    # the process can read.
+    # Aceitar um `audit_log` por requisição aqui daria ao auditor um oráculo de
+    # existência e conteúdo de qualquer arquivo que o processo consiga ler.
     write_trail(server.audit_log_path, [record("ev01")])
     other = tmp_path / "outra.jsonl"
     write_trail(other, [record("ev99")])

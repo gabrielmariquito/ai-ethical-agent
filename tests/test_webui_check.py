@@ -63,13 +63,9 @@ def test_check_writes_exactly_one_audit_record(server):
 
 
 def test_check_endpoint_uses_shared_audit_record_builder(server):
-    # Behavioral replacement for the old gui_app.py source-grep test
-    # (test_gui_app_no_longer_defines_its_own_check_audit_record): bypass
-    # the HTTP layer entirely and build the audit record the *real* way
-    # ethical_agent.audit.build_check_audit_record would, then diff it
-    # against what the endpoint actually persisted. If the endpoint had its
-    # own slightly-different reimplementation, this would catch it as a
-    # mismatch instead of relying on reading source text.
+    # Substituto comportamental do antigo teste de texto-fonte: constrói o
+    # registro do jeito real e compara com o que o endpoint persistiu, em vez de
+    # ler o fonte: `REGISTRO`, "Texto movido do código".
     text = "contact bob@example.com for help"
     status, body, _ = server.post("/api/check", {"text": text, "stage": "output", "config": {}})
     assert status == 200

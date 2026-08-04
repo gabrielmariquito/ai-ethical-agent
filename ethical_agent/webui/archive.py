@@ -9,30 +9,10 @@ from ethical_agent.llm import describe_llm_provenance
 
 from .dto import classify_intervention
 
-# Reads logs/audit.jsonl to reconstruct the left-sidebar's conversation list
-# and a past conversation's read-only transcript. This is deliberately the
-# *only* source of conversation history that survives a server restart --
-# ConversationStore (state.py) is in-memory only, on purpose (see its
-# docstring). Nothing here writes anything; it only ever reads the trail
-# that GuardedAgent._finish() already writes for every process() turn.
-#
-# The trail is append-only and can run to months of accumulated CLI and web
-# activity, so both functions below scan it *backward* from the end (newest
-# first) and stop as soon as they have what they need, instead of loading
-# and grouping the whole file on every sidebar refresh:
-#   - summarize_conversations stops once it has LIST_LIMIT distinct
-#     conversations. It doesn't need every turn of each one -- the most
-#     recent record for a conversation already carries everything a list
-#     entry needs (turn_index *is* the running turn count, no need to also
-#     count each line; its own timestamp is "updated_at"; its own
-#     input/message is the preview).
-#   - build_readonly_transcript (opening one past conversation) stops once
-#     it has seen that conversation's turn_index == 1, i.e. reached its
-#     start -- it never needs to look further back than that one
-#     conversation's own turns.
-# Both are additionally capped at MAX_SCAN_LINES so a huge trail with few or
-# no matching records near the tail still returns promptly instead of
-# degrading to a full-file scan.
+# Lê `logs/audit.jsonl` para reconstruir a lista de conversas e a transcrição
+# somente-leitura, sendo a única fonte de histórico que sobrevive a reinício, e
+# varre de trás para a frente parando assim que tem o que precisa:
+# `REGISTRO`, "Texto movido do código".
 
 LIST_LIMIT = 50
 MAX_SCAN_LINES = 20_000
@@ -41,21 +21,9 @@ MAX_SCAN_LINES = 20_000
 def iter_lines_reverse_offsets(
     path: Path, chunk_size: int = 65536, end_offset: Optional[int] = None
 ) -> Iterator[Tuple[int, str]]:
-    """Yields (byte_offset, line) from the end of the file backward (most
-    recent line first), reading in fixed-size chunks rather than loading the
-    whole file. Blank lines are skipped; a trailing "\\r" is stripped from
-    every line so a CRLF-written trail (AuditLogger.log() opens the file in
-    default text mode, which translates "\\n" to os.linesep -- "\\r\\n" on
-    Windows) parses the same as an LF-only one.
-
-    `byte_offset` is the position of the line's first byte, which stays valid
-    for the life of an append-only file -- that is what lets the audit
-    screen page backward with a cursor and jump straight to one record
-    without rescanning (see handlers_audit.py). It is computed from the raw
-    bytes, so it is correct under CRLF too.
-
-    `end_offset` limits the scan to bytes [0, end_offset), i.e. "continue
-    from where the previous page stopped".
+    """Devolve (offset em bytes, linha) do fim do arquivo para trás, em blocos,
+    com o offset permanecendo válido pela vida de um arquivo append-only — é
+    o que deixa a tela paginar por cursor e pular direto a um registro: `REGISTRO`, "Texto movido do código".
     """
     with path.open("rb") as handle:
         if end_offset is None:
@@ -110,13 +78,9 @@ def iter_records_reverse(
 
 
 def _is_web_chat_turn(record: dict) -> bool:
-    """True only for turns that went through the web chat's
-    GuardedAgent.process(..., conversation_id=...). check records never call
-    process() at all (no conversation_id key, ever); demo and the CLI's
-    single-turn `process` call process() without a conversation_id either --
-    so presence of the key alone already isolates web-chat turns. The
-    source != "demo" check is a second, independent guard in case that ever
-    changes, not the primary filter.
+    """Verdadeiro só para turnos que passaram pelo chat web, porque a presença
+    da chave `conversation_id` já isola — o teste de `source` é guarda
+    independente, não o filtro primário.
     """
     return "conversation_id" in record and record.get("source") != "demo"
 
@@ -132,11 +96,8 @@ def _parse_line(line: str) -> Optional[dict]:
 
 
 def summarize_conversations(audit_log_path: str, limit: int = LIST_LIMIT) -> dict:
-    """Returns {"conversations": [...], "truncated": bool} -- newest first,
-    at most `limit` entries. `truncated` is True when the scan stopped
-    because it hit `limit` (there may be older conversations not shown) or
-    MAX_SCAN_LINES (the trail is large enough that the sidebar can't afford
-    to keep looking for more).
+    """Devolve as conversas mais recentes primeiro, com `truncated` verdadeiro
+    quando a varredura parou por limite ou por teto de linhas.
     """
     path = Path(audit_log_path)
     if not path.exists():
@@ -176,16 +137,9 @@ def summarize_conversations(audit_log_path: str, limit: int = LIST_LIMIT) -> dic
 
 
 def build_readonly_transcript(audit_log_path: str, conversation_id: str) -> Optional[List[dict]]:
-    """Returns None if the conversation isn't in the trail at all. Each turn
-    in the returned list has the same shape dto.turn_result_to_dict() sends
-    for a live turn (message, input_verdict, output_verdict, intervention,
-    llm_provenance_text, ...) so the frontend can render both with the same
-    code -- except "response": archived turns never carry it. The audit
-    record has no field equivalent to AgentResult.response (the file only
-    ever has message / conditionally raw_response, per
-    build_check_audit_record's redaction rule); reusing raw_response under
-    the "response" key here would defeat the whole reason that key is
-    conditional in the first place.
+    """`None` se a conversa não está na trilha; cada turno tem a mesma forma que
+    um turno vivo **exceto** `response`, porque reusar `raw_response` ali
+    derrotaria a razão de aquela chave ser condicional: `REGISTRO`, "Texto movido do código".
     """
     path = Path(audit_log_path)
     if not path.exists():

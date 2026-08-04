@@ -1,10 +1,5 @@
-// The record list: what the auditor picks from.
-//
-// Two things this screen must not do quietly. It must not make DENY and
-// REWRITE look alike -- a block and an e-mail redaction differ enough in
-// gravity that an auditor needs to know where to start. And it must not hide
-// the cost of its own filter: the default view is narrow, so how much was
-// skipped, and how far the scan got, are always on screen.
+// A lista de registros, que não pode fazer DENY e REWRITE parecerem iguais
+// nem esconder o custo do próprio filtro — REGISTRO, "Texto movido do código".
 
 import { getJSON } from "../api.js";
 import { gravityLabel, kindLabel, formatTimestamp } from "./audit-layers.js";
@@ -220,10 +215,8 @@ export function createList(listEl, footerEl, filterEl, onSelect) {
       });
     } catch (err) {
       if (err && err.status === 409) {
-        // The trail was rewritten under us, so the byte offsets we were
-        // paging with mean nothing now. Restarting silently would be worse:
-        // an audit tool that papers over its subject changing is the wrong
-        // tool.
+        // A trilha foi reescrita por baixo, então os offsets em bytes não
+        // significam mais nada, e reiniciar em silêncio seria pior.
         footerEl.innerHTML = "";
         const warn = document.createElement("p");
         warn.className = "ea-audit-scan ea-audit-scan--warn";

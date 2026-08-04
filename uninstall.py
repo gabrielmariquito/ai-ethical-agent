@@ -1,30 +1,12 @@
 #!/usr/bin/env python3
-"""Desinstalador do ai-ethical-agent -- o único ponto de entrada.
-
-Contraparte do wizard_gui.py. O instalador cria .venv/, instala o pacote,
-opcionalmente instala o servidor Ollama e baixa um modelo de vários GB, e
-escreve .env -- e até aqui não havia caminho de volta.
+"""Desinstalador do ai-ethical-agent, o único ponto de entrada e contraparte do
+`wizard_gui.py`.
 
 Uso:
-    python3 uninstall.py                    # abre a janela, se houver sessão gráfica
-    python3 uninstall.py --cli              # força o modo texto (interativo)
-    python3 uninstall.py --dry-run          # lista tudo, sem apagar nada
-    python3 uninstall.py --remove-logs --yes
+    python3 uninstall.py                    # abre a janela se houver sessão
+    python3 uninstall.py --dry-run          # só mostra o plano
 
-Sem argumentos e com sessão gráfica disponível, abre a interface gráfica
-(uninstall_gui.py, importado sob demanda). Sem sessão gráfica, com --cli, ou
-com qualquer flag de remoção, roda em modo texto. Ninguém precisa saber que
-uninstall_gui.py existe.
-
-O import de tkinter é DELIBERADAMENTE tardio -- ele acontece dentro de
-_graphical_session_available()/_open_gui(), nunca no topo deste arquivo. Se
-subisse para cá, o modo texto passaria a exigir Tk instalado, que é
-exatamente o que ele não deve exigir (e os testes da CLI, que rodam sem
-display, quebrariam).
-
-Rode com o Python do SISTEMA, não com o do .venv: no Windows um executável em
-execução não pode ser apagado, então o .venv não consegue apagar a si mesmo.
-O programa recusa e explica se for iniciado do jeito errado.
+`REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -105,13 +87,9 @@ def ask_yes_no(
 
 
 def _mid_sentence(label: str) -> str:
-    """Rótulo do plano encaixado no MEIO de uma frase.
-
-    Eles são capitalizados porque na janela cada um abre a própria linha; aqui
-    entram depois de "Remover o ", onde a maiúscula fica solta ("Remover o
-    Modelo llama3.2:3b?"). A caixa é decisão de apresentação, e cada casca
-    toma a sua -- o plano, que as duas compartilham, não tem como saber em que
-    posição da frase o rótulo vai cair.
+    """Rótulo do plano encaixado no MEIO de uma frase, em caixa baixa porque
+    aqui ele entra depois de "Remover o " — a caixa é decisão de apresentação,
+    e cada casca toma a sua: `REGISTRO`, "Texto movido do código".
     """
     return label[:1].lower() + label[1:]
 
@@ -316,11 +294,8 @@ def _wants_text_mode(args: argparse.Namespace) -> bool:
 
 
 def _graphical_session_available() -> bool:
-    """Import tardio de propósito -- ver o docstring do módulo.
-
-    Trazer wizard_gui para cá importa tkinter junto, e o modo texto não pode
-    depender de Tk estar instalado. Um ImportError aqui (Tk ausente, imagem
-    mínima) significa simplesmente "sem sessão gráfica".
+    """Import tardio de propósito: trazer `wizard_gui` importa tkinter junto, e
+    o modo texto não pode depender de Tk.
     """
     try:
         from wizard_gui import _is_headless
@@ -341,11 +316,8 @@ def run(
     open_gui: Optional[Callable[[int], int]] = None,
     graphical: Optional[bool] = None,
 ) -> int:
-    """Ponto de entrada único: escolhe entre a janela e o modo texto.
-
-    Fica separado de main() para que main() continue sendo puramente a CLI --
-    é o que os testes da linha de comando dirigem, sem nunca arriscar abrir
-    uma janela.
+    """Ponto de entrada único que escolhe entre a janela e o modo texto,
+    separado de `main()` para que `main()` continue puramente CLI.
     """
     # Primeira chamada do entrypoint, como em audit_tools.py e no wizard: o
     # aviso de fallback abaixo tem acento, e num console cp1252 imprimi-lo
@@ -502,12 +474,8 @@ def _ask_optional(plan: UninstallPlan, choices: Choices, ask: Callable[[str], st
                     move_logs_to = Path(dest).expanduser()
                     remove_logs = True
                     continue
-            # Duas perguntas normais, como as duas caixas da janela: marcar o
-            # item e confirmar à parte. A segunda enuncia a CONSEQUÊNCIA, não a
-            # ação -- na janela quem faz esse trabalho é a linha cinza sob a
-            # caixa, e aqui não há linha secundária onde pôr isso. Por isso
-            # também a primeira não repete "irreversível": dito duas vezes, o
-            # aviso se gasta e nenhuma das duas pesa.
+            # Duas perguntas normais, como as duas caixas da janela, e a segunda enuncia
+            # a CONSEQUÊNCIA: `REGISTRO`, "Texto movido do código".
             if ask_yes_no("Apagar a trilha de auditoria?", ask=ask):
                 remove_logs = ask_yes_no(
                     "Apagar definitivamente todos os arquivos da trilha? (irreversível)",

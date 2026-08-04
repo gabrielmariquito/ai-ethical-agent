@@ -1,12 +1,5 @@
-"""Exemplo mínimo de uso da biblioteca: engine híbrida + GuardedAgent.
-
-Nada aqui é próprio do exemplo além do laço de impressão. A construção do
-LLM vem de `resolve_llm` e os prompts de `ethical_agent.demo.DEMO_CASES`, que
-são os mesmos que a CLI (`ethical_agent demo`) e a tela Demo da interface web
-usam. Isso é deliberado: este arquivo já teve um `build_llm()` próprio, escrito
-antes de a proveniência existir, e os registros que ele gravava saíam sem
-`llm_provenance` -- a mesma divergência que `check_audit_record` e
-`resolve_llm` já custaram a este projeto, numa quarta cópia.
+"""Exemplo mínimo de uso da biblioteca: engine híbrida mais `GuardedAgent`,
+ligado ao `resolve_llm` e ao `DEMO_CASES` compartilhados: `REGISTRO`, "Texto movido do código".
 """
 import sys
 from pathlib import Path

@@ -6,25 +6,10 @@ from typing import List, Optional
 
 from ethical_agent import AuditLogger
 
-# The auditor's own behaviour, kept in files of its own.
-#
-# logs/audit.jsonl is the object of study: it is what the agent decided.
-# What an auditor does while reading it -- which record they opened, how
-# long they stayed, which layer they expanded first -- is data *about* the
-# study, and writing it into the same file would contaminate the trail it
-# describes. This is the same reasoning that gave demo runs source="demo",
-# taken one step further: a separate concern gets a separate file, not a
-# discriminator field. server.make_server refuses to start if the two paths
-# ever resolve to the same file, because a convention that matters this much
-# should not depend on remembering it.
-#
-# Two files, not one:
-#   auditor_sessions.jsonl      behavioural telemetry (this is instrumentation)
-#   policy_change_requests.jsonl the auditor's substantive judgment that a
-#                                rule should be different (this is a finding)
-# The next change -- policy editing with versioning -- consumes the second
-# one; making it dig those out from between dwell-time events would be a
-# needless coupling.
+# O comportamento do próprio auditor, em arquivos próprios: a trilha do agente
+# é o objeto de estudo, e escrever o que o auditor faz dentro dela
+# contaminaria o que ela descreve — são dois arquivos, não um:
+# `REGISTRO`, "Texto movido do código".
 
 DEFAULT_AUDITOR_SESSION_LOG = "logs/auditor_sessions.jsonl"
 DEFAULT_CHANGE_REQUESTS_LOG = "logs/policy_change_requests.jsonl"
@@ -137,15 +122,9 @@ ALLOWED_PAYLOAD_KEYS = frozenset(
 
 
 class _FailSoftLogger(AuditLogger):
-    """AuditLogger that reports a write failure instead of raising, in the
-    same spirit as __main__.py's _CliAuditLogger and state.py's
-    _WebAuditLogger. Losing an instrumentation event must never take down
-    the screen the auditor is in the middle of using -- the study is the
-    reading, not the telemetry about it.
-
-    Like _WebAuditLogger it serializes writes with a lock, because
-    AuditLogger.log() does an unguarded open/write/close and
-    ThreadingHTTPServer calls it from more than one request thread.
+    """`AuditLogger` que reporta falha de escrita em vez de levantar: perder um
+    evento de instrumentação nunca pode derrubar a tela que o auditor está
+    usando — o estudo é a leitura, não a telemetria sobre ela: `REGISTRO`, "Texto movido do código".
     """
 
     def __init__(self, path, lock: threading.Lock):

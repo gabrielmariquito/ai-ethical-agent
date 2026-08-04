@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
-"""Leitura e geração de dados de exemplo para a trilha de auditoria.
-
-Lê `logs/audit.jsonl` (mesmo arquivo que `check`/`process`/`demo` gravam por
-padrão, na CLI e na GUI -- ver AUDIT_GUIDE.pt-BR.md) usando apenas as chaves
-do envelope comum a todo registro (`event_id`, `timestamp`, `status`,
-`engine`, `config_versions`), presentes tanto num registro de `check` quanto
-num de `process`/`demo`, sem precisar diferenciar a origem.
-
-Uso:
-    python3 audit_tools.py resumir [--audit-log logs/audit.jsonl]
-    python3 audit_tools.py gerar [-n 5] [--audit-log logs/audit.jsonl]
+"""Leitura e geração de dados de exemplo para a trilha de auditoria:
+`resumir` e `gerar`. `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 

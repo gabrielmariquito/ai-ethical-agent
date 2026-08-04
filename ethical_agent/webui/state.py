@@ -19,17 +19,9 @@ JOB_TERMINAL_GC_SECONDS = 300
 
 
 class _WebAuditLogger(AuditLogger):
-    """AuditLogger that fails soft, in the same spirit as __main__.py's
-    _CliAuditLogger and the former gui_app.py's _GuiAuditLogger -- a write
-    error is reported instead of crashing the request, and the first
-    successful write in the process's lifetime is disclosed once.
-
-    Unlike those two, .log() here can be called concurrently from more than
-    one request thread (ThreadingHTTPServer), and AuditLogger.log() itself
-    does an unguarded open/write/close per call -- so this serializes writes
-    with a lock shared across the whole server (see ServerState.audit_lock),
-    not one owned by this instance (a fresh instance is built per request,
-    per gui_app.py's original "never cache engine/llm/audit" behavior).
+    """`AuditLogger` que falha macio, e que aqui também **serializa** escritas
+    porque `.log()` pode ser chamado de mais de uma thread de requisição:
+    `REGISTRO`, "Texto movido do código".
     """
 
     def __init__(self, path, lock: threading.Lock):
@@ -58,18 +50,9 @@ class _WebAuditLogger(AuditLogger):
 
 
 class ConversationStore:
-    """Per-conversation history, kept only in server-process memory -- never
-    reconstructed from logs/audit.jsonl (that trail is the audit record, not
-    a conversation cache; losing this on restart is the web equivalent of
-    closing the old Tkinter window).
-
-    Each conversation has its own lock, held by the caller for the entire
-    duration of a turn (snapshot -> agent.process() -> append), so two
-    messages sent concurrently on the same conversation_id are serialized
-    instead of racing on turn_index / message order. Locking is coarse (one
-    global lock protects the dict of conversations, a second per-conversation
-    lock protects that conversation's list) but cheap -- this is a
-    single-reviewer local tool, not a multi-tenant service.
+    """Histórico por conversa, só na memória do processo e nunca reconstruído da
+    trilha, com um lock por conversa segurado pelo chamador durante o turno
+    inteiro: `REGISTRO`, "Texto movido do código".
     """
 
     def __init__(self):
@@ -174,17 +157,9 @@ class JobRegistry:
 
 
 class ServerState:
-    """Everything the web server keeps for the lifetime of the process.
-    Built once in server.make_server(); handlers receive it as their first
-    argument. `initial_config` seeds the frontend's config panel (from the
-    CLI flags `ethical-agent serve` was started with) -- the browser can
-    still override every field per-request; the server never caches a built
-    engine/llm/audit between requests (see engine_factory.py).
-
-    NOTE for anyone adding configuration: handlers_choices.py serves
-    dict(initial_config) verbatim to the chat screen, unauthenticated. A
-    secret must therefore never be put in it -- the audit password lives in
-    audit_auth and nowhere else. There is a test for exactly this.
+    """Tudo que o servidor guarda pela vida do processo, construído uma vez em
+    `make_server()`; `initial_config` semeia o painel do frontend e é servido
+    verbatim e sem autenticação por `handlers_choices` — `REGISTRO`, "Texto movido do código".
     """
 
     def __init__(

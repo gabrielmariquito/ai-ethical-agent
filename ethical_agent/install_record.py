@@ -1,25 +1,5 @@
-"""What the installer actually did, written down for the uninstaller.
-
-Without this file the uninstaller has to guess. The only durable evidence a
-wizard run ever left behind was `.venv/`, an egg-info directory and a line in
-`.env` -- nothing that distinguishes "this project installed Ollama" from
-"Ollama was already on this machine", which is exactly the distinction that
-decides whether removing it is safe.
-
-The record deliberately stores an *observation*, not a conclusion. The wizard
-cannot honestly claim "I installed Ollama": find_ollama_exe() only looks at
-PATH plus one well-known location, and both OllamaSetup.exe and install.sh are
-happy to run as an upgrade over an install the wizard never saw. What it can
-observe, at one exact moment (just before it acts), is whether an Ollama was
-findable at all -- so that is what gets stored, as
-`ollama_was_present_before`. The uninstaller derives its wording from it and
-still asks. A record can only ever make the uninstaller more cautious or
-better informed; it never skips a question.
-
-Writes are fail-soft on purpose: bookkeeping must never be the reason an
-install fails. Reads treat a missing, corrupt or unexpected file as "no
-information", so installs predating this module -- and hand-made ones -- keep
-working, with the uninstaller asking exactly as it would with no record.
+"""O que o instalador de fato fez, escrito para o desinstalador, que sem isto
+teria de adivinhar: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations
@@ -105,13 +85,9 @@ def write_record(
     record: InstallRecord,
     now: Callable[[], datetime] = _utc_now,
 ) -> Optional[Path]:
-    """Merges the non-empty fields of `record` into whatever is on disk.
-
-    Merging rather than overwriting because the wizard learns these facts at
-    different moments, several methods apart: a later `env_keys` write must
-    not erase the `ollama_was_present_before` observed earlier in the same
-    run. Returns None if anything at all went wrong -- callers are installer
-    code paths that must not fail because of this file.
+    """Funde os campos não-vazios de `record` com o que está em disco, em vez
+    de sobrescrever, porque o wizard aprende esses fatos em momentos
+    diferentes: `REGISTRO`, "Texto movido do código".
     """
     try:
         existing = read_record(root) or InstallRecord()

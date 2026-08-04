@@ -1,8 +1,5 @@
-// Conversation sequence.
-//
-// A single decision is rarely judgeable on its own: whether blocking turn 3
-// was right often depends on what turns 1 and 2 established. Records sharing
-// a conversation_id are therefore readable in order, from any one of them.
+// Sequência da conversa: uma decisão isolada raramente é julgável, então
+// registros do mesmo `conversation_id` são legíveis em ordem.
 
 import { getJSON } from "../api.js";
 import { gravityLabel } from "./audit-layers.js";

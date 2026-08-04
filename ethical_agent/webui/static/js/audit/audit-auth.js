@@ -1,9 +1,5 @@
-// Login, and the honest description of what the password is.
-//
-// The long caveat lives here as one string so it stays identical to the one
-// in README.md and AUDIT_GUIDE.pt-BR.md. Overstating what a localhost
-// password protects would be exactly the kind of claim this whole project
-// exists to avoid making.
+// Login, e a descrição honesta do que a senha é: a ressalva longa mora aqui
+// como uma string só, idêntica à do README e do AUDIT_GUIDE.
 
 import { postJSON } from "../api.js";
 

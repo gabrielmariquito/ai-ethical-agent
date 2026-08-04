@@ -1,14 +1,5 @@
-// The permanent "this session is being recorded" strip.
-//
-// Not dismissible, on purpose. A disclosure that can be closed is a
-// disclosure that is read once and then absent for the rest of the session,
-// which in an application about transparency is the wrong default. It is a
-// strip rather than a modal so it costs attention once and then stays
-// legible without blocking the work.
-//
-// Every claim it makes comes from GET /api/audit/session -- the event list
-// is the server's own catalog of what it can write, not a promise this page
-// makes about itself.
+// A tarja permanente de "esta sessão está sendo gravada", não-dispensável de
+// propósito — REGISTRO, "Texto movido do código".
 
 import { getJSON } from "../api.js";
 import { onEventCount, track } from "./audit-telemetry.js";

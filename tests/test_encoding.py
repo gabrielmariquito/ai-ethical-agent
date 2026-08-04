@@ -1,11 +1,6 @@
-"""Regression coverage for the Windows cp1252 UnicodeEncodeError bug.
-
-The bug only shows up when the *initial* stdio encoding is something other
-than UTF-8 -- which the normal pytest environment never is, so these tests
-force it via PYTHONIOENCODING on a subprocess. This reproduces the failure
-mode on any OS, not just Windows: PYTHONIOENCODING sets the interpreter's
-initial stdout/stderr encoding at startup the same way an unconfigured
-Windows session (cp1252 locale, no PYTHONUTF8) would.
+"""Cobertura de regressão do `UnicodeEncodeError` sob cp1252, forçado via
+`PYTHONIOENCODING` num subprocesso porque o ambiente normal do pytest nunca
+reproduz a condição: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 

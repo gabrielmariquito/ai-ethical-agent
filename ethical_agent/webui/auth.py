@@ -17,45 +17,14 @@ from ..ollama_install import (
     read_env_var,
 )
 
-# Access separation for the audit screen.
-#
-# READ THIS BEFORE CHANGING ANYTHING HERE. What this module provides is a
-# *role barrier*, not security, and the difference is documented for the
-# auditor on screen and in README.md / AUDIT_GUIDE.pt-BR.md in those words.
-# The server is http://127.0.0.1 with no TLS and no authentication
-# infrastructure: the password and the session token cross the loopback in
-# clear text, the token lives only in this process's memory, and anyone with
-# access to the machine can read logs/audit.jsonl directly without ever
-# passing through the screen. What the password buys is that the audit trail
-# does not open by accident, by curiosity, or because somebody typed /audit
-# into the address bar -- which, in a study with two separated roles (the
-# employee who chats, the auditor who reviews afterwards), is precisely the
-# property that has to hold. Do not grow this into something that invites
-# being trusted with more than that.
-#
-# The barrier is structural rather than visual: with no password configured,
-# routing.match() never even considers the audit routes, so they 404 exactly
-# like a path nobody registered (see routing.match's own comment). Hiding a
-# link would not have been enough -- the local server is reachable from the
-# URL bar and from devtools.
-
-# One key name, two jobs, and they are no longer the same job: it is the key
-# this module READS from .env, and the name of the environment variable it
-# now only watches for as a leftover. An alias rather than a third copy of
-# the literal, because ollama_install owns it -- the one module both this and
-# wizard_gui.py can import -- and the tripwire has to be asking about the
-# same key on both sides. Two spellings that drifted would give a refusal on
-# one side and a silently ignored variable on the other.
+# Separação de acesso da tela de auditoria: o que este módulo entrega é uma
+# **barreira de papel**, não segurança, e a diferença está escrita para o
+# auditor na tela, no README e no AUDIT_GUIDE — `REGISTRO`, "Texto movido do código".
 ENV_PASSWORD_VAR = AUDIT_PASSWORD_ENV_VAR
 
-# The name of the session cookie, defined once because two modules need it and
-# they need the SAME one: handlers_audit.py writes it on login, httphandler.py
-# reads it on every request. It lived in both files as its own literal, with
-# nothing tying them together -- and renaming one side would not have broken
-# anything loudly. The login would still answer 200 and set a cookie; the
-# dispatcher would simply never find it, so every request after signing in
-# would 401 and the auditor would be told the session expired. A cookie name
-# is exactly the kind of string that gets "tidied" without reading both ends.
+# O nome do cookie de sessão, definido uma vez porque dois módulos precisam do
+# MESMO: renomear um lado não quebraria nada alto, só faria toda requisição
+# depois do login responder 401 — `REGISTRO`, "Texto movido do código".
 AUDIT_SESSION_COOKIE = "ea_audit_session"
 
 # .../ai-ethical-agent -- this file is at webui/auth.py, two packages deep.
@@ -81,13 +50,9 @@ LOCKOUT_SECONDS = 60
 
 
 class AuditPasswordError(Exception):
-    """Raised at startup for a password source that exists but is unusable
-    (e.g. an empty file), or for a leftover ETHICAL_AGENT_AUDIT_PASSWORD that
-    contradicts the password actually in effect. Failing loudly beats
-    silently starting a server whose audit screen quietly does not exist --
-    the operator asked for it -- and beats ignoring a password somebody
-    configured, which rejects them at the login prompt with no explanation
-    anywhere on screen."""
+    """Levantada no arranque para fonte de senha que existe e é inutilizável,
+    ou para variável remanescente que contradiz a senha em vigor: falhar alto
+    bate subir em silêncio um servidor cuja tela não existe — `REGISTRO`, "Texto movido do código"."""
 
 
 @dataclass
@@ -103,42 +68,10 @@ def load_audit_password(
     env: Optional[Mapping[str, str]] = None,
     root: Optional[Path] = None,
 ) -> Tuple[Optional[str], Optional[str], List[str]]:
-    """Returns (password, source_description, warnings).
-
-    The description and the warnings are safe to print; the password itself
-    never is. Two sources, and only two:
-
-      1. --audit-password-file ARQUIVO
-      2. ETHICAL_AGENT_AUDIT_PASSWORD= in <root>/.env   (written by wizard_gui)
-      3. nothing -- the audit screen does not exist
-
-    $ETHICAL_AGENT_AUDIT_PASSWORD is NOT one of them. It was, and it ranked
-    above .env python-dotenv style, the way OLLAMA_API_KEY still resolves in
-    llm.py. Two repairs later it is gone: the first made both-defined a
-    startup refusal, this one removes the second place a password can live.
-    .env survived the choice on measurement rather than taste -- it is the
-    only source the installer can write, and nothing in this project has ever
-    written an environment variable.
-
-    A variable somebody still has exported is not ignored, because ignoring
-    it in silence is the same defect pointed the other way: it is compared
-    against the password that will be in effect, and a disagreement -- or a
-    variable with nothing at all in effect -- raises AuditPasswordError.
-    Equal values say nothing; see ollama_install's tripwire comment for why
-    that is load-bearing rather than lenient.
-
-    The flag outranks .env and silences the tripwire: it is an explicit,
-    per-invocation statement of which password to use, and it is the escape
-    hatch the error message names so nobody has to edit a shell profile to
-    run *now*. cmd_serve still names the stale variable in the banner.
-
-    OLLAMA_MODEL and OLLAMA_API_KEY are untouched by any of this: they keep
-    the variable-over-.env precedence, in the same file. What changed is one
-    key.
-
-    There is deliberately no --audit-password VALUE flag: an argument value
-    lands in the process list and in shell history, which is a worse place
-    for a secret than either source supported here.
+    """Devolve (senha, descrição da origem, avisos), com a descrição e os avisos
+    seguros de imprimir e a senha nunca — e são **duas** fontes,
+    `--audit-password-file` e o `.env`, com a variável de ambiente fora:
+    `REGISTRO`, "Texto movido do código".
     """
     env = os.environ if env is None else env
     root = REPO_ROOT if root is None else root
@@ -184,12 +117,9 @@ def load_audit_password(
 
 
 def dotenv_password_present(root: Optional[Path] = None) -> bool:
-    """Whether .env carries a password, regardless of who won.
-
-    Only used to tell the operator that --audit-password-file outranked it.
-    The flag is now the only thing that can outrank .env at all: the
-    environment variable does not compete with it, it is compared against it.
-    Returns a boolean and never the value, because the caller prints.
+    """Se o `.env` carrega senha, independentemente de quem venceu, usado só
+    para dizer ao operador que a flag o superou; devolve booleano e nunca o
+    valor, porque quem chama imprime.
     """
     return read_env_var(REPO_ROOT if root is None else root, ENV_PASSWORD_VAR) is not None
 
@@ -239,13 +169,9 @@ def _digest(value: str) -> bytes:
 
 
 class AuditAuth:
-    """Password check plus the in-memory session table for the audit realm.
-
-    Sessions live only here, so restarting the server invalidates every one
-    of them: the next audit request answers 401 and the screen drops back to
-    the login form. That is documented behaviour, not a bug -- persisting
-    session tokens to disk would mean writing a credential next to the very
-    trail this screen exists to read.
+    """Verificação de senha mais a tabela de sessões em memória do realm de
+    auditoria — reiniciar o servidor invalida todas, e isso é comportamento
+    documentado: persistir token seria gravar credencial ao lado da trilha.
     """
 
     def __init__(self, password: Optional[str] = None):

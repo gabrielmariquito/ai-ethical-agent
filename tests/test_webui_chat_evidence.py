@@ -1,15 +1,6 @@
-"""The chat tells the employee which rule applied -- never how it decides.
-
-Rule id, principle, deontic force, severity and the policy author's rationale
-go out. The matched excerpt, its position and the condition do not. Each of
-those is a step of a bypass: the excerpt names the trigger, the span narrows
-it, and the condition of a rule with a `not` clause hands over the phrase
-that switches the rule off.
-
-Asserted on the API payload, not on rendered HTML, because chat.js's "Copiar
-registro" serializes the whole turn object to the clipboard. A renderer that
-merely declines to draw a field leaves it one Ctrl+V away, so the field has
-to not be there.
+"""O chat diz ao funcionário qual regra se aplicou, nunca **como** ela decide,
+e é asseverado sobre o payload da API e não sobre o HTML — porque "Copiar
+registro" serializa o turno inteiro para a área de transferência: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations

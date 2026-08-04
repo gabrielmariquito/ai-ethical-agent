@@ -1,17 +1,7 @@
-"""Guards against the `pip install .` regression: policies/, ontologies/ and
-eval/ live outside the ethical_agent/ package on disk, and default_*_path()
-(ethical_agent/policy.py, ethical_agent/relaieo.py) resolve them via
-Path(__file__).resolve().parents[1] -- one level above the installed package.
-Nothing here builds those directories into the wheel automatically; that's
-done entirely by the packages/package-data declaration in pyproject.toml.
-If that declaration regresses, these tests must fail.
-
-Both tests build from a throwaway copy of the repo rather than REPO_ROOT
-directly: `pip wheel`/`pip install` on a local directory drop a `build/` and
-`*.egg-info/` next to pyproject.toml as a side effect (gitignored, but real).
-A stale one left over from an earlier, correctly-configured build would keep
-satisfying these assertions even after pyproject.toml regresses -- building
-from a fresh copy each time is what makes that impossible.
+"""Guardas contra a regressão do `pip install .`: `policies/`, `ontologies/` e
+`eval/` vivem fora do pacote em disco e só chegam ao wheel pela declaração do
+`pyproject.toml` — e os dois testes constroem de uma cópia descartável, senão
+um `build/` velho satisfaria as asserções depois da regressão: `REGISTRO`, "Texto movido do código".
 """
 
 import shutil
@@ -34,11 +24,9 @@ EXPECTED_DATA_FILES = {
     "eval/dataset_huggingface_injections.json",
 }
 
-# Unlike EXPECTED_DATA_FILES above, these live *inside* the ethical_agent
-# package on disk (ethical_agent/webui/static/...) and httphandler.py resolves
-# STATIC_DIR relative to its own __file__ -- so, unlike policies/ontologies/
-# eval, these are expected to be nested under ethical_agent/ in the wheel,
-# not shipped as top-level siblings.
+# Ao contrário de `EXPECTED_DATA_FILES`, estes vivem *dentro* do pacote e
+# `STATIC_DIR` é resolvido pelo próprio `__file__`, então são esperados
+# aninhados no wheel: `REGISTRO`, "Texto movido do código".
 EXPECTED_WEBUI_FILES = {
     "ethical_agent/webui/static/index.html",
     "ethical_agent/webui/static/check.html",
@@ -60,10 +48,8 @@ EXPECTED_WEBUI_FILES = {
     "ethical_agent/webui/static/js/intervention-view.js",
     "ethical_agent/webui/static/js/sidebar.js",
     "ethical_agent/webui/static/js/file-browser.js",
-    # The audit screen. Its modules live one directory deeper (so the whole
-    # screen can be gated by a single static-path prefix when no audit
-    # password is configured), which needs its own package-data glob --
-    # "static/js/*.js" does not recurse.
+    # Os módulos da tela de auditoria vivem um diretório mais fundo, para que a
+    # tela inteira caiba num prefixo estático só, e isso precisa de glob próprio.
     "ethical_agent/webui/static/audit.html",
     "ethical_agent/webui/static/css/audit.css",
     "ethical_agent/webui/static/js/audit/audit-app.js",
@@ -137,11 +123,9 @@ def test_data_files_reachable_from_clean_install(tmp_path):
     venv.create(venv_dir, with_pip=True)
     python = _venv_python(venv_dir)
 
-    # cwd matters: `python -c` puts "" (cwd) first on sys.path, and pytest's
-    # own cwd is the real repo root -- which has a real ethical_agent/ right
-    # there. Run from an empty directory or this "check" would silently
-    # import the source tree instead of the just-installed package, passing
-    # even when the install itself is broken.
+    # O cwd importa: `python -c` põe o cwd na frente do `sys.path`, e o cwd do
+    # pytest é a raiz real do repositório — rodar de um diretório vazio é o que
+    # impede este teste de importar a árvore-fonte: `REGISTRO`, "Texto movido do código".
     empty_cwd = tmp_path / "empty_cwd"
     empty_cwd.mkdir()
 
@@ -191,10 +175,8 @@ def test_wheel_includes_webui_static_files(tmp_path):
 
 
 def test_webui_server_importable_and_static_dir_reachable_from_clean_install(tmp_path):
-    # Mirrors test_data_files_reachable_from_clean_install above, but for
-    # `ethical-agent serve`: a working import alone wouldn't catch STATIC_DIR
-    # (httphandler.py, resolved relative to its own __file__) pointing at a
-    # directory package-data didn't actually ship.
+    # Espelha o teste acima para `ethical-agent serve`: um import que funciona
+    # não pegaria `STATIC_DIR` apontando para o que o package-data não enviou.
     src = _clean_repo_copy(tmp_path)
     venv_dir = tmp_path / "venv"
     venv.create(venv_dir, with_pip=True)

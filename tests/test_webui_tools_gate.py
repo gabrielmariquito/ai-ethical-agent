@@ -1,21 +1,7 @@
-"""The evaluator's tools (Check, Demo, Eval) do not exist without a session.
-
-Not "are refused" -- do not exist. A 401 confirms the endpoint is there and
-that something would answer with the right credential; a 405 confirms it even
-harder, by reporting that the path is real and only the method was wrong.
-Neither is acceptable for a screen whose whole point is that the employee
-running the chat has no business knowing it is installed.
-
-The distinction against /api/audit/*, which DOES answer 401 without a
-session, is deliberate and tested here too: /audit is a login screen and has
-to tell "you are not signed in" apart from "this does not exist", or it
-cannot decide whether to draw the form. The tools have no login shell of
-their own. One criterion covers both -- a route with no front door of its own
-does not announce itself -- and the last test in this file is what keeps that
-from decaying into two unrelated rules.
-
-Three states are exercised: no password at all (realm off), password but no
-session, and a real session.
+"""As ferramentas do avaliador não **existem** sem sessão, e não apenas são
+recusadas — 401 confirma que o endpoint está lá, e 405 confirma ainda mais.
+A distinção contra `/api/audit/*`, que responde 401, é deliberada e também
+testada aqui: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations

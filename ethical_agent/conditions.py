@@ -18,13 +18,9 @@ class Condition(ABC):
 
     @abstractmethod
     def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
-        """Evaluate this condition against `text`.
-
-        `limit` bounds how many Evidence items are collected/returned; pass
-        `limit=None` for a complete, unbounded scan (needed only when
-        redacting -- see RuleBasedEngine._apply_rewrites -- since a rule
-        firing/reporting decision never depends on match count beyond the
-        cap, but redaction completeness does).
+        """Avalia esta condição contra `text`; `limit` limita quantas evidências
+        são coletadas, e `limit=None` faz a varredura completa que só a
+        redação precisa: `REGISTRO`, "Texto movido do código".
         """
         ...
 
@@ -33,22 +29,9 @@ class Condition(ABC):
         ...
 
     def shape(self) -> str:
-        """How this condition is built, never what it looks for.
-
-        Exists because evidence descriptions are read by people who must not
-        be handed the policy. NotCondition used to describe its inner
-        condition with `to_dict()`, which put the whole thing -- every keyword
-        and every regex -- into `Evidence.description`, and from there into
-        the audit record, the CLI output, /api/check and both screens. For a
-        rule with a `not` clause that is a working bypass served ready: the
-        text says exactly which phrases stop the rule from firing.
-
-        So: the count and the kind, never the values. "any of 6 conditions"
-        tells an auditor that something expected was missing without telling
-        anyone what to type to make it missing on purpose. The rule's own
-        `rationale`, shown right next to it, is what says in prose what the
-        rule requires -- that sentence is written by the policy author for
-        exactly this audience.
+        """Como esta condição é construída, nunca o que ela procura — existe
+        porque descrição de evidência é lida por quem não pode receber a
+        política: `REGISTRO`, "Texto movido do código".
         """
         return self.type_name
 

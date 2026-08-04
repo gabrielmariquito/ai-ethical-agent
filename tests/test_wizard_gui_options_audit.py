@@ -1,17 +1,7 @@
-# The audit-password field, exercised as a real widget.
-#
-# tests/test_wizard_gui.py reads wizard_gui.py as source text on purpose --
-# it is the only way to assert on a tkinter file without a display. That is
-# enough to check a guard is *written*; it cannot check the guard *works*,
-# and a refusal that blocks the install is exactly the kind of thing that has
-# to be seen rendering. So this module builds the actual OptionsPage against
-# a withdrawn Tk root and reads the labels back out of the widgets.
-#
-# Skipped, never failed, where tkinter itself is missing: this must not turn
-# a headless CI run red for a reason that has nothing to do with the code
-# (the same rule test_wizard_gui_launch.py already follows). A *present*
-# tkinter that then fails is a different thing and is not skipped -- see
-# _tk_root below.
+# O campo da senha de auditoria exercitado como widget de verdade, porque
+# texto-fonte prova que a guarda está *escrita* e não que ela *funciona* —
+# pulado, nunca vermelho, onde falta tkinter:
+# `REGISTRO`, "Texto movido do código".
 import queue
 
 import pytest
@@ -26,20 +16,10 @@ from ethical_agent.ollama_install import (  # noqa: E402
 
 
 def _tk_root():
-    """A withdrawn Tk root, retried once.
-
-    Every Tk() builds a fresh Tcl interpreter, which re-reads init.tcl from
-    disk -- and on this machine that read intermittently fails with "no such
-    file or directory" for a file that is demonstrably there (measured: 0
-    failures in 300 in-process creations and in 40 separate processes, but
-    roughly one pytest run in six). It is a transient at the filesystem
-    level, not a missing display and not anything about the code under test.
-
-    Retried rather than skipped, because the first version of this fixture
-    turned that transient into `pytest.skip("sem display")`: a run that
-    quietly tested nothing and still reported green, which is the one
-    outcome a test guarding a refusal must never produce. If the retry fails
-    too, the error propagates and the test goes red -- also on purpose.
+    """Um root Tk retirado da tela, com uma repetição: cada `Tk()` relê o
+    `init.tcl` e nesta máquina essa leitura falha de forma intermitente —
+    repetido em vez de pulado, porque a primeira versão virava o transiente
+    num verde que não testava nada: `REGISTRO`, "Texto movido do código".
     """
     try:
         root = tk.Tk()
@@ -51,15 +31,9 @@ def _tk_root():
 
 @pytest.fixture(autouse=True)
 def no_exported_password(monkeypatch):
-    """No test here may see the developer's own exported password.
-
-    This is not hypothetical: the machine this was written on exports
-    ETHICAL_AGENT_AUDIT_PASSWORD, which is the very condition the guards
-    under test react to -- so without this, every "nothing is exported"
-    case silently tests the opposite of what it says, and passes or fails
-    depending on whose shell is running it. Each test sets the variable
-    itself when it wants one. Same rule, and the same reason, as
-    test_webui_bind.isolated_password_sources.
+    """Nenhum teste aqui pode enxergar a senha exportada pelo próprio
+    desenvolvedor, que é exatamente a condição a que as guardas reagem:
+    `REGISTRO`, "Texto movido do código".
     """
     monkeypatch.delenv(AUDIT_PASSWORD_ENV_VAR, raising=False)
 
@@ -99,10 +73,9 @@ def _erro(page):
 
 
 def test_an_existing_password_makes_the_field_inert_and_says_so(page, tmp_path):
-    # Typing over an existing password must not change it. The field is
-    # DISABLED rather than ignored: a box that takes what you type and
-    # discards it is the shape of defect this project treats as the worst,
-    # and the label has to say where the password can actually be changed.
+    # Digitar por cima de uma senha existente não pode mudá-la, e o campo é
+    # DESABILITADO em vez de ignorado — caixa que aceita e descarta é a pior
+    # forma de defeito para este projeto: `REGISTRO`, "Texto movido do código".
     _dotenv(tmp_path)
     page.on_show()
 
@@ -156,10 +129,8 @@ def test_a_first_definition_still_works_when_nothing_is_configured(page, tmp_pat
 
 
 def _progress_page(monkeypatch, tmp_path, password=""):
-    """A ProgressPage with just enough wired up to run _apply_audit_password.
-
-    No Tk here: the method reads the snapshot fields and writes to the queue,
-    and __new__ skips the widget construction that would need a display.
+    """Uma `ProgressPage` com o mínimo para rodar `_apply_audit_password`,
+    sem Tk: `__new__` pula a construção de widget que exigiria display.
     """
     monkeypatch.setattr(wizard_gui, "ROOT", tmp_path)
     progress = wizard_gui.ProgressPage.__new__(wizard_gui.ProgressPage)

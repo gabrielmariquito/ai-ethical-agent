@@ -14,15 +14,9 @@ SCHEMA_VERSION = "1.0"
 _VALID_DEONTICS = {"prohibition", "obligation"}
 _VALID_EFFECTS = {Decision.DENY, Decision.REWRITE, Decision.FLAG}
 
-# `suppressed_effect` admits one value that `effect` does not: ALLOW.
-#
-# ALLOW is not declarable as an `effect` because a rule that decides ALLOW is a
-# rule that does nothing -- absence of a firing rule already means that. As a
-# *successor* it is the opposite: it is the only way to say "this exemption
-# releases the request on purpose, nothing assumes the rule's place". That was
-# the engine's silent behaviour for every exempted rule until this leva, and
-# the whole point here is that the successor has to be stated. Leaving ALLOW
-# out would make "release deliberately" the one answer the schema cannot spell.
+# `suppressed_effect` admite um valor que `effect` não admite: ALLOW — como
+# *efeito* seria uma regra que não decide, como *sucessor* é a única forma de
+# dizer "esta isenção libera de propósito" — `REGISTRO`, "Texto movido do código".
 _VALID_SUPPRESSED_EFFECTS = _VALID_EFFECTS | {Decision.ALLOW}
 
 
@@ -63,13 +57,8 @@ class Rule:
         if not principle:
             errors.append(f"{rule_id}: missing 'principle'")
         elif principle not in KNOWN_PRINCIPLES:
-            # Checked, not merely declared. KNOWN_PRINCIPLES existed for a
-            # long time with nothing reading it, so a rule could say
-            # principle: "beneficencia" (misspelt) and load without a word --
-            # and then group under a heading no report expects, silently. A
-            # principle outside the vocabulary is a rule nobody can classify;
-            # failing to load is the right answer, the same way an invalid
-            # severity or scope already fails here.
+            # Verificado, não apenas declarado: `KNOWN_PRINCIPLES` passou muito tempo sem
+            # leitor, e uma grafia errada carregava sem uma palavra — `REGISTRO`, "Texto movido do código".
             errors.append(
                 f"{rule_id}: unknown principle {principle!r}, "
                 f"expected one of {sorted(KNOWN_PRINCIPLES)}"
@@ -132,17 +121,9 @@ class Rule:
             except ConditionError as exc:
                 errors.append(f"{rule_id}: exceptions error: {exc}")
 
-        # Default None, and deliberately not a value that demotes.
-        #
-        # A demoting default would hand every `exceptions` block a successor
-        # its author never wrote -- which is this leva's defect wearing new
-        # clothes. There is also no principled universal target: REWRITE would
-        # oblige every rule to carry a template, and FLAG (the only one that
-        # needs none) would quietly settle open normative questions with the
-        # weakest available answer. None keeps the engine's behaviour exactly
-        # as it was for any rule that stays silent, and
-        # tests/test_sucessor_declarado.py makes silence visible in this
-        # repository's own policy rather than merely permitted.
+        # Default `None`, e deliberadamente não um valor que rebaixa: um default que
+        # rebaixasse daria a todo bloco `exceptions` um sucessor que o autor nunca
+        # escreveu — `REGISTRO`, "Texto movido do código".
         suppressed_effect: Optional[Decision] = None
         raw_suppressed = data.get("suppressed_effect")
         if raw_suppressed is not None:

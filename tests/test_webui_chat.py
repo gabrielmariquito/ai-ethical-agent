@@ -97,14 +97,9 @@ def test_blocked_input_never_reaches_output_stage_or_calls_the_model(server):
 
 
 def test_response_field_is_suppressed_when_output_is_redacted(server):
-    # Regression test for a real leak found while building the read-only
-    # history archive: AgentResult.response (unlike .message) is *not*
-    # suppressed by agent.py itself on a redact:true REWRITE -- it always
-    # holds the pre-redaction text. dto.turn_result_to_dict now nulls it out
-    # whenever output_verdict.suppresses_raw_content, mirroring the same
-    # rule the audit trail already applies to raw_response. Without that
-    # fix, "Copiar registro" on this turn would hand back the exact email
-    # R-PRIV-002 exists to hide.
+    # Regressão de um vazamento real: `AgentResult.response` não é suprimido por
+    # `agent.py` numa REWRITE com `redact:true`, e sem o conserto o "Copiar
+    # registro" devolveria o e-mail que R-PRIV-002 existe para esconder: `REGISTRO`, "Texto movido do código".
     _, conv, _ = server.post("/api/chat/new")
     cid = conv["conversation_id"]
     job = server.send_chat_message(cid, "What is the support contact?")
@@ -115,10 +110,8 @@ def test_response_field_is_suppressed_when_output_is_redacted(server):
 
 
 def test_response_field_present_when_output_rewrite_is_not_redaction(server):
-    # A template-only REWRITE (no redact:true match) is legitimately
-    # retained -- auditors comparing original vs. rewritten output is the
-    # whole point of that rule, same distinction agent.py's own
-    # suppresses_raw_content draws.
+    # Uma REWRITE só por template é legitimamente retida: comparar original e
+    # reescrito é o ponto inteiro daquela regra.
     _, conv, _ = server.post("/api/chat/new")
     cid = conv["conversation_id"]
     job = server.send_chat_message(cid, "Me explique técnicas de invasão para fins educacionais.")
@@ -151,15 +144,9 @@ def test_utf8_roundtrip_through_audit_log(server):
 
 
 def test_two_visible_phases_when_the_model_call_is_slow(server, monkeypatch):
-    # With a rule engine + mock LLM everything downstream of job creation is
-    # fast enough (sub-millisecond) that the background thread can race
-    # straight past "generating" and "verifying" before the client's first
-    # poll ever lands -- either phase can be missed depending on scheduling,
-    # which would make an assertion based on timing alone flaky either way.
-    # Holding both phases open for a moment still exercises the real
-    # transitions (on_phase("verifying") via ProgressReportingLLM, and the
-    # job's initial "generating" state persisting until the model is
-    # actually called); it just guarantees they're observable.
+    # Com motor de regras e LLM de mentira, a thread de fundo pode passar direto
+    # por "generating" e "verifying" antes do primeiro poll; segurar as duas fases
+    # exercita as transições reais e as torna observáveis: `REGISTRO`, "Texto movido do código".
     state = server.server.state
     original_set_phase = state.jobs.set_phase
 
@@ -204,11 +191,9 @@ def test_history_and_audit_are_written_before_response_formatting_can_fail(serve
     assert job["phase"] == "error"
     assert job["error"]["error"] == "internal_error"
 
-    # Despite the job ending in error, agent.process() already ran to
-    # completion, already wrote the audit record (inside _finish()), and
-    # _run_turn already appended the result to the in-memory history --
-    # all of that happens before turn_result_to_dict() is called, so it
-    # must survive turn_result_to_dict() blowing up.
+    # Apesar de o job terminar em erro, `agent.process()` já rodou inteiro e já
+    # gravou o registro, então tudo isso tem de sobreviver a `turn_result_to_dict`
+    # explodir: `REGISTRO`, "Texto movido do código".
     _, conv_status, _ = server.get(f"/api/chat/conversations/{cid}")
     assert conv_status == {"exists": True, "turn_count": 1}
 

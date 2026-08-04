@@ -31,26 +31,9 @@ from .state import ServerState
 
 
 class _ExclusiveThreadingHTTPServer(ThreadingHTTPServer):
-    """ThreadingHTTPServer that refuses a port somebody else is already on.
-
-    socketserver.TCPServer sets allow_reuse_address = 1, and on POSIX that
-    means the useful thing: rebind a socket still in TIME_WAIT, so stopping
-    and immediately restarting the server works. On **Windows SO_REUSEADDR
-    means something else entirely** -- it lets a second socket bind an
-    address that is actively in use, and incoming connections are handed to
-    one of the two non-deterministically.
-
-    The consequence was a silent, genuinely confusing failure: a second
-    `ethical-agent serve --port 8765` bound successfully, printed "Serving
-    at http://127.0.0.1:8765" and a correct audit banner, while the browser
-    kept talking to the *older* process -- one started before the audit
-    password existed, which therefore reported the audit screen as disabled.
-    Two servers, one port, and a startup banner describing whichever one was
-    not answering.
-
-    SO_EXCLUSIVEADDRUSE is the Windows-specific flag for "this address is
-    mine": the second bind fails with WSAEADDRINUSE, which is what the
-    operator needed to be told in the first place.
+    """`ThreadingHTTPServer` que recusa uma porta em que outro já está: no
+    Windows `SO_REUSEADDR` deixa um segundo socket ligar num endereço em uso
+    ativo, e o navegador continuava falando com o processo antigo: `REGISTRO`, "Texto movido do código".
     """
 
     # POSIX keeps the inherited True; there the flag is not the problem and
@@ -83,16 +66,9 @@ def make_server(
     auditor_session_log: Optional[str] = None,
     change_requests_log: Optional[str] = None,
 ) -> ThreadingHTTPServer:
-    """Binds to 127.0.0.1 only -- never 0.0.0.0, no flag to change that.
-    This server exposes the guardrail pipeline and (indirectly, via what it
-    writes) the audit trail; it must not be reachable from the network by
-    accident.
-
-    `audit_password` enables the audit realm. Without it the audit screen,
-    its endpoints and its static assets do not exist -- they answer the same
-    404 as a path nobody registered. The password is passed here as an
-    argument rather than through initial_config on purpose: initial_config
-    is served verbatim to the chat screen by handlers_choices.py.
+    """Liga só em 127.0.0.1, sem flag para mudar; `audit_password` habilita o
+    realm de auditoria e é passado como argumento, nunca por `initial_config`:
+    `REGISTRO`, "Texto movido do código".
     """
     auditor_session_log = auditor_session_log or DEFAULT_AUDITOR_SESSION_LOG
     change_requests_log = change_requests_log or DEFAULT_CHANGE_REQUESTS_LOG

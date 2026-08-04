@@ -57,15 +57,9 @@ def test_the_disabled_branch_still_looks_inert_in_both_unknown_and_false(nav):
 
 
 def test_every_screen_renders_the_nav_before_it_knows_and_again_after():
-    # The first call renders the unknown state; the second carries the
-    # answer. Losing either one is how the nav goes back to lying: without
-    # the first there is no nav during the fetch, without the second it never
-    # corrects itself.
-    #
-    # The first call may now carry sessionActive, but never auditEnabled: on
-    # a tool screen the session is known before any request (the page is
-    # session-gated in httphandler, so being there is the answer), while
-    # whether the audit screen exists still has to be asked.
+    # A primeira chamada renderiza o estado desconhecido e a segunda traz a
+    # resposta; perder qualquer uma é como a nav volta a mentir. A primeira pode
+    # trazer `sessionActive`, nunca `auditEnabled`: `REGISTRO`, "Texto movido do código".
     for name in SCREENS:
         source = (STATIC_JS / name).read_text(encoding="utf-8")
         calls = re.findall(r"renderNav\(els\.nav,[^)]*\)", source)
@@ -105,10 +99,9 @@ def test_only_a_definite_yes_shows_them(nav):
 
 
 def test_the_badge_stays_exclusive_to_auditoria(nav):
-    # Four inert items would be four announcements of areas the reader
-    # cannot open. Auditoria keeps the badge because the operator has to
-    # learn the area exists and how to switch it on; the tools are found
-    # behind it, so they need no announcement of their own.
+    # Quatro itens inertes seriam quatro anúncios de áreas que o leitor não
+    # pode abrir; a Auditoria mantém o distintivo porque o operador precisa
+    # saber que a área existe.
     items = nav[nav.index("const ITEMS = [") : nav.index("];", nav.index("const ITEMS = ["))]
     assert items.count("badge:") == 1
     assert "badge:" in [line for line in items.splitlines() if "/audit" in line][0]

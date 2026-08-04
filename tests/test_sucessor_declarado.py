@@ -1,23 +1,7 @@
-"""Toda regra que isenta diz o que assume o lugar dela. Verificado, não confiado.
-
-`suppressed_effect` nasce opcional, e opcional com default `None` reproduz
-exatamente o comportamento que a leva do motor veio consertar: exceção casa,
-regra sai, nada sucede. Isso é deliberado -- um default que rebaixasse daria a
-todo bloco `exceptions` um sucessor que o autor nunca escreveu, que é o defeito
-com roupa nova. O preço de manter o default inócuo é que o schema, sozinho,
-volta a permitir a supressão sem sucessor na próxima regra que alguém escrever.
-
-Este arquivo é o que cobra o preço. É a mesma disciplina de `4812a7e`
-(KNOWN_PRINCIPLES passa a ser verificado, não apenas declarado) e de
-`test_principles_are_checked.py`: a política deste repositório não pode ficar em
-silêncio sobre o sucessor, mesmo que o carregador aceite silêncio de políticas
-de terceiros.
-
-**Por que teste e não erro de carga.** `Rule.from_dict` recusar `exceptions` sem
-`suppressed_effect` quebraria toda política externa escrita antes deste campo
-existir -- e o campo nasce nesta leva, então *toda* política externa é anterior
-a ele. O erro de carga puniria quem não teve como saber. O teste cobra de quem
-tem: este repositório.
+"""Toda regra que isenta diz o que assume o lugar dela, verificado e não
+confiado: o default `None` é deliberadamente inócuo, e o preço disso é que o
+schema sozinho volta a permitir supressão sem sucessor — este arquivo cobra
+esse preço: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -56,11 +40,8 @@ def test_toda_regra_com_excecoes_declara_o_sucessor(policy):
 
 
 def test_r_sec_002_rebaixa_para_rewrite(policy):
-    """A decisão B2, fixada onde ela mora.
-
-    Não é redundante com o teste acima: aquele cobra que *haja* sucessor, este
-    cobra *qual*. Trocar REWRITE por FLAG aqui passaria pelo primeiro sem um
-    ruído, e teria mudado o alcance da isenção sem nada acender.
+    """A decisão B2 fixada onde ela mora: o teste acima cobra que *haja*
+    sucessor, este cobra *qual*.
     """
     regra = next(r for r in policy.rules if r.id == "R-SEC-002")
     assert regra.effect is Decision.DENY
@@ -120,11 +101,8 @@ def test_o_schema_recusa_sucessores_incoerentes(mutacao, trecho):
 
 
 def test_rewrite_template_e_aceito_quando_so_o_sucessor_reescreve():
-    """`effect: DENY` + `suppressed_effect: REWRITE` carrega template.
-
-    Antes desta leva `rewrite_template` só era aceito em regra cujo `effect`
-    fosse REWRITE, e essa recusa tornava B2 inexprimível: R-SEC-002 nega, e só
-    a versão rebaixada dela reescreve.
+    """`effect: DENY` + `suppressed_effect: REWRITE` carrega template, cuja
+    recusa anterior tornava B2 inexprimível: `REGISTRO`, "Texto movido do código".
     """
     from ethical_agent.policy import Rule
 
@@ -148,12 +126,9 @@ def test_rewrite_template_e_aceito_quando_so_o_sucessor_reescreve():
 
 
 def test_allow_e_declaravel_como_sucessor_mas_nao_como_efeito():
-    """A assimetria é o ponto, não um descuido.
-
-    ALLOW como `effect` seria uma regra que decide não decidir -- a ausência de
-    regra já significa isso. ALLOW como `suppressed_effect` é a única forma de
-    escrever "esta isenção libera de propósito", que era o comportamento tácito
-    de todo bloco `exceptions` até esta leva.
+    """A assimetria é o ponto: ALLOW como `effect` seria uma regra que decide
+    não decidir, e como `suppressed_effect` é a única forma de escrever "esta
+    isenção libera de propósito": `REGISTRO`, "Texto movido do código".
     """
     from ethical_agent.policy import Rule
 

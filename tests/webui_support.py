@@ -1,11 +1,6 @@
-"""Shared helpers for tests/test_webui_*.py -- not a test module itself (no
-test_ prefix), so pytest never collects it directly.
-
-Spins up a real ethical_agent.webui server on an ephemeral 127.0.0.1 port and
-talks to it over real HTTP (urllib), rather than importing handler functions
-directly -- this is deliberate: it exercises the same code path a browser
-would, including routing, JSON (de)serialization, and the job-polling flow,
-so these tests can't pass while the actual wiring is broken.
+"""Helpers compartilhados dos `test_webui_*`, sem prefixo `test_` para o
+pytest não coletar, que sobem um servidor real em porta efêmera e falam HTTP
+de verdade em vez de importar handlers: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -31,12 +26,8 @@ TOOLS_PASSWORD = "senha-do-avaliador"
 
 
 def running_tools_server(tmp_path, **overrides):
-    """A RunningServer already signed in as the auditor, for the tool tests.
-
-    Kept here rather than repeated in three modules so that "these screens
-    need a session" is stated once. A test that wants the *unauthenticated*
-    behaviour builds a RunningServer directly and does not log in -- see
-    tests/test_webui_tools_gate.py, which is about exactly that.
+    """Um `RunningServer` já autenticado como auditor, escrito uma vez em vez
+    de repetido em três módulos.
     """
     running = RunningServer(tmp_path, audit_password=TOOLS_PASSWORD, **overrides)
     status, body, _ = running.login_as_auditor(TOOLS_PASSWORD)

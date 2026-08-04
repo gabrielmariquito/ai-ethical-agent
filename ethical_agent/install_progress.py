@@ -1,25 +1,6 @@
-"""Phase plan and progress arithmetic for wizard_gui.py's install screen.
-
-The installer used to show a `mode="indeterminate"` bar: a barber pole that
-ran from the first second to the last without saying which step it was on or
-how much was left. This module is the state it was missing.
-
-Two rules shape everything here:
-
-  1. **The phase list is fixed before the install starts.** How many steps
-     there are depends only on the options someone picked (no Ollama, Ollama
-     Cloud, Ollama local), all known at that point. A bar whose denominator
-     grows while it runs is a bar that goes backwards.
-
-  2. **The percentage never decreases.** `ProgressTracker` exposes
-     `max(previous, new)`, so a phase that reports a lower fraction than the
-     one before it (a fresh `ollama pull` layer starting at 0%, a retried
-     download) cannot pull the bar back.
-
-Pure and tkinter-free for the same reason ollama_install.py is: it can be
-tested without a display, a real Ollama, or network access. wizard_gui.py
-owns the widgets and feeds this from its main thread; the install worker
-only ever puts sentinels on the queue.
+"""Plano de fases e aritmética da barra do instalador, que era uma barra
+`indeterminate` correndo do primeiro ao último segundo sem dizer em que passo
+estava: `REGISTRO`, "Texto movido do código".
 """
 
 from __future__ import annotations
@@ -95,12 +76,9 @@ def format_bytes(size: float) -> str:
 
 
 def expected_model_bytes(model: str) -> Optional[float]:
-    """Download size for `model` from the wizard's own table, or None.
-
-    Deliberately never guesses: an unknown model gets no denominator, and
-    everything downstream degrades to phase-level progress rather than
-    inventing a number -- the same rule estimate_model_size_text follows on
-    the options screen.
+    """Tamanho de download do modelo pela tabela do wizard, ou `None` — nunca
+    adivinha, e sem denominador tudo a jusante degrada para progresso por
+    fase em vez de inventar um número.
     """
     sizes = KNOWN_MODEL_SIZES.get(model.strip())
     if sizes is None:
@@ -122,13 +100,9 @@ def plan_phases(
     model: str,
     writes_config: bool,
 ) -> tuple[Phase, ...]:
-    """The steps this particular install will run, decided up front.
-
-    `writes_config` is separate from `want_llm` because the audit password is
-    written on every install that sets or removes one, with or without a real
-    model (wizard_gui.ProgressPage._apply_audit_password). With nothing to
-    write the phase is simply absent -- claiming a step that does nothing is
-    the same lie as an indeterminate bar, just quieter.
+    """Os passos que esta instalação vai rodar, decididos de antemão;
+    `writes_config` é separado de `want_llm` porque a senha é escrita em toda
+    instalação que define ou remove uma: `REGISTRO`, "Texto movido do código".
     """
     keys = [PHASE_VENV, PHASE_PIP]
     if want_llm and llm_mode == "local":
@@ -225,14 +199,9 @@ class ProgressTracker:
 
 
 class PullProgress:
-    """Turns `ollama pull` output into a fraction, by summing bytes per layer.
-
-    A pull downloads several layers and prints a percentage per layer. Reading
-    that percentage directly is the obvious approach and the wrong one: a 7.7 KB
-    config layer hits 100% in an instant, and a bar following it jumps to the
-    end while 2 GB are still coming. Summing each layer's *bytes* against the
-    model's known total weights them correctly -- and done-bytes only ever grow,
-    so the fraction is monotonic by construction rather than by clamping.
+    """Transforma a saída do `ollama pull` numa fração somando bytes por camada,
+    porque ler a porcentagem por camada direto é o caminho óbvio e errado:
+    `REGISTRO`, "Texto movido do código".
     """
 
     def __init__(self, model: str) -> None:
@@ -240,12 +209,9 @@ class PullProgress:
         self._layers: dict[str, tuple[float, float]] = {}
 
     def update(self, chunk: str) -> tuple[Optional[float], Optional[str]]:
-        """Feeds one iter_stream_chunks chunk.
-
-        Returns (fraction, detail). Either may be None: lines like "pulling
-        manifest" or "verifying sha256 digest" carry no numbers, and an unknown
-        model has no trustworthy denominator, so the fraction is withheld and
-        only the byte counts are reported.
+        """Consome um chunk e devolve (fração, detalhe), qualquer um podendo ser
+        `None` quando a linha não carrega número ou o modelo não tem
+        denominador confiável: `REGISTRO`, "Texto movido do código".
         """
         match = _PULL_LAYER_RE.search(chunk)
         if match is None:

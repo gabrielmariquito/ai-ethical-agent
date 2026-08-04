@@ -1,9 +1,6 @@
-"""Instrumentation of the auditor's session, and the change-request seam.
-
-The invariant most of these defend: the agent's trail is the object of study,
-so the auditor's own behaviour must never end up inside it. That is the same
-reasoning that gave demo runs source="demo", taken one step further -- a
-separate concern gets a separate file.
+"""Instrumentação da sessão do auditor, cuja invariante é que o comportamento
+dele nunca acabe dentro da trilha que é o objeto de estudo — concern separado,
+arquivo separado: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 

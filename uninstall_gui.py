@@ -1,24 +1,7 @@
 #!/usr/bin/env python3
-"""Interface gráfica do desinstalador -- carregada por uninstall.py.
-
-**Não é um ponto de entrada que alguém precise conhecer.** O caminho único e
-documentado é `python uninstall.py`, que abre esta janela quando há sessão
-gráfica e cai no modo texto quando não há. Este módulo continua executável
-(`python uninstall_gui.py`) por conveniência de quem estiver mexendo no
-código, mas o README e o instalador mencionam só o uninstall.py.
-
-Contraparte do wizard_gui.py, no mesmo espírito e no mesmo Tkinter puro:
-telas de Boas-vindas, Opções, Resumo, Progresso e Conclusão. Toda a lógica
-mora em ethical_agent/uninstall.py -- esta é uma casca fina, como o modo
-texto de uninstall.py é do outro lado.
-
-A tela de Resumo É o modo de simulação: ela mostra exatamente o mesmo plano
-que `uninstall.py --dry-run` imprime, item a item com tamanho, antes de
-qualquer remoção.
-
-Rode com o Python do SISTEMA, não com o do .venv: no Windows um executável
-em execução não pode ser apagado, então o .venv não consegue apagar a si
-mesmo. O programa detecta e recusa, explicando o conserto.
+"""Interface gráfica do desinstalador, carregada por `uninstall.py`, que é o
+ponto de entrada único e documentado; contraparte do `wizard_gui.py`, no mesmo
+Tkinter puro: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -123,12 +106,9 @@ SEVERITY_FG = {NOTE: "#4b5563", WARN: "#b45309", BLOCK: "#b91c1c"}
 
 
 class _AdviceCard(tk.Frame):
-    """Um aviso: barra na cor da severidade, prosa, e -- quando há comandos --
-    um bloco monoespaçado, uma linha por comando, com botão de copiar.
-
-    Os comandos saem da prosa de propósito. Espremidos numa frase e separados
-    por ponto e vírgula eles são difíceis de ler, impossíveis de copiar sem
-    limpar à mão, e o ponto e vírgula se confunde com a sintaxe do shell.
+    """Um aviso: barra na cor da severidade, prosa, e — quando há comandos — um
+    bloco monoespaçado com botão de copiar, porque comando espremido em frase
+    é impossível de copiar sem limpar à mão: `REGISTRO`, "Texto movido do código".
     """
 
     def __init__(
@@ -575,12 +555,7 @@ class OptionsPage(_Page):
             self.app.remove_logs.set(True)
 
     def can_advance(self) -> bool:
-        # Mover não é destrutivo, então não pede confirmação; apagar pede. É a
-        # única opção com atrito extra, porque é a única que pode ser dado de
-        # pesquisa de uma avaliação com participantes. O modo texto cobra o
-        # mesmo, com uma segunda pergunta -- as duas cascas renderizam o mesmo
-        # plano, e proteção diferente para a mesma ação é diferença que
-        # ninguém lembra depois de qual lado é qual.
+        # Mover não é destrutivo, então não pede confirmação; apagar pede.
         if self.app.remove_logs.get() and not self.app.move_logs_to.get().strip():
             if not self.app.logs_confirm.get():
                 self.error.config(

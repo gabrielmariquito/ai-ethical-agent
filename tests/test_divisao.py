@@ -1,25 +1,7 @@
-"""Guards for the tune/holdout split -- recipe `divisao/v1`.
-
-The split exists so that a lexicon tuned against `tune` can be reported against
-`holdout` and the number mean generalisation rather than fit. That claim rests
-entirely on two properties, and both are silent when they break:
-
-- **Stability.** If adding a case reshuffled the existing ones, a case that was
-  in `holdout` could migrate to `tune`, earlier numbers would stop being
-  comparable, and the contamination would come back through the back door --
-  with nothing in the output looking any different.
-- **A recipe anyone can recompute.** `test_atribuicao_bate_com_valor_dourado`
-  is the only test here that pins the recipe itself. Every other test is
-  internally consistent: change the hash material and they all still pass while
-  the partition silently becomes a different one. That test is why the others
-  can be trusted, and it is the one that must not be deleted for looking like a
-  hardcoded duplicate of the implementation.
-
-`ids=` is spelled out on every parametrize here, and no id contains a space.
-The repo had no prior `ids=` usage -- the convention was to carry the label
-inside the tuple -- so this file introduces it deliberately, for the reason
-`tests/test_sucessor_da_supressao.py` records: generated ids would contain
-spaces, and the snapshot tool keys tests by nodeid.
+"""Guards for the tune/holdout split (recipe `divisao/v1`), resting on
+stability and on a recipe anyone can recompute — the second pinned only by
+`test_atribuicao_bate_com_valor_dourado`, which must not be deleted for
+looking like a hardcoded duplicate: `REGISTRO`, "Texto movido do código".
 """
 from __future__ import annotations
 
@@ -67,12 +49,8 @@ def test_divisao_e_deterministica(nome):
 
 @pytest.mark.parametrize("nome", EXTERNOS, ids=IDS_EXTERNOS)
 def test_a_ordem_de_entrada_nao_muda_a_divisao(nome):
-    """Nothing about the split may depend on read order.
-
-    The requirement is "same input => same split, always, across runs and
-    across machines". Feeding the cases back in reverse is the cheapest way to
-    catch an implementation that ever starts leaning on enumerate() or on the
-    order a dict happened to yield.
+    """Nothing about the split may depend on read order: same input => same
+    split, across runs and machines — `REGISTRO`, "Texto movido do código".
     """
     casos = _casos(nome)
     direto = dividir(casos)
@@ -86,13 +64,9 @@ def test_a_ordem_de_entrada_nao_muda_a_divisao(nome):
 
 @pytest.mark.parametrize("nome", EXTERNOS, ids=IDS_EXTERNOS)
 def test_gap_dentro_do_limite_duro(nome):
-    """The hard limit, and the only proportion assertion in this file.
-
-    `LIMITE_COMPARABILIDADE` deliberately gets no assert: both external
-    datasets exceed it today (0.0216 and 0.0283), and a permanently red check
-    becomes noise -- that is how a verifier dies. It is reported as a flag on
-    every run instead. `LIMITE_DURO` is the line where the two halves stop
-    being two views of the same corpus, and that one does assert.
+    """The hard limit, and the only proportion assertion in this file, because
+    `LIMITE_COMPARABILIDADE` is a flag and not an assert: `REGISTRO`, "Texto
+    movido do código".
     """
     casos = _casos(nome)
     resumo = resumo_da_divisao(dividir(casos)["tune"], casos, "tune")
@@ -106,12 +80,9 @@ def test_gap_dentro_do_limite_duro(nome):
 
 @pytest.mark.parametrize("nome", EXTERNOS, ids=IDS_EXTERNOS)
 def test_sinalizador_de_comparabilidade_marca_os_dois_datasets(nome):
-    """The counterweight to the test above: pin what the flag says *today*.
-
-    Both external datasets exceed `LIMITE_COMPARABILIDADE`, so accuracy and F1
-    are not comparable across halves on either. If that ever changes, this test
-    fails and forces someone to re-read the derivation, instead of letting the
-    flag quietly rot into a field nobody checks.
+    """The counterweight to the test above: pins what the flag says *today*,
+    so a change forces someone to re-read the derivation: `REGISTRO`, "Texto
+    movido do código".
     """
     casos = _casos(nome)
     for metade in ("tune", "holdout"):
@@ -128,10 +99,8 @@ def test_sinalizador_de_comparabilidade_marca_os_dois_datasets(nome):
 
 @pytest.mark.parametrize("nome", EXTERNOS, ids=IDS_EXTERNOS)
 def test_acrescentar_caso_nao_move_ninguem(nome):
-    """The point the whole scheme is designed around.
-
-    Assignment is per case, derived from the id, never a shuffle of the list.
-    Appending only appends.
+    """The point the whole scheme is designed around: assignment is per case,
+    derived from the id, so appending only appends.
     """
     casos = _casos(nome)
     antes = {c["id"]: metade_do_caso(c["id"]) for c in casos}
@@ -190,23 +159,18 @@ SEM_ID = [
 
 
 def test_dataset_sem_id_nao_pode_ser_dividido():
-    """Without a stable id the assignment would fall back on list position.
-
-    And then appending a case *would* move the others -- the one thing the
-    scheme exists to prevent. Better a loud error than a partition that looks
-    fine and is not reproducible.
+    """Without a stable id the assignment would fall back on list position, and
+    then appending *would* move the others: `REGISTRO`, "Texto movido do
+    código".
     """
     with pytest.raises(ValueError, match="não tem `id`"):
         selecionar_metade(SEM_ID, "tune")
 
 
 def test_dataset_sem_id_continua_avaliavel_inteiro():
-    """`full` never needed the split, so it must keep working where it used to.
-
-    `evaluate_engine` reads `id` only to label mismatches, so a dataset without
-    ids evaluated fine before this batch. Making the harness able to read halves
-    must not take that away -- that would be a behaviour change smuggled in by a
-    tooling change.
+    """`full` never needed the split, so it must keep working where it used to
+    — a behaviour change smuggled in by a tooling change: `REGISTRO`, "Texto
+    movido do código".
     """
     resumo = resumo_da_divisao(SEM_ID, SEM_ID, "full")
     assert resumo["metade"] == "full"
@@ -220,13 +184,9 @@ def test_dataset_sem_id_continua_avaliavel_inteiro():
 
 @pytest.mark.parametrize("metade", ("tune", "holdout"), ids=("tune", "holdout"))
 def test_dataset_curado_nao_e_dividido(metade, capsys):
-    """eval/dataset.json is reported whole, and asking for half of it fails loudly.
-
-    It is in-distribution by construction -- written by the author of the rules
-    it tests -- so a "holdout" carved out of it would measure nothing while
-    looking exactly like a generalisation claim. Silently falling back to the
-    full set would produce a number labelled `holdout` that is not one, which is
-    worse than no number at all.
+    """eval/dataset.json is in-distribution by construction, so asking for half
+    of it fails loudly instead of producing a number labelled `holdout` that
+    is not one: `REGISTRO`, "Texto movido do código".
     """
     code = main(["eval", "--half", metade])
     assert code == 2
@@ -259,10 +219,8 @@ def test_identificador_e_reproduzivel(nome):
 
 @pytest.mark.parametrize("nome", EXTERNOS, ids=IDS_EXTERNOS)
 def test_identificador_muda_se_a_metade_muda(nome):
-    """One case less has to be a different identifier.
-
-    Otherwise "two runs reporting the same identifier read the same half" is
-    not a claim the identifier supports.
+    """One case less has to be a different identifier, senão o identificador
+    não sustenta a afirmação que carrega.
     """
     metade = dividir(_casos(nome))["holdout"]
     assert identificador_da_metade(metade) != identificador_da_metade(metade[:-1])
@@ -275,12 +233,9 @@ def test_identificador_nao_depende_da_ordem_da_lista(nome):
             == identificador_da_metade(list(reversed(metade))))
 
 
-# -------------------------------------------------------------- 7. a receita, presa
-
-# Values computed once with `divisao/v1` and written down. Not derived from the
-# implementation at test time on purpose: this is the only test in the file that
-# would notice the hash material changing. Every other test here is internally
-# consistent and would keep passing over a silently different partition.
+# 7. a receita, presa: valores computados uma vez com `divisao/v1` e escritos,
+# porque é o único teste do arquivo que notaria o material do hash mudar —
+# `REGISTRO`, "Texto movido do código".
 ATRIBUICAO_DOURADA = {
     "HF-BT-0000": "holdout",
     "HF-BT-0001": "tune",
@@ -327,11 +282,9 @@ def test_identificador_bate_com_valor_dourado(nome):
 
 
 def test_a_receita_esta_dentro_do_hash():
-    """Bumping the recipe must re-partition, not quietly rename the quantity.
-
-    Same discipline as `config-id/v1` and `assinatura/v1`: the constant is
-    inside what is hashed, so a v2 cannot produce a different quantity under
-    the same name.
+    """Bumping the recipe must re-partition, not quietly rename the quantity,
+    porque a constante está dentro do que é hasheado: `REGISTRO`, "Texto
+    movido do código".
     """
     import hashlib
     material = f"{RECEITA_DIVISAO}|HF-BT-0000".encode("utf-8")
@@ -355,10 +308,8 @@ def test_erro_padrao_do_recall_encolhe_com_o_estrato():
 
 @pytest.mark.parametrize("metade", ("tune", "holdout", "full"), ids=("tune", "holdout", "full"))
 def test_relatorio_nomeia_a_metade_e_traz_a_escala(metade, capsys):
-    """No path through the CLI prints recall without its half and its noise floor.
-
-    Including `full`: a silent default is the same defect wearing a different
-    hat, and it is the one that would actually get used.
+    """No path through the CLI prints recall without its half and its noise
+    floor, `full` included: `REGISTRO`, "Texto movido do código".
     """
     code = main(["eval", "--dataset", str(EVAL / "dataset_beavertails.json"),
                  "--half", metade])

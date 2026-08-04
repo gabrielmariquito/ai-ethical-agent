@@ -211,18 +211,10 @@ def test_remove_env_var_on_the_only_line_leaves_a_valid_empty_file(tmp_path):
     assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") is None
 
 
-# -- one ambient source, and the tripwire on the one that died ----------------
-#
-# .env is the only ambient source of the audit password. The environment
-# variable is no longer read as one -- it is read only to notice that somebody
-# still has it set, and to refuse rather than ignore it in silence.
-#
-# Both the CLI (webui/auth.load_audit_password) and the installer
-# (wizard_gui.py) have to answer that the same way, and wizard_gui cannot
-# import webui/auth (it runs on the system Python before the project is
-# installed -- see wizard_gui.py's own comment on AUDIT_PASSWORD_ENV_VAR).
-# This module is the only place both can import from, so the predicate, the
-# exception to it, and the wording all live here and are tested here.
+# Uma fonte ambiente só, e o arame de tropeço na que morreu: `.env` é a única
+# fonte, e a variável é lida apenas para notar que alguém ainda a tem setada.
+# CLI e instalador têm de responder igual, e o instalador não pode importar
+# `webui/auth`, então o predicado e o texto moram aqui: `REGISTRO`, "Texto movido do código".
 
 
 def _dotenv_with_password(root, value="do-dotenv"):
@@ -238,12 +230,8 @@ def test_no_exported_variable_means_nothing_to_report(tmp_path):
 
 
 def test_a_variable_repeating_the_dotenv_password_is_not_a_problem(tmp_path):
-    # Nothing is ambiguous when both names hold the same string, so refusing
-    # would be refusing over one password seen twice. This is not merely
-    # kinder: python-dotenv's load_dotenv() (llm.py) copies every .env key
-    # into os.environ, so "the variable holds the .env value" is a state the
-    # process can reach on its own. Under a presence-only rule that reflection
-    # would refuse.
+    # Nada é ambíguo quando os dois nomes têm a mesma string, e `load_dotenv()`
+    # copia o `.env` para o ambiente — é estado que o processo alcança sozinho: `REGISTRO`, "Texto movido do código".
     _dotenv_with_password(tmp_path, "a-mesma")
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "a-mesma"}) is None
     # Whitespace is stripped on both sides, as it is on write and on read.
@@ -256,10 +244,8 @@ def test_a_variable_that_disagrees_with_the_dotenv_password_is_refused(tmp_path)
 
 
 def test_a_variable_with_no_dotenv_password_is_refused_rather_than_ignored(tmp_path):
-    # The case that used to work: the variable alone was a source. Now nothing
-    # would be in effect, so somebody who set it would lose the audit screen
-    # without being told -- which is the failure this whole area exists to
-    # prevent.
+    # O caso que funcionava: a variável sozinha era fonte. Agora nada estaria em
+    # vigor, e quem a setou perderia a tela sem ser avisado: `REGISTRO`, "Texto movido do código".
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
 
     (tmp_path / ".env").write_text("OLLAMA_MODEL=llama3.2:3b\n", encoding="utf-8")
@@ -282,12 +268,8 @@ def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
 
 
 def test_the_password_file_flag_silences_the_tripwire(tmp_path):
-    # The exception lives in the predicate, not in each caller. If the CLI
-    # carved it out on its own, the installer would carve out something
-    # slightly different, and the two would drift apart on the *exception*
-    # while still looking like they share the rule -- which is the divergence
-    # nobody notices. (The banner still names the stale variable; silencing
-    # the refusal is not the same as saying nothing.)
+    # A exceção mora no predicado e não em cada chamador, senão os dois divergem
+    # na *exceção* parecendo compartilhar a regra: `REGISTRO`, "Texto movido do código".
     _dotenv_with_password(tmp_path)
     env = {AUDIT_PASSWORD_ENV_VAR: "outra"}
 
@@ -296,10 +278,8 @@ def test_the_password_file_flag_silences_the_tripwire(tmp_path):
 
 
 def test_both_messages_name_the_variable_the_path_and_removing_it(tmp_path):
-    # Two states, two messages. Unlike the message this replaces, both name
-    # *the* fix rather than offering a choice: the variable is not a source
-    # any more, so "remove one of the two" would offer something that no
-    # longer exists.
+    # Dois estados, duas mensagens, e ambas nomeiam *a* correção em vez de
+    # oferecer escolha: `REGISTRO`, "Texto movido do código".
     _dotenv_with_password(tmp_path)
     divergente = audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "outra"})
 
@@ -380,11 +360,9 @@ def test_wait_for_server_times_out_when_unreachable():
 
 
 class _RecordingPopen:
-    """Stands in for subprocess.Popen, recording every launch attempt.
-
-    `fail_first` reproduces a job object whose policy forbids
-    CREATE_BREAKAWAY_FROM_JOB -- Windows raises OSError there, and the
-    launcher has to retry without that flag instead of giving up.
+    """Substitui `subprocess.Popen` registrando toda tentativa de lançamento;
+    `fail_first` reproduz o job cuja política proíbe
+    `CREATE_BREAKAWAY_FROM_JOB`: `REGISTRO`, "Texto movido do código".
     """
 
     def __init__(self, fail_first: int = 0):
