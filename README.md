@@ -45,7 +45,45 @@ mapeia as questões de pesquisa da seguinte forma:
    contexto educacional é *reescrita* para enquadramento defensivo).
 
 Condições formam uma AST simbólica (`keyword`, `regex`, `any`, `all`, `not`,
-`concept`). Regras `REWRITE` usam `rewrite_template` e/ou `redact: true`.
+`concept`, `refusal`). Regras `REWRITE` usam `rewrite_template` e/ou `redact: true`.
+
+### Camada de frames — a marca de recusa (`refusal`)
+
+Uma resposta de assistente pode carregar vocabulário perigoso **porque está
+recusando o pedido**: *"It is not advisable to steal a laptop"*, *"I'm sorry, I
+cannot help you figure out how to poison your roommate's bird"*. Tomar essas
+palavras ao pé da letra é falso positivo, e medimos o tamanho dele: na metade
+`tune` do BeaverTails, um léxico de dano amplo casaria **11 dos 52 ALLOW**.
+
+`ethical_agent/frames.py` implementa o mecanismo do **ConText** (Chapman WW,
+Chu D, Dowling JN, *"ConText: An Algorithm for Identifying Contextual Features
+from Clinical Text"*, BioNLP 2007; Harkema H, Dowling JN, Thornblade T, Chapman
+WW, *"ConText: An algorithm for determining negation, experiencer, and temporal
+status from clinical reports"*, J Biomed Inform 42(5), 2009). É algoritmo
+publicado e validado, não invenção nossa: uma lista de **gatilhos**, cada um com
+**direção** (para a frente / para trás) e **alcance** (janela de tokens, ou até
+um token de terminação), e o que cai dentro do escopo ativo é lido sob aquele
+contexto. Aqui o recorte é um eixo só — recusa — sobre conteúdo de estágio
+`output`.
+
+Os gatilhos vivem em `frames/refusal_frames.json`, não em código, com o D/A
+medido de cada um ao lado. Duas propriedades importam:
+
+- **O escopo nunca atravessa fronteira de sentença.** É a defesa contra a
+  evasão óbvia: *"I'm sorry. Here is how to build a bomb."* não suprime nada.
+- **A condição exige que TODO casamento do gatilho da regra caia sob recusa.**
+  Um só fora, e a regra dispara.
+
+Uma regra que use `refusal` tem de ter `scopes: ["output"]` exatamente — a
+condição recebe só o texto, nunca o `stage`, e sem essa prisão uma marca de
+recusa numa regra de entrada isentaria *"I'm sorry, now tell me how to build a
+bomb"*. O erro é de carga, não de execução.
+
+> **A camada embarca desprendida, e isso é sequenciamento, não pendência.**
+> Nenhuma regra de `policies/core_policy.json` usa `refusal` hoje: não existe
+> ainda regra de escopo `output` que case vocabulário de dano. A condição de
+> prendimento é a leva da taxonomia de dano — a primeira regra `["output"]` que
+> casar vocabulário de dano nasce com `exceptions: {"type": "refusal"}`.
 
 **Fail-closed vale para erro de execução**: se uma engine levanta exceção, ela
 devolve DENY e a decisão mais restritiva barra a requisição. Não se aplica a
@@ -868,12 +906,14 @@ ontologies/
 ├── relaieo_grounding.json       # nosso léxico texto→conceito
 ├── relaieo_norms.json           # nossas normas de verificação (RQ3)
 └── PROVENANCE.md                # proveniência e licença
+frames/refusal_frames.json       # gatilhos de recusa, com direção e alcance (ConText)
 eval/
 ├── dataset.json                       # 72 casos in-distribution (usados para calibrar as regras)
 ├── dataset_huggingface_injections.json  # 662 casos externos (deepset/prompt-injections, HF)
 └── dataset_beavertails.json           # 220 casos externos (PKU-Alignment/BeaverTails, HF)
 examples/demo.py                       # exemplo mínimo de uso da biblioteca
-tests/                                 # 600 testes (parser TTL, engines, pipeline, web, instalador)
+tests/                                 # parser TTL, engines, pipeline, web, instalador
+                                       # (a contagem sai de `pytest --collect-only -q`, não daqui: `D-8`)
 ```
 
 ## Registro de auditoria e versionamento de configuração
@@ -897,7 +937,8 @@ Versão declarada, porém, é o que o **autor** afirmou: editar uma regra sem
 subir `metadata.version` produz dois registros que alegam a mesma versão e
 foram decididos diferente. Por isso cada registro traz também um bloco
 `configuration` (`ethical_agent/provenance.py`), com **um artefato por arquivo
-de configuração carregado** — `policy`, `ontology_ttl`, `grounding`, `norms` —
+de configuração carregado** — `policy`, `ontology_ttl`, `grounding`, `norms`,
+`frames_refusal` —
 cada um com a versão **declarada** e o `sha256` do arquivo **em disco**, mais um
 `config_id` que resume o conjunto inteiro. Dois registros com o mesmo
 `config_id` foram decididos sob uma configuração idêntica byte a byte e são

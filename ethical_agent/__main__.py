@@ -25,6 +25,7 @@ from .evaluate import (
     resumo_da_divisao,
     selecionar_metade,
 )
+from .frames import FramesRecusa, default_frames_path, register_refusal_condition
 from .kg_engine import KnowledgeGraphEngine
 from .llm import LLMClient, MockLLM, describe_llm_provenance, resolve_llm
 from .ollama_install import DEFAULT_LOCAL_MODEL, read_env_model
@@ -83,7 +84,11 @@ def _build_engine(args: argparse.Namespace) -> PolicyEngine:
         register_concept_condition(ontology)
     if args.engine == "kg":
         return KnowledgeGraphEngine(ontology)
-    rule_engine = RuleBasedEngine(Policy.from_file(args.policy))
+    # Registrar antes de `Policy.from_file`: o dispatch de condições resolve o
+    # tipo na carga, e um tipo ainda não registrado é erro de política.
+    frames = FramesRecusa.from_file(args.frames)
+    register_refusal_condition(frames)
+    rule_engine = RuleBasedEngine(Policy.from_file(args.policy), frames=frames)
     if args.engine == "rule":
         return rule_engine
     return CompositeEngine(
@@ -366,6 +371,11 @@ def main(argv=None) -> int:
         "--norms",
         default=str(default_norms_path()),
         help="path to the KG norms (default: ontologies/relaieo_norms.json)",
+    )
+    parser.add_argument(
+        "--frames",
+        default=str(default_frames_path()),
+        help="path to the refusal frame triggers (default: frames/refusal_frames.json)",
     )
     parser.add_argument(
         "--engine",

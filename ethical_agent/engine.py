@@ -40,17 +40,31 @@ class PolicyEngine(ABC):
 class RuleBasedEngine(PolicyEngine):
     name = "rule-based"
 
-    def __init__(self, policy: Policy):
+    def __init__(self, policy: Policy, frames=None):
         self.policy = policy
+        # A camada de frames é do motor, não da política: ela é lida e declarada
+        # mesmo quando nenhuma regra a usa, para que o artefato embarcado fique
+        # registrado no `config_id` e o diff da leva da taxonomia seja só sobre
+        # a norma. Mesma lógica do `ontology_ttl`, cuja maioria das classes não
+        # tem norma e que ainda assim é declarado.
+        self.frames = frames
 
     def describe_config(self) -> dict:
-        return {
+        declarado = {
             "policy_schema_version": self.policy.schema_version,
             "policy_version": self.policy.metadata.get("version", "unknown"),
         }
+        if self.frames is not None:
+            declarado["frames_refusal_version"] = self.frames.metadata.get(
+                "version", "unknown"
+            )
+        return declarado
 
     def config_artifacts(self) -> List[ConfigArtifact]:
-        return self.policy.config_artifacts()
+        artefatos = self.policy.config_artifacts()
+        if self.frames is not None:
+            artefatos = artefatos + self.frames.config_artifacts()
+        return artefatos
 
     def evaluate(self, action: ActionContext) -> Verdict:
         # `fired` carries the *effective* effect alongside the rule, not just

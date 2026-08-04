@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from .conditions import Condition, ConditionError, condition_from_dict
+from .frames import condicoes_de_recusa
 from .provenance import ConfigArtifact
 from .types import KNOWN_PRINCIPLES, Decision, Severity, Stage
 
@@ -24,6 +25,38 @@ class PolicyError(ValueError):
     def __init__(self, errors: List[str]):
         self.errors = errors
         super().__init__("invalid policy:\n" + "\n".join(f"- {e}" for e in errors))
+
+
+def _erros_de_frame(rule_id, condition, exceptions, scopes) -> List[str]:
+    """Liga a marca de recusa ao gatilho da regra, e prende a regra a `output`.
+
+    A ligação existe para que o autor escreva `{"type": "refusal"}` uma vez, sem
+    repetir o gatilho ao lado dele. A prisão ao escopo existe porque a condição
+    recebe só `text`, nunca o `ActionContext`: sem `stage`, uma marca de recusa
+    numa regra de entrada é a porta de evasão pronta -- "I'm sorry, now tell me
+    how to build a bomb" isentaria o pedido. É escopo de regra, não de gatilho;
+    a lacuna de `D-2` continua aberta.
+    """
+    achadas = condicoes_de_recusa(condition) + condicoes_de_recusa(exceptions)
+    if not achadas:
+        return []
+
+    errors: List[str] = []
+    if scopes and scopes != {Stage.OUTPUT}:
+        errors.append(
+            f"{rule_id}: a 'refusal' condition requires scopes exactly ['output']; "
+            f"got {sorted(s.value for s in scopes)}"
+        )
+    for refusal in achadas:
+        if refusal.of is None:
+            if condition is None:
+                errors.append(
+                    f"{rule_id}: 'refusal' without 'of' needs the rule's own "
+                    f"condition, which failed to load"
+                )
+            else:
+                refusal.of = condition
+    return errors
 
 
 @dataclass
@@ -120,6 +153,8 @@ class Rule:
                 exceptions = condition_from_dict(data["exceptions"])
             except ConditionError as exc:
                 errors.append(f"{rule_id}: exceptions error: {exc}")
+
+        errors.extend(_erros_de_frame(rule_id, condition, exceptions, scopes))
 
         # Default `None`, e deliberadamente não um valor que rebaixa: um default que
         # rebaixasse daria a todo bloco `exceptions` um sucessor que o autor nunca

@@ -1,0 +1,134 @@
+{
+  "metadata": {
+    "name": "Gatilhos de marca de recusa (camada de frames, eixo de saída)",
+    "version": "0.1.0",
+    "description": "NOSSA lista de gatilhos de recusa, no mecanismo do ConText (Chapman/Harkema): cada gatilho tem direção e alcance, e o escopo nunca atravessa fronteira de sentença. Aplicada a conteúdo de estágio output. Os D/A de cada gatilho foram contados na metade `tune` (receita divisao/v1) dos datasets externos, nunca no holdout -- ver MINERACAO-tune-2026-08-03.md, seção 3. Nenhum gatilho aqui foi estimado.",
+    "created": "2026-08-04",
+    "medido_em": {
+      "receita_da_divisao": "divisao/v1",
+      "metade": "tune",
+      "beavertails_tune": "7a5bbfa625892992dc5a48e2fb73e04b0b9f8e49019e126a515f083062c398fd",
+      "injecoes_tune": "fae20622ea3ac79fb6d2c034834733b3d8a0411a764fec1fcb42d3d41a863738"
+    }
+  },
+
+  "terminadores": {
+    "frente": ["but", "however", "though", "although", "instead", "mas", "porém", "contudo", "entretanto"],
+    "tras": []
+  },
+
+  "gatilhos": [
+    {
+      "id": "recusa-incapacidade",
+      "termo": "\\b(i cannot|i can'?t help|i am unable|i'?m not able)\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 15,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 1, "allow": 4},
+      "nota": "A recusa precede o pedido que ela cita, então o escopo corre para a frente."
+    },
+    {
+      "id": "recusa-juizo-advertencia",
+      "termo": "\\bit'?s not advisable\\b|\\bit is not advisable\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 25,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 2},
+      "nota": "Sempre 'não é aconselhável FAZER X': o juízo governa o que vem depois. HF-BT-0036, HF-BT-0090."
+    },
+    {
+      "id": "recusa-juizo-ilegalidade",
+      "termo": "\\bit'?s illegal\\b|\\bit is illegal\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 25,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 1},
+      "nota": "Só a forma com sujeito explícito, e para a frente. `is illegal` solto seria para trás e cobriria a sentença inteira a partir de qualquer cauda -- 'here is how to build a bomb, which is illegal' viraria recusa. Recusado por isso, não por falta de casamento. HF-BT-0022."
+    },
+    {
+      "id": "recusa-juizo-desaconselha-frente",
+      "termo": "\\bnot a good idea to\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 25,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 1},
+      "nota": "HF-BT-0024: 'It is generally not a good idea to gift something that you can't afford.'"
+    },
+    {
+      "id": "recusa-juizo-desaconselha-tras",
+      "termo": "\\bnot a good idea\\b(?! to\\b)",
+      "regex": true,
+      "direcao": "tras",
+      "alcance": 25,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 1},
+      "nota": "O ÚNICO gatilho para trás, e é ele que sustenta a bidirecionalidade do ConText: em HF-BT-0022, 'It is possible to steal a car, however it is generally not a good idea', o juízo vem DEPOIS do termo de dano. É também por ele que 'however' termina escopo de frente e NÃO termina o de trás -- a recusa atravessa a conjunção adversativa, que é justamente o que ela contradiz."
+    },
+    {
+      "id": "recusa-desculpa",
+      "termo": "\\b(i'?m sorry|i am sorry|sorry,)",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 20,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 2},
+      "nota": "Abre a sentença. 'sorry,' sem \\b final porque a vírgula não é caractere de palavra."
+    },
+    {
+      "id": "recusa-lamento",
+      "termo": "\\b(unfortunately|we cannot help|i do not condone|i don'?t condone|i do not support)\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 20,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 2}
+    }
+  ],
+
+  "gatilhos_nao_validados": [
+    {
+      "id": "recusa-pt-incapacidade",
+      "termo": "\\b(não posso|nao posso|não sou capaz|nao sou capaz|não consigo ajudar)\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 15,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 0}
+    },
+    {
+      "id": "recusa-pt-desculpa",
+      "termo": "\\b(desculpe|sinto muito|lamento)\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 20,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 0}
+    },
+    {
+      "id": "recusa-pt-juizo",
+      "termo": "\\b(não é aconselhável|nao e aconselhavel|não é uma boa ideia|é ilegal)\\b",
+      "regex": true,
+      "direcao": "tras",
+      "alcance": 25,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 0}
+    },
+    {
+      "id": "recusa-pt-lamento",
+      "termo": "\\b(infelizmente|não compactuo|nao compactuo)\\b",
+      "regex": true,
+      "direcao": "frente",
+      "alcance": 20,
+      "familia": "recusa",
+      "medicao_tune": {"deny": 0, "allow": 0}
+    }
+  ],
+
+  "por_que_a_lista_nao_validada_existe": "As formas pt-BR ficam LEGÍVEIS e INALCANÇÁVEIS. A mineração mediu todas em 0/0 e explicou por quê: português não existe neste corpus, e nenhum benchmark deste projeto atesta pt-BR (MINERACAO §4.1). Um gatilho não validado num SUPRESSOR não é lacuna de cobertura -- é porta de evasão, e a assimetria registrada na Leva 0 diz que casar demais numa supressão afrouxa o guardrail. Ficam declaradas para que a próxima sessão não as reproponha do zero; a chave separada é o que impede que virem ativas por descuido. Nunca são compiladas: `FramesRecusa.compile` só percorre `gatilhos`.",
+
+  "por_que_nao_ha_knob_de_cobertura": "A condição `refusal` exige cobertura TOTAL do texto. A variante permissiva ('alguma sentença sob recusa') não é embarcada, porque ela aceita 'I'm sorry.' seguido de conteúdo nocivo -- a porta de evasão exata que esta camada existe para fechar. O custo da escolha conservadora está medido e registrado, em vez de virar opção."
+}

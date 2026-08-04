@@ -15,6 +15,7 @@ from ethical_agent import (
     default_policy_path,
     resolve_llm,
 )
+from ethical_agent.frames import FramesRecusa, default_frames_path
 from ethical_agent.provenance import CONFIG_ID_RECIPE, build_configuration
 from ethical_agent.relaieo import (
     default_grounding_path,
@@ -24,11 +25,11 @@ from ethical_agent.relaieo import (
 )
 
 
-ROLES_ESPERADOS = {"policy", "ontology_ttl", "grounding", "norms"}
+ROLES_ESPERADOS = {"policy", "ontology_ttl", "grounding", "norms", "frames_refusal"}
 
 
 def _copiar_config(tmp_path):
-    """Cópia gravável dos quatro arquivos reais. Os testes que editam
+    """Cópia gravável dos cinco arquivos reais. Os testes que editam
     artefato editam a cópia -- nenhum deles toca o repositório."""
     destino = tmp_path / "config"
     destino.mkdir(parents=True)
@@ -37,6 +38,7 @@ def _copiar_config(tmp_path):
         "ontology_ttl": default_relaieo_ttl(),
         "grounding": default_grounding_path(),
         "norms": default_norms_path(),
+        "frames_refusal": default_frames_path(),
     }
     saida = {}
     for role, origem in caminhos.items():
@@ -47,7 +49,8 @@ def _copiar_config(tmp_path):
 
 
 def _motor(caminhos):
-    rule = RuleBasedEngine(Policy.from_file(caminhos["policy"]))
+    frames = FramesRecusa.from_file(caminhos["frames_refusal"])
+    rule = RuleBasedEngine(Policy.from_file(caminhos["policy"]), frames=frames)
     ontology = load_relaieo(
         caminhos["ontology_ttl"], caminhos["grounding"], caminhos["norms"]
     )

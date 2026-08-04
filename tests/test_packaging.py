@@ -22,6 +22,7 @@ EXPECTED_DATA_FILES = {
     "eval/dataset.json",
     "eval/dataset_beavertails.json",
     "eval/dataset_huggingface_injections.json",
+    "frames/refusal_frames.json",
 }
 
 # Ao contrário de `EXPECTED_DATA_FILES`, estes vivem *dentro* do pacote e
@@ -108,7 +109,7 @@ def test_wheel_includes_data_directories(tmp_path):
     nested_under_package = {
         n for n in names
         if n.startswith("ethical_agent/") and any(
-            part in n for part in ("policies", "ontologies", "eval/dataset")
+            part in n for part in ("policies", "ontologies", "eval/dataset", "frames/")
         )
     }
     assert not nested_under_package, (

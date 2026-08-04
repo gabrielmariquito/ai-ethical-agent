@@ -382,6 +382,7 @@ const ROLE_LABELS = {
   ontology_ttl: "ontologia RelAIEO (upstream, vendorizada)",
   grounding: "léxico de ancoragem",
   norms: "normas de verificação",
+  frames_refusal: "gatilhos de recusa (camada de frames)",
 };
 
 // A tabela que responde "quais arquivos governaram esta decisão", com versão

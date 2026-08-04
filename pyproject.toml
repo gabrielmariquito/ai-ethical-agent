@@ -39,12 +39,13 @@ ethical-agent = "ethical_agent.__main__:main"
 # ethical_agent.webui is a plain subpackage (not implicit -- this project
 # lists packages explicitly rather than using find:), needed so `ethical-agent
 # serve` and its static/*.html|css|js assets survive a non-editable install.
-packages = ["ethical_agent", "ethical_agent.webui", "policies", "ontologies", "eval"]
+packages = ["ethical_agent", "ethical_agent.webui", "policies", "ontologies", "eval", "frames"]
 
 [tool.setuptools.package-data]
 policies = ["*.json"]
 ontologies = ["*.ttl", "*.json", "*.md"]
 eval = ["*.json"]
+frames = ["*.json"]
 "ethical_agent.webui" = [
     "static/*.html",
     "static/css/*.css",

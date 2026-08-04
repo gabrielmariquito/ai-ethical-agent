@@ -14,6 +14,11 @@ from ethical_agent import (
     resolve_llm,
 )
 from ethical_agent.audit import audit_init_failure_message
+from ethical_agent.frames import (
+    FramesRecusa,
+    default_frames_path,
+    register_refusal_condition,
+)
 
 from .state import _WebAuditLogger
 
@@ -21,14 +26,18 @@ from .state import _WebAuditLogger
 # guardrail — só construção, e fica fino de propósito: versão longa em `997a6fe^`.
 
 
-def build_engine(policy_path, ontology_path, grounding_path, norms_path, engine_kind):
+def build_engine(
+    policy_path, ontology_path, grounding_path, norms_path, engine_kind, frames_path=None
+):
     ontology = None
     if engine_kind in ("kg", "hybrid"):
         ontology = load_relaieo(ontology_path, grounding_path, norms_path)
         register_concept_condition(ontology)
     if engine_kind == "kg":
         return KnowledgeGraphEngine(ontology)
-    rule_engine = RuleBasedEngine(Policy.from_file(policy_path))
+    frames = FramesRecusa.from_file(frames_path or default_frames_path())
+    register_refusal_condition(frames)
+    rule_engine = RuleBasedEngine(Policy.from_file(policy_path), frames=frames)
     if engine_kind == "rule":
         return rule_engine
     return CompositeEngine([rule_engine, KnowledgeGraphEngine(ontology)], name="hybrid")

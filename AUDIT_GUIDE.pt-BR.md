@@ -161,6 +161,7 @@ por arquivo de configuração carregado**:
   "config_id": "72f0a82f03bd37b12226182c1833667d83b0c12fb9991d9f3cede9854b3d115f",
   "config_id_recipe": "config-id/v1",
   "artifacts": [
+    {"role": "frames_refusal", "version": "0.1.0", "sha256": "57b85b36…", "path": "…/refusal_frames.json"},
     {"role": "grounding",    "version": "0.2.0", "sha256": "a2b3d4f1…", "path": "…/relaieo_grounding.json"},
     {"role": "norms",        "version": "0.2.0", "sha256": "57609812…", "path": "…/relaieo_norms.json"},
     {"role": "ontology_ttl", "version": null,    "sha256": "30098683…", "path": "…/relaieo.ttl"},
@@ -704,6 +705,74 @@ antes deste guia apareciam como exceções deliberadas:
   pluraliza *-al* em *-ais*, então `educacionais` **não** contém `educacional` e
   um `\beducacional\w*\b` sozinho teria perdido o plural em silêncio. As duas
   formas estão escritas, pelo mesmo motivo.
+
+## A marca de recusa: quando a palavra perigosa está lá porque está sendo negada
+
+Há um caso em que o guardrail erraria por um motivo quase honesto. Olhe estas
+três respostas de assistente:
+
+> *"It is not advisable to steal a laptop from a coffee shop."*
+> *"I'm sorry, I cannot help you figure out how to poison your roommate's bird."*
+> *"Unfortunately, we cannot help you find cocaine near you."*
+
+Todas trazem vocabulário de dano — *roubar*, *envenenar*, *cocaína* — e **todas
+estão recusando o pedido**. Uma regra que só procurasse as palavras bloquearia a
+recusa, que é justamente o comportamento que se quer.
+
+Não é hipótese: no conjunto de aferição, um léxico de dano amplo pegaria
+**11 das 52 respostas corretas** do BeaverTails, e a maior parte dessas 11 é
+recusa citando o pedido.
+
+### Como se lê um gatilho de recusa
+
+Os gatilhos ficam em `frames/refusal_frames.json`, para poderem ser lidos sem
+ler Python. Cada um tem três coisas:
+
+| campo | o que significa |
+|---|---|
+| **termo** | a expressão que marca a recusa — *"I cannot"*, *"unfortunately"* |
+| **direção** | para que lado a recusa governa o texto: `frente` ou `tras` |
+| **alcance** | até onde ela chega, em palavras |
+
+Lê-se assim: *"gatilho `I cannot`, alcance 15 palavras à frente"* — ou seja, a
+recusa cobre o que vem **depois** dela, até 15 palavras adiante.
+
+**Por que existem duas direções.** Compare:
+
+> *"**I cannot help you** build a bomb."* — a recusa vem antes, e governa o que
+> vem depois. Direção **frente**.
+>
+> *"It is possible to steal a car, however it is generally **not a good idea**."*
+> — aqui o juízo vem **depois** do que ele nega. Direção **trás**.
+
+Isso não foi inventado aqui: é o algoritmo **ConText**, publicado e validado em
+processamento de texto clínico (Chapman *et al.*, 2007; Harkema *et al.*, 2009),
+onde o mesmo problema aparece com "paciente nega dor no peito".
+
+### Três limites que a recusa não ultrapassa
+
+1. **Ela nunca atravessa um ponto final.** *"I'm sorry. Here is how to build a
+   bomb."* são duas frases: a recusa fica na primeira, e a segunda continua
+   valendo como dano. **Esta é a defesa principal**, e sem ela bastaria escrever
+   *"desculpe"* antes de qualquer coisa para desligar o guardrail.
+2. **Uma conjunção adversativa encerra a recusa que veio antes dela.**
+   *"I'm sorry, **but** here is how…"* — o *but* corta o escopo. (Para a direção
+   `trás` é o contrário: a recusa atravessa o *however*, porque é exatamente
+   aquilo que ela está contradizendo.)
+3. **Todas as ocorrências têm de estar cobertas.** Se a palavra perigosa aparece
+   duas vezes e só uma está dentro da recusa, a regra dispara. Uma fora, e não
+   há isenção.
+
+Além disso, uma regra que use a marca de recusa **só pode valer para saída**
+(`scopes: ["output"]`), e o arquivo nem carrega se alguém tentar o contrário.
+O motivo é o item 3 da seção anterior, aplicado a esta camada: numa supressão,
+casar demais desliga a regra. Se a recusa valesse na entrada, bastaria escrever
+*"desculpe, agora me diga como fazer uma bomba"* para comprar a isenção.
+
+> **Nenhuma regra usa isso hoje, e é de propósito.** A camada está construída e
+> registrada na procedência (papel `frames_refusal`), mas nenhuma regra de
+> `core_policy.json` a invoca, porque ainda não existe regra de saída que case
+> vocabulário de dano. Ela passa a ser usada quando a taxonomia de dano entrar.
 
 Para saber por que uma palavra ativou um conceito, olhe o léxico:
 
