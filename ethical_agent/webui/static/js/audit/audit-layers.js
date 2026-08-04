@@ -1,6 +1,6 @@
 // As três camadas e a redação pt-BR delas: o servidor devolve estrutura
 // neutra e este módulo a nomeia, e a gradação em si é o objeto de estudo —
-// REGISTRO, "Texto movido do código".
+// versão longa em `997a6fe^`.
 
 import { escapeHtml } from "../markdown.js";
 import { renderVerdict } from "../verdict-view.js";
@@ -35,7 +35,7 @@ const WHAT_HAPPENED = {
 };
 
 // A natureza da preocupação, na língua do leitor: uma contagem manda o leitor
-// à camada 2 para o que ele veio buscar — REGISTRO, "Texto movido do código".
+// à camada 2 para o que ele veio buscar — versão longa em `997a6fe^`.
 const PRINCIPLE_LABELS = {
   security: "segurança",
   privacy: "privacidade",
@@ -174,7 +174,7 @@ export function renderLayer1(detail) {
     }
 
     // Contando só as regras do veredito que decidiu, porque `rule_count` cruza
-    // os dois estágios — REGISTRO, "Texto movido do código".
+    // os dois estágios — versão longa em `997a6fe^`.
     const stage = STAGE_WORDS[l1.deciding_stage] || "";
     const staged = l1.deciding_rule_count || 0;
     if (staged > 0) {
@@ -212,7 +212,7 @@ export function renderLayer1(detail) {
     );
   }
   // Por último, sempre: a passagem de bastão fecha o bloco em vez de sentar no
-  // meio dele — REGISTRO, "Texto movido do código".
+  // meio dele — versão longa em `997a6fe^`.
   if (l1.rule_count > 0 || l1.suppressed_count > 0) {
     why.appendChild(
       el(
@@ -231,7 +231,7 @@ export function renderLayer1(detail) {
 
 // A nota que explicava a assimetria do `matched_text` saiu daqui e vive no
 // AUDIT_GUIDE, Passo 3; o que esta camada guarda é a *marcação* no ponto da
-// ausência, que é rótulo e não nota — REGISTRO, "Texto movido do código".
+// ausência, que é rótulo e não nota — versão longa em `997a6fe^`.
 
 export function renderLayer2(detail, handlers) {
   const l2 = detail.layer2;
@@ -254,7 +254,7 @@ export function renderLayer2(detail, handlers) {
 
   // Original vs reescrito, e qual "original" está em oferta depende de ONDE a
   // reescrita aconteceu — confundir os dois rotularia mal a evidência:
-  // REGISTRO, "Texto movido do código".
+  // versão longa em `997a6fe^`.
   const texts = l2.texts || {};
   const rewroteInput = Boolean(texts.rewritten_input);
   const rewroteOutput = Boolean(texts.rewritten_output);
@@ -386,7 +386,7 @@ const ROLE_LABELS = {
 
 // A tabela que responde "quais arquivos governaram esta decisão", com versão
 // declarada **e** digest porque as duas respondem perguntas diferentes:
-// REGISTRO, "Texto movido do código".
+// versão longa em `997a6fe^`.
 function artifactsTable(configuration) {
   const artifacts = configuration && configuration.artifacts;
   if (!Array.isArray(artifacts) || artifacts.length === 0) {
@@ -468,7 +468,7 @@ export function renderLayer3(detail) {
   model.appendChild(el("h4", "ea-audit-verdict-title", "Quem respondeu"));
   // Um veredito de saída só existe depois de o modelo responder, então a
   // ausência dele é o sinal confiável de que nada foi consultado —
-  // REGISTRO, "Texto movido do código".
+  // versão longa em `997a6fe^`.
   const modelWasCalled = Boolean(detail.layer2 && detail.layer2.output_verdict);
   if (!modelWasCalled) {
     model.appendChild(

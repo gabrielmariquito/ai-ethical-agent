@@ -1,6 +1,6 @@
 """Mapa rótulo ↔ valor dos seletores de engine/stage: os *valores* são contrato
 com o resto do código e os *rótulos* são só para o usuário, traduzidos num
-lugar só: `REGISTRO`, "Texto movido do código".
+lugar só: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations

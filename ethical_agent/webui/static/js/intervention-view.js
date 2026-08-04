@@ -20,7 +20,7 @@ export function interventionSummary(item) {
   const kind = interventionKind(item);
   // `Verdict.to_dict()` não traz a chave "intervened", que é propriedade
   // computada só em Python e nunca serializada —
-  // REGISTRO, "Texto movido do código".
+  // versão longa em `997a6fe^`.
   const outputIsRewrite = Boolean(item.output_verdict) && item.output_verdict.decision === "REWRITE";
   const usesOutput = kind === "blocked_output" || (kind === "rewrite" && outputIsRewrite);
   const verdict = usesOutput ? item.output_verdict : item.input_verdict;

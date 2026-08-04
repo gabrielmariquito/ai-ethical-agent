@@ -18,13 +18,13 @@ METADES = ("tune", "holdout", "full")
 # A divisão tune/holdout, receita `divisao/v1` escrita por extenso: só o id do
 # caso entra no material, a constante da receita está dentro dos dois hashes, e
 # a proporção DENY/ALLOW é *verificada* e não construída —
-# `REGISTRO`, "Texto movido do código".
+# versão longa em `997a6fe^`.
 RECEITA_DIVISAO = "divisao/v1"  # also the seed -- see item 3 above
 
 # Os dois limites e a derivação deles: a grandeza ameaçada é o *gap entre as
 # metades*, o recall é invariante à mistura DENY/ALLOW e acurácia/F1 não são —
 # e este é **flag, não assert**, porque uma verificação permanentemente
-# vermelha vira ruído: `REGISTRO`, "Texto movido do código".
+# vermelha vira ruído: versão longa em `997a6fe^`.
 LIMITE_COMPARABILIDADE = 0.02
 
 # The hard limit *is* an assert. At a 0.10 gap the induced accuracy gap (~0.096)
@@ -42,7 +42,7 @@ def metade_do_caso(case_id: str) -> str:
 def _id_obrigatorio(case: dict, indice: int) -> str:
     """`id` é opcional para `evaluate_engine` e obrigatório para a divisão,
     com erro explícito porque sem id estável a atribuição cairia na posição na
-    lista: `REGISTRO`, "Texto movido do código".
+    lista: versão longa em `997a6fe^`.
     """
     cid = case.get("id")
     if cid is None or cid == "":
@@ -88,7 +88,7 @@ def identificador_da_metade(cases: List[dict]) -> str:
 def _proporcao_deny(cases: List[dict]) -> tuple:
     """(positivos, negativos), com positivo sendo a classe *interveniente*,
     contando DENY **e** REWRITE porque é a classe sobre a qual o recall é
-    computado: `REGISTRO`, "Texto movido do código".
+    computado: versão longa em `997a6fe^`.
     """
     positivos = sum(1 for c in cases if Decision(c["expected_decision"]) in INTERVENING)
     return positivos, len(cases) - positivos
@@ -97,7 +97,7 @@ def _proporcao_deny(cases: List[dict]) -> tuple:
 def erro_padrao_do_recall(recall: float, n_deny: int) -> Optional[float]:
     """Erro padrão binomial do recall, reportado ao lado dele e nunca sozinho:
     um ganho menor que ele não se distingue de ruído, e uma leva que não
-    imprime este número vai comemorá-lo: `REGISTRO`, "Texto movido do código".
+    imprime este número vai comemorá-lo: versão longa em `997a6fe^`.
     """
     if not n_deny:
         return None
@@ -114,7 +114,7 @@ def resumo_da_divisao(cases_da_metade: List[dict], cases_totais: List[dict],
     n = len(cases_da_metade)
 
     # `full` é a metade que nunca precisou da divisão, logo a que tem de continuar
-    # funcionando num dataset sem ids: `REGISTRO`, "Texto movido do código".
+    # funcionando num dataset sem ids: versão longa em `997a6fe^`.
     divisivel = metade != "full" or tem_ids_estaveis(cases_totais)
 
     gap = None
@@ -235,7 +235,7 @@ def evaluate_engine(engine: PolicyEngine, cases: List[dict],
 
 def _linhas_da_divisao(divisao: dict) -> List[str]:
     """A metade, nomeada, antes de qualquer métrica — e o bloco imprime para
-    `full` também, porque default silencioso é o mesmo defeito disfarçado: `REGISTRO`, "Texto movido do código".
+    `full` também, porque default silencioso é o mesmo defeito disfarçado: versão longa em `997a6fe^`.
     """
     identificador = divisao["identificador"]
     rotulo_id = (f"{identificador[:12]}…" if identificador

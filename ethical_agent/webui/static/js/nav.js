@@ -1,12 +1,12 @@
 // Navegação de topo: Auditoria só existe quando o servidor subiu com senha,
 // e o item renderiza desabilitado para dizê-lo — são TRÊS estados, não dois,
 // porque "ninguém perguntou ainda" não é "o servidor disse não":
-// REGISTRO, "Texto movido do código".
+// versão longa em `997a6fe^`.
 
 // DOIS tipos de item barrado, tratados diferente: Auditoria é barrada por
 // *configuração* e renderiza desabilitada com distintivo; as ferramentas são
 // barradas por *sessão* e renderizam ausentes —
-// REGISTRO, "Texto movido do código".
+// versão longa em `997a6fe^`.
 const ITEMS = [
   { path: "/", label: "Conversa" },
   { path: "/check", label: "Avaliar texto", realm: "audit", needsSession: true },
@@ -17,7 +17,7 @@ const ITEMS = [
 
 // Se quem chama tem sessão de auditoria: `GET /api/audit/session` já responde
 // exatamente os três estados, então não há endpoint novo nem segundo eixo de
-// permissão — REGISTRO, "Texto movido do código".
+// permissão — versão longa em `997a6fe^`.
 export async function probeSessionActive(auditEnabled) {
   if (!auditEnabled) return false;
   try {

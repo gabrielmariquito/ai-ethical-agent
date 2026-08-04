@@ -21,7 +21,7 @@ PAGES = {
 
 # Páginas e assets que só existem quando o realm está configurado,
 # deliberadamente NÃO fundidos em `PAGES`: tabela separada é busca separada, e
-# busca separada é a que não se alcança sem passar pelo portão — `REGISTRO`, "Texto movido do código".
+# busca separada é a que não se alcança sem passar pelo portão — versão longa em `997a6fe^`.
 GATED_PAGES = {
     "/audit": ("audit.html", "audit", False),
     "/check": ("check.html", "audit", True),

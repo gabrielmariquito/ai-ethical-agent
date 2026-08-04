@@ -18,7 +18,7 @@ from ethical_agent.audit import audit_init_failure_message
 from .state import _WebAuditLogger
 
 # Espelha o `_build_engine`/`_build_llm` do `__main__.py`, sem nenhuma lógica de
-# guardrail — só construção, e fica fino de propósito: `REGISTRO`, "Texto movido do código".
+# guardrail — só construção, e fica fino de propósito: versão longa em `997a6fe^`.
 
 
 def build_engine(policy_path, ontology_path, grounding_path, norms_path, engine_kind):

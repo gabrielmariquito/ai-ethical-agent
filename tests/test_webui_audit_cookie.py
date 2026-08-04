@@ -1,6 +1,6 @@
 """O lado que escreve o cookie de sessão e o lado que o lê concordam, e a
 metade comportamental disto falharia num rename mesmo que alguém
-reintroduzisse o segundo literal, porque passa por HTTP real: `REGISTRO`, "Texto movido do código".
+reintroduzisse o segundo literal, porque passa por HTTP real: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations

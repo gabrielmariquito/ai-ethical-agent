@@ -12,7 +12,7 @@ from .errors import ApiError, bad_request
 
 # A superfície HTTP da tela de auditoria: toda rota declara `realm="audit"` e
 # sessão obrigatória, ambos impostos centralmente, então nada aqui reconfere —
-# `REGISTRO`, "Texto movido do código".
+# versão longa em `997a6fe^`.
 
 def _audit_log_path(state) -> Path:
     """Sempre a trilha com que o servidor subiu, nunca um caminho vindo da
@@ -305,7 +305,7 @@ def get_conversation(state, params, body):
         if record.get("turn_index") == 1:
             # Chegou ao primeiro turno desta conversa; mesma parada antecipada que
             # `archive.build_readonly_transcript` usa, com a limitação declarada em vez
-            # de descoberta depois: `REGISTRO`, "Texto movido do código".
+            # de descoberta depois: versão longa em `997a6fe^`.
             complete = True
             break
 
@@ -388,7 +388,7 @@ def post_telemetry(state, params, body):
 def post_change_request(state, params, body):
     """"Isso deveria ser diferente", ancorado a um registro e uma regra:
     registra intenção e não muda nada, e o payload é fixado agora porque é o
-    que a edição de política vai precisar: `REGISTRO`, "Texto movido do código".
+    que a edição de política vai precisar: versão longa em `997a6fe^`.
     """
     session_id = params["_session_id"]
     record_event_id = body.get("record_event_id")

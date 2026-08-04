@@ -29,7 +29,7 @@ class AuditLogger:
 
 # As três frases que a trilha diz a um humano, construídas aqui e em nenhum
 # outro lugar; eram escritas quatro vezes, e o AUDIT_GUIDE cita duas delas
-# literalmente — `REGISTRO`, "Texto movido do código".
+# literalmente — versão longa em `997a6fe^`.
 
 
 def audit_write_failure_message(path, exc: BaseException) -> str:
@@ -60,7 +60,7 @@ def audit_init_failure_message(path, exc: BaseException) -> str:
 def build_check_audit_record(engine, verdict: Verdict, stage: Stage, text: str) -> dict:
     """Monta o registro de um `check` isolado, compartilhado pelas duas frentes
     para que não divirjam sobre o que é retido — em particular o conteúdo
-    bruto é omitido quando a REWRITE veio de regra `redact`: `REGISTRO`, "Texto movido do código".
+    bruto é omitido quando a REWRITE veio de regra `redact`: versão longa em `997a6fe^`.
     """
     record = {
         "status": "denied" if verdict.decision is Decision.DENY else "ok",

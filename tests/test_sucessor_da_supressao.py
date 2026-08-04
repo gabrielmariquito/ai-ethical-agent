@@ -77,7 +77,7 @@ GRADE_SIMPLES = [
 ]
 
 # Sem marcador nenhum, e os booleans de `GATILHOS`/`TERMOS` ficam porque
-# registram *por que* cada célula falhava: `REGISTRO`, "Texto movido do código".
+# registram *por que* cada célula falhava: versão longa em `997a6fe^`.
 GRADE_MARCADA = [
     pytest.param(texto, tem_sucessor, id=f"{g_id}|{t_id}")
     for g_id, t_id, texto, tem_sucessor, _causa in _celulas()
@@ -90,7 +90,7 @@ GRADE_MARCADA = [
 def test_a_celula_de_fato_suprime(engine, texto):
     """Toda célula dispara `R-SEC-002` e é isenta por exceção, separado do teste
     seguinte de propósito para que uma mudança de premissa falhe alto em vez de
-    ser engolida: `REGISTRO`, "Texto movido do código".
+    ser engolida: versão longa em `997a6fe^`.
     """
     v = _avalia(engine, texto)
     assert "R-SEC-002" in [s.rule_id for s in v.suppressed], (
@@ -105,7 +105,7 @@ def test_a_celula_de_fato_suprime(engine, texto):
 def test_supressao_tem_sucessor(engine, texto, tem_sucessor):
     """Suprimir um DENY nunca resulta em ALLOW, nas 66 — asseverado como
     **não-ALLOW** e não `is REWRITE`, para não quebrar por decisão normativa
-    alheia (B1): `REGISTRO`, "Texto movido do código".
+    alheia (B1): versão longa em `997a6fe^`.
     """
     v = _avalia(engine, texto)
     assert v.decision is not Decision.ALLOW, (
@@ -113,7 +113,7 @@ def test_supressao_tem_sucessor(engine, texto, tem_sucessor):
         f"suppressed={[s.rule_id for s in v.suppressed]}, matches=[]"
     )
     # O sucessor é declarado, não deduzido do que sobrou, senão sair de ALLOW
-    # por cobertura acidental passaria: `REGISTRO`, "Texto movido do código".
+    # por cobertura acidental passaria: versão longa em `997a6fe^`.
     rebaixamentos = {s.rule_id: s.demoted_to for s in v.suppressed}
     assert rebaixamentos.get("R-SEC-002") is not Decision.ALLOW, (
         f"R-SEC-002 suprimida sem sucessor declarado em {texto!r}: "
@@ -127,7 +127,7 @@ def test_supressao_tem_sucessor(engine, texto, tem_sucessor):
     "cauda, termo",
     [
         # `id=` explícito e sem espaço, mesmo depois de a Leva 3 consertar o
-        # corte: `REGISTRO`, "Texto movido do código".
+        # corte: versão longa em `997a6fe^`.
         pytest.param("to teach my students", "teach", id="teach"),
         pytest.param("para ensinar minha turma", "ensinar", id="ensinar"),
         pytest.param("to study defenses", "study", id="study"),
@@ -166,14 +166,14 @@ def test_construto_not_suprime_com_sucessor(engine):
     )
     assert "R-TRANS-001" not in [m.rule_id for m in com_aviso.matches]
     # O rastro que o bloco `not` NÃO deixa, e que o torna invisível numa
-    # auditoria: `REGISTRO`, "Texto movido do código".
+    # auditoria: versão longa em `997a6fe^`.
     assert com_aviso.suppressed == []
 
 
 def test_construto_unless_continua_sem_matchers():
     """O terceiro construto supressor (`Norm.unless`, em `kg_engine.py`) está
     vazio, e é asserção e não nota de rodapé para que a leva que adicionar o
-    primeiro encontre vermelho: `REGISTRO`, "Texto movido do código".
+    primeiro encontre vermelho: versão longa em `997a6fe^`.
     """
     normas = load_default_ontology().norms
     com_unless = {n.id: n.unless for n in normas if n.unless}

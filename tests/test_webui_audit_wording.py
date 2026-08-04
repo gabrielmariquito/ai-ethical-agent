@@ -37,7 +37,7 @@ def verdict_view() -> str:
 
 # A nota de assimetria saiu da camada 2 e vive no AUDIT_GUIDE, Passo 3; os
 # cinco testes dela foram apagados por ficarem sem objeto, e o que os
-# substitui é uma guarda de que ela não volta: `REGISTRO`, "Texto movido do código".
+# substitui é uma guarda de que ela não volta: versão longa em `997a6fe^`.
 
 
 def test_the_asymmetry_note_stays_removed(layers):
@@ -175,5 +175,5 @@ def test_the_missing_original_is_explained_rather_than_left_blank(before_after):
 
 def test_the_label_did_not_become_a_second_note(before_after):
     # Este bloco ganha rótulo, não explicação própria, e fatiado no ramo porque
-    # contagem no arquivo inteiro é derrubada por um *comentário*: `REGISTRO`, "Texto movido do código".
+    # contagem no arquivo inteiro é derrubada por um *comentário*: versão longa em `997a6fe^`.
     assert before_after.count('el("details"') == 1

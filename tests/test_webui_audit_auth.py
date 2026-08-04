@@ -1,6 +1,6 @@
 """Separação de acesso da tela de auditoria, exigida como **estrutural** e não
 visual: sem senha configurada a superfície tem de ser indistinguível de um
-caminho nunca registrado, em todo método: `REGISTRO`, "Texto movido do código".
+caminho nunca registrado, em todo método: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def test_audit_endpoints_do_not_exist_in_chat_mode(chat_server):
 def test_audit_wrong_method_is_404_not_405_in_chat_mode(chat_server):
     # A regressão que isto guarda: `_dispatch` marca `path_known` por qualquer
     # padrão que case, ignorando o método, então o portão tem de acontecer
-    # dentro de `routing.match()`: `REGISTRO`, "Texto movido do código".
+    # dentro de `routing.match()`: versão longa em `997a6fe^`.
     status, body, _ = chat_server.post("/api/audit/records", {})
     assert status == 404, body
     assert body["error"] == "not_found"
@@ -252,7 +252,7 @@ def test_non_ascii_password_round_trips(tmp_path):
 
 
 # As três fontes de senha e sua ordem; todos passam `root=tmp_path` explícito
-# porque o default é a raiz real do repositório: `REGISTRO`, "Texto movido do código".
+# porque o default é a raiz real do repositório: versão longa em `997a6fe^`.
 
 
 def _dotenv(root, value):
@@ -278,7 +278,7 @@ def test_password_file_takes_precedence_over_env_var(tmp_path):
 
 def test_the_env_var_is_not_a_password_source_any_more(tmp_path):
     # A variável não perde: ela não é lida, então deixá-la setada tem de ser
-    # recusado e não ignorado: `REGISTRO`, "Texto movido do código".
+    # recusado e não ignorado: versão longa em `997a6fe^`.
     with pytest.raises(AuditPasswordError) as excinfo:
         load_audit_password(
             None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=tmp_path

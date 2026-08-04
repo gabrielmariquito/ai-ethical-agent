@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Leitura e geração de dados de exemplo para a trilha de auditoria:
-`resumir` e `gerar`. `REGISTRO`, "Texto movido do código".
+`resumir` e `gerar`. versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 

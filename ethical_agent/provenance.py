@@ -1,6 +1,6 @@
 """Quais arquivos de configuração governaram uma decisão, e um id único para o
 conjunto: `config_versions` diz a versão **declarada**, que é a afirmação que
-o autor pode errar, e o digest diz o que foi de fato carregado: `REGISTRO`, "Texto movido do código".
+o autor pode errar, e o digest diz o que foi de fato carregado: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import List, Optional, Union
 
 # A receita `config-id/v1` escrita por extenso, não implícita no código abaixo —
 # receita implícita é o que transformou três assinaturas de linha de base em
-# afirmações que ninguém recomputa — `REGISTRO`, "Texto movido do código".
+# afirmações que ninguém recomputa — versão longa em `997a6fe^`.
 CONFIG_ID_RECIPE = "config-id/v1"
 
 _CHUNK = 1 << 16

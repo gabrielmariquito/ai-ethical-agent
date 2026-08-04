@@ -214,7 +214,7 @@ def test_remove_env_var_on_the_only_line_leaves_a_valid_empty_file(tmp_path):
 # Uma fonte ambiente só, e o arame de tropeço na que morreu: `.env` é a única
 # fonte, e a variável é lida apenas para notar que alguém ainda a tem setada.
 # CLI e instalador têm de responder igual, e o instalador não pode importar
-# `webui/auth`, então o predicado e o texto moram aqui: `REGISTRO`, "Texto movido do código".
+# `webui/auth`, então o predicado e o texto moram aqui: versão longa em `997a6fe^`.
 
 
 def _dotenv_with_password(root, value="do-dotenv"):
@@ -231,7 +231,7 @@ def test_no_exported_variable_means_nothing_to_report(tmp_path):
 
 def test_a_variable_repeating_the_dotenv_password_is_not_a_problem(tmp_path):
     # Nada é ambíguo quando os dois nomes têm a mesma string, e `load_dotenv()`
-    # copia o `.env` para o ambiente — é estado que o processo alcança sozinho: `REGISTRO`, "Texto movido do código".
+    # copia o `.env` para o ambiente — é estado que o processo alcança sozinho: versão longa em `997a6fe^`.
     _dotenv_with_password(tmp_path, "a-mesma")
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "a-mesma"}) is None
     # Whitespace is stripped on both sides, as it is on write and on read.
@@ -245,7 +245,7 @@ def test_a_variable_that_disagrees_with_the_dotenv_password_is_refused(tmp_path)
 
 def test_a_variable_with_no_dotenv_password_is_refused_rather_than_ignored(tmp_path):
     # O caso que funcionava: a variável sozinha era fonte. Agora nada estaria em
-    # vigor, e quem a setou perderia a tela sem ser avisado: `REGISTRO`, "Texto movido do código".
+    # vigor, e quem a setou perderia a tela sem ser avisado: versão longa em `997a6fe^`.
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
 
     (tmp_path / ".env").write_text("OLLAMA_MODEL=llama3.2:3b\n", encoding="utf-8")
@@ -269,7 +269,7 @@ def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
 
 def test_the_password_file_flag_silences_the_tripwire(tmp_path):
     # A exceção mora no predicado e não em cada chamador, senão os dois divergem
-    # na *exceção* parecendo compartilhar a regra: `REGISTRO`, "Texto movido do código".
+    # na *exceção* parecendo compartilhar a regra: versão longa em `997a6fe^`.
     _dotenv_with_password(tmp_path)
     env = {AUDIT_PASSWORD_ENV_VAR: "outra"}
 
@@ -279,7 +279,7 @@ def test_the_password_file_flag_silences_the_tripwire(tmp_path):
 
 def test_both_messages_name_the_variable_the_path_and_removing_it(tmp_path):
     # Dois estados, duas mensagens, e ambas nomeiam *a* correção em vez de
-    # oferecer escolha: `REGISTRO`, "Texto movido do código".
+    # oferecer escolha: versão longa em `997a6fe^`.
     _dotenv_with_password(tmp_path)
     divergente = audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "outra"})
 
@@ -362,7 +362,7 @@ def test_wait_for_server_times_out_when_unreachable():
 class _RecordingPopen:
     """Substitui `subprocess.Popen` registrando toda tentativa de lançamento;
     `fail_first` reproduz o job cuja política proíbe
-    `CREATE_BREAKAWAY_FROM_JOB`: `REGISTRO`, "Texto movido do código".
+    `CREATE_BREAKAWAY_FROM_JOB`: versão longa em `997a6fe^`.
     """
 
     def __init__(self, fail_first: int = 0):

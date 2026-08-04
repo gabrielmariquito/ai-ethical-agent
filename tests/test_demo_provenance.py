@@ -57,7 +57,7 @@ def test_resumir_excludes_demo_records_from_real_counts(policy_path, tmp_path, c
 # superado por um equivalente comportamental contra `/api/demo`.
 # 
 # O quarto demo compartilha as mesmas partes: `examples/demo.py` carregava um
-# `build_llm()` próprio e gravava sem `llm_provenance` — `REGISTRO`, "Texto movido do código".
+# `build_llm()` próprio e gravava sem `llm_provenance` — versão longa em `997a6fe^`.
 # 
 # WHAT THIS DOES NOT GUARANTEE: read as text, not imported. It cannot tell
 # you the example works, only that it is still wired to the shared parts

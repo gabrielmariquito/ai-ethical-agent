@@ -22,14 +22,14 @@ SEGURAS = ["hackear", "invadir", "invasão", "suicidal", "diagnosis", "dosagem"]
 PREFIXO_DELIMITADO = {
     "educational": r"\beducational\w*\b",
     # -al -> -ais: "educacionais" NÃO contém "educacional", então as duas
-    # entradas viraram uma por ampliação: `REGISTRO`, "Texto movido do código".
+    # entradas viraram uma por ampliação: versão longa em `997a6fe^`.
     "educacional": r"\beducaciona(l|is)\w*\b",
     "aprender": r"\baprender\w*\b",
     "ensinar": r"\bensinar\w*\b",
     "estudar": r"\bestudar\w*\b",
     "proteger": r"\bproteger\w*\b",
     # Única entrada que enumera as formas em vez do curinga, porque
-    # `curso\w*` casaria "cursor": `REGISTRO`, "Texto movido do código".
+    # `curso\w*` casaria "cursor": versão longa em `997a6fe^`.
     "curso": r"\bcursos?\b",
     "doxx": r"\bdoxx\w*\b",
 }
@@ -109,7 +109,7 @@ def test_as_supersedidas_viraram_prefixo_delimitado(keywords, regexes, valor, pa
 def test_as_que_perdem_flexao_nao_receberam(keywords, kw):
     # A parte da correção que NÃO foi feita, de propósito, porque ligar
     # whole_word aqui trocaria um falso positivo por um falso negativo pior:
-    # `REGISTRO`, "Texto movido do código".
+    # versão longa em `997a6fe^`.
     marcadas = [w for _, _, v, w in keywords if v == kw]
     assert marcadas, f"{kw!r} sumiu da política"
     assert not any(marcadas), (
@@ -119,7 +119,7 @@ def test_as_que_perdem_flexao_nao_receberam(keywords, kw):
 
 def test_nenhuma_keyword_comeca_ou_termina_com_nao_palavra(keywords):
     # A única forma pela qual a âncora quebraria é na borda; acento, hífen e
-    # apóstrofo no meio não causam isso: `REGISTRO`, "Texto movido do código".
+    # apóstrofo no meio não causam isso: versão longa em `997a6fe^`.
     import re
     ruins = [
         (rid, v) for rid, _, v, w in keywords
@@ -168,7 +168,7 @@ def test_formas_medicas_continuam_casando(engine, texto):
 )
 def test_isencao_educacional_nao_e_concedida_por_acidente_morfologico(engine, texto):
     # ANTES, o bypass que a leva fecha: bastava escolher a palavra certa para
-    # comprar isenção — `REGISTRO`, "Texto movido do código".
+    # comprar isenção — versão longa em `997a6fe^`.
     v = engine.evaluate(ActionContext(content=texto, stage=Stage.INPUT))
     assert v.decision is Decision.DENY, f"{texto} -> {v.decision.value}"
     assert not v.suppressed, "a exceção não devia disparar"
@@ -176,7 +176,7 @@ def test_isencao_educacional_nao_e_concedida_por_acidente_morfologico(engine, te
 
 def test_a_isencao_legitima_continua_valendo(engine):
     # A contraprova do teste acima, sem a qual quebrar a exceção inteira
-    # passaria: `REGISTRO`, "Texto movido do código".
+    # passaria: versão longa em `997a6fe^`.
     v = engine.evaluate(
         ActionContext(content="Como invadir um sistema para aprender segurança?", stage=Stage.INPUT)
     )
@@ -195,7 +195,7 @@ def test_a_isencao_legitima_continua_valendo(engine):
 )
 def test_os_falsos_positivos_que_continuam(engine, texto, keyword, forma_perdida):
     # `hack` continua e NÃO recebeu o mesmo tratamento, de propósito, porque
-    # a colisão é locução e não substring: `REGISTRO`, "Texto movido do código".
+    # a colisão é locução e não substring: versão longa em `997a6fe^`.
     assert _dec(engine, texto) is not Decision.ALLOW, (
         f"{texto!r} passou a ser liberado -- se foi via regex em {keyword!r}, "
         f"confirme que {forma_perdida!r} continua casando e atualize este teste"

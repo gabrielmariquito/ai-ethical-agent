@@ -1,7 +1,7 @@
 """Guardas contra a regressão do `pip install .`: `policies/`, `ontologies/` e
 `eval/` vivem fora do pacote em disco e só chegam ao wheel pela declaração do
 `pyproject.toml` — e os dois testes constroem de uma cópia descartável, senão
-um `build/` velho satisfaria as asserções depois da regressão: `REGISTRO`, "Texto movido do código".
+um `build/` velho satisfaria as asserções depois da regressão: versão longa em `997a6fe^`.
 """
 
 import shutil
@@ -26,7 +26,7 @@ EXPECTED_DATA_FILES = {
 
 # Ao contrário de `EXPECTED_DATA_FILES`, estes vivem *dentro* do pacote e
 # `STATIC_DIR` é resolvido pelo próprio `__file__`, então são esperados
-# aninhados no wheel: `REGISTRO`, "Texto movido do código".
+# aninhados no wheel: versão longa em `997a6fe^`.
 EXPECTED_WEBUI_FILES = {
     "ethical_agent/webui/static/index.html",
     "ethical_agent/webui/static/check.html",
@@ -125,7 +125,7 @@ def test_data_files_reachable_from_clean_install(tmp_path):
 
     # O cwd importa: `python -c` põe o cwd na frente do `sys.path`, e o cwd do
     # pytest é a raiz real do repositório — rodar de um diretório vazio é o que
-    # impede este teste de importar a árvore-fonte: `REGISTRO`, "Texto movido do código".
+    # impede este teste de importar a árvore-fonte: versão longa em `997a6fe^`.
     empty_cwd = tmp_path / "empty_cwd"
     empty_cwd.mkdir()
 

@@ -50,7 +50,7 @@ def _chat_record(conversation_id, turn_index, text, timestamp, **extra):
 
 def _write_raw(tmp_path, text):
     # `newline=""` escreve exatamente os bytes de `text`, em vez do que a
-    # tradução universal de fim de linha do Windows faria: `REGISTRO`, "Texto movido do código".
+    # tradução universal de fim de linha do Windows faria: versão longa em `997a6fe^`.
     path = tmp_path / "f.txt"
     with path.open("w", encoding="utf-8", newline="") as handle:
         handle.write(text)
@@ -93,7 +93,7 @@ def test_iter_lines_reverse_tolerates_crlf(tmp_path):
 
 # Deslocamentos em bytes: a tela pagina para trás usando byte offset como
 # cursor, então um offset errado por um byte devolve o registro errado em
-# silêncio: `REGISTRO`, "Texto movido do código".
+# silêncio: versão longa em `997a6fe^`.
 
 
 def test_offsets_point_at_the_first_byte_of_each_line(tmp_path):
@@ -203,7 +203,7 @@ def test_summarize_conversations_respects_limit_and_reports_truncated(tmp_path):
 def test_summarize_conversations_stops_scanning_without_reading_whole_file(tmp_path):
     # Muito ruído sem correspondência ANTES de 3 conversas no fim, para que a
     # função não precise reler tudo. `truncated` é True aqui por desenho:
-    # atingir o limite e atingir o teto de varredura são indistinguíveis: `REGISTRO`, "Texto movido do código".
+    # atingir o limite e atingir o teto de varredura são indistinguíveis: versão longa em `997a6fe^`.
     noise = [{"status": "ok", "engine": "rule-based", "input": "noise", "input_verdict": _verdict("ALLOW")}] * 10_000
     real = [_chat_record(f"c{i}", 1, f"msg {i}", f"2026-01-01T00:00:{i:02d}+00:00") for i in range(3)]
     path = _write(tmp_path, noise + real)

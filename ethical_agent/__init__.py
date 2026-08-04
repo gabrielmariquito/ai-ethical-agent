@@ -47,7 +47,7 @@ from .types import (
 
 # Lido da distribuição instalada, não copiado do `pyproject`: dois literais que
 # precisam ser iguais são um literal (achado 7 do REGISTRO), e o fallback **não**
-# repete o número — `REGISTRO`, "Texto movido do código".
+# repete o número — versão longa em `997a6fe^`.
 try:
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as _distribution_version

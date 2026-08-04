@@ -8,7 +8,7 @@ from .errors import bad_request
 
 # Nota de segurança: este endpoint lista diretórios da máquina, e o bind em
 # 127.0.0.1 limita quem alcança mas não é fronteira por si —
-# `REGISTRO`, "Texto movido do código".
+# versão longa em `997a6fe^`.
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALLOWED_ROOTS = [REPO_ROOT, Path.home().resolve()]

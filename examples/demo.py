@@ -1,5 +1,5 @@
 """Exemplo mínimo de uso da biblioteca: engine híbrida mais `GuardedAgent`,
-ligado ao `resolve_llm` e ao `DEMO_CASES` compartilhados: `REGISTRO`, "Texto movido do código".
+ligado ao `resolve_llm` e ao `DEMO_CASES` compartilhados: versão longa em `997a6fe^`.
 """
 import sys
 from pathlib import Path

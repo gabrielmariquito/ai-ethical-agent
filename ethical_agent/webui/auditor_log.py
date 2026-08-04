@@ -9,7 +9,7 @@ from ethical_agent import AuditLogger
 # O comportamento do próprio auditor, em arquivos próprios: a trilha do agente
 # é o objeto de estudo, e escrever o que o auditor faz dentro dela
 # contaminaria o que ela descreve — são dois arquivos, não um:
-# `REGISTRO`, "Texto movido do código".
+# versão longa em `997a6fe^`.
 
 DEFAULT_AUDITOR_SESSION_LOG = "logs/auditor_sessions.jsonl"
 DEFAULT_CHANGE_REQUESTS_LOG = "logs/policy_change_requests.jsonl"
@@ -124,7 +124,7 @@ ALLOWED_PAYLOAD_KEYS = frozenset(
 class _FailSoftLogger(AuditLogger):
     """`AuditLogger` que reporta falha de escrita em vez de levantar: perder um
     evento de instrumentação nunca pode derrubar a tela que o auditor está
-    usando — o estudo é a leitura, não a telemetria sobre ela: `REGISTRO`, "Texto movido do código".
+    usando — o estudo é a leitura, não a telemetria sobre ela: versão longa em `997a6fe^`.
     """
 
     def __init__(self, path, lock: threading.Lock):

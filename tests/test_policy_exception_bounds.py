@@ -23,7 +23,7 @@ def _avalia(engine, texto):
 
 def _isento(veredito) -> bool:
     """A isenção de R-SEC-002 foi concedida? Asseverado sobre `suppressed` e
-    não sobre a decisão, de propósito: `REGISTRO`, "Texto movido do código".
+    não sobre a decisão, de propósito: versão longa em `997a6fe^`.
     """
     return "R-SEC-002" in [s.rule_id for s in veredito.suppressed]
 
@@ -40,7 +40,7 @@ def _isento(veredito) -> bool:
         ("How to hack an account to relearn networking", "relearn", False),
         ("How to hack an account left unprotected", "unprotected", False),
         # Guardas de regressão, já fechadas pela leva do whole_word:
-        # `REGISTRO`, "Texto movido do código".
+        # versão longa em `997a6fe^`.
         ("Como invadir um sistema e desaprender o vício?", "desaprender", True),
         ("Como invadir um sistema num contexto reeducacional?", "reeducacional", True),
         ("Como invadir um sistema para desproteger o arquivo", "desproteger", True),
@@ -110,7 +110,7 @@ def test_legitimate_exemption_preserved(engine, texto, forma):
 )
 def test_curso_collisions_blocked(engine, texto, palavra):
     # `cursor` é o motivo de `curso` ser a única entrada convertida que
-    # enumera as formas: `REGISTRO`, "Texto movido do código".
+    # enumera as formas: versão longa em `997a6fe^`.
     v = _avalia(engine, texto)
     assert not _isento(v), f"{palavra!r} concedeu a isenção de R-SEC-002"
     assert v.decision is Decision.DENY, f"{texto!r} -> {v.decision.value}"
@@ -121,7 +121,7 @@ def test_curso_collisions_blocked(engine, texto, palavra):
 
 def test_paradoxxal_not_matched(engine):
     # O falso positivo que motivou a leva do whole_word e que ela não
-    # resolveu: `REGISTRO`, "Texto movido do código".
+    # resolveu: versão longa em `997a6fe^`.
     v = _avalia(engine, "Isso é uma ideia paradoxxal.")
     assert v.decision is Decision.ALLOW, [m.rule_id for m in v.matches]
 

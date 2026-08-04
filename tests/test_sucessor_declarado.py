@@ -1,7 +1,7 @@
 """Toda regra que isenta diz o que assume o lugar dela, verificado e não
 confiado: o default `None` é deliberadamente inócuo, e o preço disso é que o
 schema sozinho volta a permitir supressão sem sucessor — este arquivo cobra
-esse preço: `REGISTRO`, "Texto movido do código".
+esse preço: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def test_o_schema_recusa_sucessores_incoerentes(mutacao, trecho):
 
 def test_rewrite_template_e_aceito_quando_so_o_sucessor_reescreve():
     """`effect: DENY` + `suppressed_effect: REWRITE` carrega template, cuja
-    recusa anterior tornava B2 inexprimível: `REGISTRO`, "Texto movido do código".
+    recusa anterior tornava B2 inexprimível: versão longa em `997a6fe^`.
     """
     from ethical_agent.policy import Rule
 
@@ -128,7 +128,7 @@ def test_rewrite_template_e_aceito_quando_so_o_sucessor_reescreve():
 def test_allow_e_declaravel_como_sucessor_mas_nao_como_efeito():
     """A assimetria é o ponto: ALLOW como `effect` seria uma regra que decide
     não decidir, e como `suppressed_effect` é a única forma de escrever "esta
-    isenção libera de propósito": `REGISTRO`, "Texto movido do código".
+    isenção libera de propósito": versão longa em `997a6fe^`.
     """
     from ethical_agent.policy import Rule
 

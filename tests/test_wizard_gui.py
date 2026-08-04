@@ -32,7 +32,7 @@ SOURCE = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(en
 
 def test_old_misleading_checkbox_text_is_gone():
     # O rótulo antigo prometia um modelo de verdade para o que era só um pip
-    # install do cliente, e essa redação não pode voltar: `REGISTRO`, "Texto movido do código".
+    # install do cliente, e essa redação não pode voltar: versão longa em `997a6fe^`.
     assert "Instalar dependências de LLM (ollama, python-dotenv)" not in SOURCE
 
 
@@ -60,7 +60,7 @@ def test_options_page_discloses_download_source_before_install():
 
 def _windows_disclosure_source() -> str:
     """Só o ramo download_exe, sem comentários, porque os mesmos termos são
-    legítimos mais abaixo como log de execução: `REGISTRO`, "Texto movido do código".
+    legítimos mais abaixo como log de execução: versão longa em `997a6fe^`.
     """
     body = SOURCE[SOURCE.index('if plan.kind == "download_exe":') :]
     body = body[: body.index("Vai rodar o script")]
@@ -71,7 +71,7 @@ def _windows_disclosure_source() -> str:
 
 def test_windows_disclosure_is_written_for_someone_who_never_heard_of_ollama():
     # Lido *antes* de decidir, por quem não sabe o que é UAC: o que importa é
-    # o que vai aparecer na tela, que demora, e que não se repete: `REGISTRO`, "Texto movido do código".
+    # o que vai aparecer na tela, que demora, e que não se repete: versão longa em `997a6fe^`.
     section = _windows_disclosure_source()
     assert "UAC" not in section
     assert "OllamaSetup.exe" not in section
@@ -101,7 +101,7 @@ def test_progress_page_has_persistent_status_label_surviving_finish_page():
 
 def test_progress_bar_reflects_real_state_instead_of_animating():
     # Era `mode="indeterminate"` do início ao fim — uma barra que corria sem
-    # dizer em que passo estava: `REGISTRO`, "Texto movido do código".
+    # dizer em que passo estava: versão longa em `997a6fe^`.
     assert 'ttk.Progressbar(self, mode="determinate"' in SOURCE
     assert "self.progress.start(" not in SOURCE
     assert "self.progress.stop()" not in SOURCE
@@ -130,7 +130,7 @@ def test_every_phase_is_both_opened_and_closed():
 
 def test_a_skipped_step_still_closes_its_phase():
     # "já está instalado — pulando" é progresso; deixar essas fases abertas
-    # congelaria a barra em quem não tinha o que fazer: `REGISTRO`, "Texto movido do código".
+    # congelaria a barra em quem não tinha o que fazer: versão longa em `997a6fe^`.
     local = SOURCE[
         SOURCE.index("def _run_llm_setup_local") : SOURCE.index("def _start_ollama_server")
     ]
@@ -171,7 +171,7 @@ def test_progress_page_never_fails_project_install_because_of_llm_phase():
 
 def test_stopped_server_is_started_before_degrading_to_the_warning():
     # No Windows o Ollama é item de login, então "instalado mas parado" é o
-    # estado comum: `REGISTRO`, "Texto movido do código".
+    # estado comum: versão longa em `997a6fe^`.
     assert "start_ollama_server(ollama_exe)" in SOURCE
     # A short probe first (an already-running server answers at once), then
     # the launch, then a wider budget for the cold start.
@@ -192,7 +192,7 @@ def _fail_llm_body() -> str:
 
 def test_failure_path_offers_manual_instructions():
     # Fatiado em `_fail_llm`: contra o arquivo inteiro isto passava pelo motivo
-    # errado, porque os mesmos comandos aparecem cinco vezes: `REGISTRO`, "Texto movido do código".
+    # errado, porque os mesmos comandos aparecem cinco vezes: versão longa em `997a6fe^`.
     body = _fail_llm_body()
     assert "https://ollama.com/download" in body
     assert "ollama pull" in body
@@ -210,7 +210,7 @@ def test_main_reconfigures_stdio_to_utf8_before_any_output():
 def test_streamed_subprocess_output_is_decoded_as_utf8():
     # Todo bloco Popen que transmite saída de filho tem de decodificar UTF-8, e
     # a asserção é sobre TODOS em vez de uma contagem fixa, que acoplaria um
-    # teste de encoding ao número de subprocessos: `REGISTRO`, "Texto movido do código".
+    # teste de encoding ao número de subprocessos: versão longa em `997a6fe^`.
     popen_blocks = re.findall(r"subprocess\.Popen\((?:[^()]|\([^()]*\))*\)", SOURCE)
     streamed_blocks = [b for b in popen_blocks if "stdout=subprocess.PIPE" in b]
     assert streamed_blocks, "nenhum subprocess.Popen transmitido encontrado -- regex quebrou?"
@@ -225,14 +225,14 @@ def test_imports_ollama_install_helpers_from_ethical_agent_package():
 
 def test_installer_records_what_it_did_for_the_uninstaller():
     # Sem registro, o desinstalador pergunta no escuro: nada em disco distingue
-    # "este projeto instalou" de "já estava aqui": `REGISTRO`, "Texto movido do código".
+    # "este projeto instalou" de "já estava aqui": versão longa em `997a6fe^`.
     assert "from ethical_agent.install_record import" in SOURCE
     assert "write_record(ROOT" in SOURCE
 
 
 def test_ollama_presence_is_recorded_as_an_observation_not_an_inference():
     # "eu instalei o Ollama" é afirmação que o wizard não sustenta; o que ele
-    # observa, num instante exato, é se havia um encontrável antes: `REGISTRO`, "Texto movido do código".
+    # observa, num instante exato, é se havia um encontrável antes: versão longa em `997a6fe^`.
     assert "ollama_was_present_before=ollama_exe is not None" in SOURCE
     # And it is written right there, not at the end: an install that failed
     # halfway is exactly when someone wants to uninstall.
@@ -251,7 +251,7 @@ def test_model_is_recorded_as_pulled_only_when_the_pull_actually_ran():
 def test_background_thread_never_reads_tk_variables():
     # Widget Tk pertence à thread do mainloop, e ler um `BooleanVar` da thread
     # de instalação levanta erro que o `except Exception` engoliria como "Erro
-    # inesperado": as opções são fotografadas na main thread: `REGISTRO`, "Texto movido do código".
+    # inesperado": as opções são fotografadas na main thread: versão longa em `997a6fe^`.
     assert "self.app.chosen_want_llm = self.app.want_llm.get()" in SOURCE
     assert "self.app.chosen_llm_mode = self.app.llm_mode.get()" in SOURCE
 
@@ -276,7 +276,7 @@ def test_options_snapshot_is_taken_before_the_thread_starts():
 
 def test_only_the_options_page_reads_the_live_tk_variables():
     # Back segue habilitado durante a instalação, então tudo que descreve o que
-    # *rodou* tem de reportar a fotografia, não o estado vivo: `REGISTRO`, "Texto movido do código".
+    # *rodou* tem de reportar a fotografia, não o estado vivo: versão longa em `997a6fe^`.
     for match in re.finditer(r"self\.app\.(\w+)\.get\(\)", SOURCE):
         line_start = SOURCE.rfind("\n", 0, match.start())
         enclosing = SOURCE.rfind("class ", 0, match.start())
@@ -297,7 +297,7 @@ def test_status_label_and_finish_page_report_what_actually_ran():
 
 def test_audit_password_field_is_masked_like_the_ollama_key():
     # O instalador não pode ecoar a senha. Asseverado no widget do próprio
-    # campo, não numa contagem de campos mascarados no arquivo: `REGISTRO`, "Texto movido do código".
+    # campo, não numa contagem de campos mascarados no arquivo: versão longa em `997a6fe^`.
     section = _options_audit_section()
     assert "audit_password_var" in section
     entry = section[section.index("textvariable=app.audit_password_var") :]
@@ -306,7 +306,7 @@ def test_audit_password_field_is_masked_like_the_ollama_key():
 
 def test_audit_password_section_is_outside_the_llm_frame():
     # A trilha é escrita em toda execução, então aninhar isto em `llm_frame`
-    # esconderia de quem recusou o passo do LLM: `REGISTRO`, "Texto movido do código".
+    # esconderia de quem recusou o passo do LLM: versão longa em `997a6fe^`.
     section = SOURCE[SOURCE.index("# -- audit screen") :]
     section = section[: section.index("self.validation_label")]
     assert "audit_frame = tk.Frame(self)" in section
@@ -320,7 +320,7 @@ def _options_audit_section() -> str:
 
 def test_audit_field_is_marked_optional_and_says_what_the_password_unlocks():
     # Ambas contra a seção; a primeira linha usava SOURCE enquanto a vizinha
-    # usava a seção — a mistura exata que este arquivo alerta acima: `REGISTRO`, "Texto movido do código".
+    # usava a seção — a mistura exata que este arquivo alerta acima: versão longa em `997a6fe^`.
     section = _options_audit_section()
     assert "Senha da tela de auditoria (Opcional):" in section
     assert "acessar a área de auditoria" in section
@@ -328,7 +328,7 @@ def test_audit_field_is_marked_optional_and_says_what_the_password_unlocks():
 
 def test_audit_note_says_what_the_password_is_not():
     # Os mesmos termos do README e do AUDIT_GUIDE, e fatiado na FinishPage —
-    # que é a tela lida por quem configurou senha: `REGISTRO`, "Texto movido do código".
+    # que é a tela lida por quem configurou senha: versão longa em `997a6fe^`.
     finish = SOURCE[SOURCE.index("class FinishPage") :]
     assert "separa dois papéis" in finish
     assert "não é segurança" in finish
@@ -337,7 +337,7 @@ def test_audit_note_says_what_the_password_is_not():
 
 def test_widgets_that_on_show_configures_are_created_in_init():
     # `on_show` configura o rótulo; sem o widget no `__init__` a página levanta
-    # AttributeError e o instalador morre na chegada: `REGISTRO`, "Texto movido do código".
+    # AttributeError e o instalador morre na chegada: versão longa em `997a6fe^`.
     section = _options_audit_section()
     assert "self.audit_state_label = tk.Label(" in section
     assert "self.audit_entry = tk.Entry(" in section
@@ -359,7 +359,7 @@ def test_the_installer_defines_a_password_but_never_changes_one():
     body = SOURCE[SOURCE.index("def _apply_audit_password") :]
     body = body[: body.index("def _record_env_key")]
     # A senha existente é lida primeiro e a escrita fica inalcançável, em vez
-    # de depender só do widget desabilitado: `REGISTRO`, "Texto movido do código".
+    # de depender só do widget desabilitado: versão longa em `997a6fe^`.
     assert body.index("ja_gravada = read_env_var(") < body.index("write_env_audit_password(")
     assert "if ja_gravada is not None:" in body
     assert body.index("if ja_gravada is not None:") < body.index("write_env_audit_password(")
@@ -369,7 +369,7 @@ def test_the_installer_defines_a_password_but_never_changes_one():
 
 def test_install_record_env_keys_are_unioned_not_replaced():
     # `write_record` funde campo a campo, mas `env_keys` é substituição inteira
-    # — passar só uma chave apagaria a outra: `REGISTRO`, "Texto movido do código".
+    # — passar só uma chave apagaria a outra: versão longa em `997a6fe^`.
     assert 'InstallRecord(env_keys=("OLLAMA_API_KEY",))' not in SOURCE
     assert 'self._record_env_key("OLLAMA_API_KEY")' in SOURCE
     assert "self._record_env_key(AUDIT_PASSWORD_ENV_VAR)" in SOURCE
@@ -386,7 +386,7 @@ def test_the_password_value_never_reaches_the_progress_log():
 
 def test_finish_page_tells_the_person_the_audit_screen_exists():
     # Fatiado no ramo *habilitado*, não na FinishPage nem no arquivo: duas
-    # colisões tornaram as versões mais frouxas inúteis: `REGISTRO`, "Texto movido do código".
+    # colisões tornaram as versões mais frouxas inúteis: versão longa em `997a6fe^`.
     finish = SOURCE[SOURCE.index("class FinishPage") :]
     enabled = finish[finish.index("if self.app.audit_enabled:") : finish.index("        else:")]
     assert "Auditoria: HABILITADA" in enabled
@@ -403,6 +403,6 @@ def test_finish_page_reports_audit_from_the_snapshot_not_the_live_variable():
 
 def test_finish_page_points_to_the_uninstaller():
     # O instalador diz onde fica a volta, nomeando exatamente um ponto de
-    # entrada: `REGISTRO`, "Texto movido do código".
+    # entrada: versão longa em `997a6fe^`.
     assert "uninstall.py" in SOURCE
     assert "uninstall_gui.py" not in SOURCE

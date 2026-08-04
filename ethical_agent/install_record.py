@@ -1,5 +1,5 @@
 """O que o instalador de fato fez, escrito para o desinstalador, que sem isto
-teria de adivinhar: `REGISTRO`, "Texto movido do código".
+teria de adivinhar: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations
@@ -87,7 +87,7 @@ def write_record(
 ) -> Optional[Path]:
     """Funde os campos não-vazios de `record` com o que está em disco, em vez
     de sobrescrever, porque o wizard aprende esses fatos em momentos
-    diferentes: `REGISTRO`, "Texto movido do código".
+    diferentes: versão longa em `997a6fe^`.
     """
     try:
         existing = read_record(root) or InstallRecord()

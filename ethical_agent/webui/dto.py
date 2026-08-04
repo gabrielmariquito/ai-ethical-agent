@@ -14,7 +14,7 @@ from ethical_agent.llm import describe_llm_provenance
 
 def classify_intervention(input_decision: str, output_decision: Optional[str]) -> str:
     """Uma das quatro situações que a interface tem de distinguir visualmente,
-    mais uma quinta para falha de LLM; a ordem importa, e DENY vence REWRITE: `REGISTRO`, "Texto movido do código".
+    mais uma quinta para falha de LLM; a ordem importa, e DENY vence REWRITE: versão longa em `997a6fe^`.
     """
     if input_decision == Decision.DENY.value:
         return "blocked_input"
@@ -28,7 +28,7 @@ def classify_intervention(input_decision: str, output_decision: Optional[str]) -
 def _response_safe_for_display(result: AgentResult) -> Optional[str]:
     """`AgentResult.response` não é suprimido por `agent.py` quando a saída foi
     redigida, então é anulado aqui sempre que o veredito suprime conteúdo
-    bruto — espelhando a regra que a trilha já aplica: `REGISTRO`, "Texto movido do código".
+    bruto — espelhando a regra que a trilha já aplica: versão longa em `997a6fe^`.
     """
     output_verdict = result.output_verdict
     if output_verdict is not None and output_verdict.suppresses_raw_content:
@@ -69,7 +69,7 @@ _MATCH_FIELDS_FOR_CHAT = ("rule_id", "principle", "deontic", "severity", "effect
 def _verdict_without_evidence(verdict: Optional[dict]) -> Optional[dict]:
     """A visão do chat sobre um veredito: qual regra, com que fundamento e quão
     grave — e nada sobre *como* a regra decide, porque cada um desses campos
-    é um passo de um bypass: `REGISTRO`, "Texto movido do código".
+    é um passo de um bypass: versão longa em `997a6fe^`.
     """
     if verdict is None:
         return None

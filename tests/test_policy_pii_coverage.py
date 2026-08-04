@@ -1,6 +1,6 @@
 """R-PRIV-002 cobre os formatos de PII que um LLM de fato escreve, porque o
 defeito não era a omissão e sim a cobertura **parcial** — meia redação mente
-mais que redação nenhuma —, e o benchmark não alcança esta mudança: `REGISTRO`, "Texto movido do código".
+mais que redação nenhuma —, e o benchmark não alcança esta mudança: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def test_formatos_brasileiros_sao_redigidos(engine, nome, texto):
 )
 def test_o_rotulo_do_cpf_nao_vale_de_outra_frase(engine, texto):
     # A âncora é proximidade, e proximidade respeita fronteira de frase: uma
-    # janela cega casaria rótulo numa frase com número de outro assunto: `REGISTRO`, "Texto movido do código".
+    # janela cega casaria rótulo numa frase com número de outro assunto: versão longa em `997a6fe^`.
     v = _saida(engine, texto)
     assert v.decision is Decision.ALLOW, f"casou atravessando frase: {v.rewritten_content}"
 
@@ -124,7 +124,7 @@ BENIGNOS = [
 @pytest.mark.parametrize("texto", BENIGNOS)
 def test_texto_benigno_com_numeros_nao_e_redigido(engine, texto):
     # Padrões numéricos largos casam com o que não é PII, e os colisores
-    # plausíveis estão todos aqui: `REGISTRO`, "Texto movido do código".
+    # plausíveis estão todos aqui: versão longa em `997a6fe^`.
     v = _saida(engine, texto)
     assert v.decision is Decision.ALLOW, f"{texto!r} -> {v.rewritten_content}"
 
@@ -157,7 +157,7 @@ def test_texto_benigno_com_numeros_nao_e_redigido(engine, texto):
 )
 def test_exclusoes_deliberadas_continuam_passando(engine, nome, texto, razao):
     # Estes três NÃO são redigidos, e está escrito na `description` da regra —
-    # o teste existe para que incluí-los seja ato deliberado: `REGISTRO`, "Texto movido do código".
+    # o teste existe para que incluí-los seja ato deliberado: versão longa em `997a6fe^`.
     v = _saida(engine, texto)
     assert v.decision is Decision.ALLOW, f"{nome} passou a ser redigido; razão da exclusão: {razao}"
 
@@ -171,7 +171,7 @@ def _versao(policy) -> tuple:
 
 def test_a_versao_da_politica_acompanhou_a_mudanca_de_cobertura():
     # ">= a versão em que esta cobertura entrou", nunca igualdade literal, que
-    # quebra na leva seguinte por motivo alheio: `REGISTRO`, "Texto movido do código".
+    # quebra na leva seguinte por motivo alheio: versão longa em `997a6fe^`.
     assert _versao(Policy.from_file(default_policy_path())) >= (0, 3, 0)
 
 

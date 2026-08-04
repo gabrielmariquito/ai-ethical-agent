@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Interface gráfica do desinstalador, carregada por `uninstall.py`, que é o
 ponto de entrada único e documentado; contraparte do `wizard_gui.py`, no mesmo
-Tkinter puro: `REGISTRO`, "Texto movido do código".
+Tkinter puro: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ SEVERITY_FG = {NOTE: "#4b5563", WARN: "#b45309", BLOCK: "#b91c1c"}
 class _AdviceCard(tk.Frame):
     """Um aviso: barra na cor da severidade, prosa, e — quando há comandos — um
     bloco monoespaçado com botão de copiar, porque comando espremido em frase
-    é impossível de copiar sem limpar à mão: `REGISTRO`, "Texto movido do código".
+    é impossível de copiar sem limpar à mão: versão longa em `997a6fe^`.
     """
 
     def __init__(

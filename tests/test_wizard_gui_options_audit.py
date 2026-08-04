@@ -1,7 +1,7 @@
 # O campo da senha de auditoria exercitado como widget de verdade, porque
 # texto-fonte prova que a guarda está *escrita* e não que ela *funciona* —
 # pulado, nunca vermelho, onde falta tkinter:
-# `REGISTRO`, "Texto movido do código".
+# versão longa em `997a6fe^`.
 import queue
 
 import pytest
@@ -19,7 +19,7 @@ def _tk_root():
     """Um root Tk retirado da tela, com uma repetição: cada `Tk()` relê o
     `init.tcl` e nesta máquina essa leitura falha de forma intermitente —
     repetido em vez de pulado, porque a primeira versão virava o transiente
-    num verde que não testava nada: `REGISTRO`, "Texto movido do código".
+    num verde que não testava nada: versão longa em `997a6fe^`.
     """
     try:
         root = tk.Tk()
@@ -33,7 +33,7 @@ def _tk_root():
 def no_exported_password(monkeypatch):
     """Nenhum teste aqui pode enxergar a senha exportada pelo próprio
     desenvolvedor, que é exatamente a condição a que as guardas reagem:
-    `REGISTRO`, "Texto movido do código".
+    versão longa em `997a6fe^`.
     """
     monkeypatch.delenv(AUDIT_PASSWORD_ENV_VAR, raising=False)
 
@@ -75,7 +75,7 @@ def _erro(page):
 def test_an_existing_password_makes_the_field_inert_and_says_so(page, tmp_path):
     # Digitar por cima de uma senha existente não pode mudá-la, e o campo é
     # DESABILITADO em vez de ignorado — caixa que aceita e descarta é a pior
-    # forma de defeito para este projeto: `REGISTRO`, "Texto movido do código".
+    # forma de defeito para este projeto: versão longa em `997a6fe^`.
     _dotenv(tmp_path)
     page.on_show()
 

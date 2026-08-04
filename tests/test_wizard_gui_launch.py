@@ -1,6 +1,6 @@
 # Ao contrário de `test_wizard_gui.py`, estes exercitam o comportamento real
 # de `_launch_interface`; o módulo inteiro é pulado onde falta tkinter, em
-# vez de deixar a execução vermelha por motivo alheio: `REGISTRO`, "Texto movido do código".
+# vez de deixar a execução vermelha por motivo alheio: versão longa em `997a6fe^`.
 import pytest
 
 pytest.importorskip("tkinter")
@@ -102,7 +102,7 @@ def test_launch_skips_browser_when_server_never_responds(monkeypatch):
 def test_launch_prints_the_servers_own_error_when_it_exits_immediately(monkeypatch, capsys):
     # O instalador é o único lugar onde a pessoa vê isto, e o que o servidor
     # dizia ao sair era descartado e reportado como "não respondeu a tempo" —
-    # mensagem de timeout para algo que não expirou: `REGISTRO`, "Texto movido do código".
+    # mensagem de timeout para algo que não expirou: versão longa em `997a6fe^`.
     recusa = "error: há duas senhas de auditoria definidas ao mesmo tempo"
 
     def fake_popen(cmd, **kwargs):

@@ -1,6 +1,6 @@
 """Helpers puros do passo opcional de Ollama do `wizard_gui.py`, como funções
 com hooks injetáveis de subprocess/urlopen, testáveis sem tkinter, display,
-rede ou Ollama real: `REGISTRO`, "Texto movido do código".
+rede ou Ollama real: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations
@@ -192,7 +192,7 @@ def start_ollama_server(
 ) -> Optional["subprocess.Popen"]:
     """Sobe `ollama serve` destacado para sobreviver ao wizard, porque no
     Windows o app é item de login e "instalado mas parado" é o estado comum —
-    sem isto `wait_for_server()` expira onde nada falta: `REGISTRO`, "Texto movido do código".
+    sem isto `wait_for_server()` expira onde nada falta: versão longa em `997a6fe^`.
     """
     platform = platform if platform is not None else sys.platform
     cmd = [str(ollama_exe), "serve"]
@@ -267,7 +267,7 @@ def _upsert_env_var(root: Path, key: str, value: str) -> Path:
 def remove_env_var(root: Path, key: str) -> Optional[Path]:
     """Remove toda linha `key=` do `.env` preservando as outras, e devolve
     `None` quando não havia o que remover — contraparte de `_upsert_env_var`,
-    que só sabe acrescentar ou substituir: `REGISTRO`, "Texto movido do código".
+    que só sabe acrescentar ou substituir: versão longa em `997a6fe^`.
     """
     env_path = root / ".env"
     if not env_path.exists():
@@ -314,7 +314,7 @@ def read_env_var(root: Path, key: str) -> Optional[str]:
 
 # Uma fonte ambiente só, e um arame de tropeço na que morreu: o `.env` é a
 # única fonte ambiente da senha, e a variável de ambiente não é mais lida como
-# senha — só comparada — `REGISTRO`, "Texto movido do código".
+# senha — só comparada — versão longa em `997a6fe^`.
 
 AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 
@@ -322,7 +322,7 @@ AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 def exported_audit_password(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
     """A senha exportada no ambiente, ou `None`, com strip para que exportada-e-
     vazia conte como ausente; não é mais *fonte*, e o valor é lido só para
-    comparação: `REGISTRO`, "Texto movido do código".
+    comparação: versão longa em `997a6fe^`.
     """
     source = os.environ if env is None else env
     return (source.get(AUDIT_PASSWORD_ENV_VAR) or "").strip() or None
@@ -344,7 +344,7 @@ def audit_password_conflict_against(
 ) -> Optional[str]:
     """A mensagem quando uma variável remanescente discorda de `effective`, ou
     `None` quando não há o que dizer — devolver o texto em vez de um booleano
-    é o que mantém CLI e instalador dizendo a mesma coisa: `REGISTRO`, "Texto movido do código".
+    é o que mantém CLI e instalador dizendo a mesma coisa: versão longa em `997a6fe^`.
     """
     if password_file:
         return None
@@ -395,13 +395,13 @@ def audit_password_conflict(
 
 # Havia aqui uma terceira função para o instalador perguntar o mesmo sobre uma
 # senha que ia escrever; ela saiu junto com a segunda explicação do instalador
-# sobre a variável remanescente — `REGISTRO`, "Texto movido do código".
+# sobre a variável remanescente — versão longa em `997a6fe^`.
 
 
 def read_env_model_optional(root: Path) -> Optional[str]:
     """Lê `OLLAMA_MODEL=` do `.env`, ou `None`; separado do `read_env_model`
     porque a diferença entre "não configurado" e "configurado no default"
-    importa para uma decisão **destrutiva**: `REGISTRO`, "Texto movido do código".
+    importa para uma decisão **destrutiva**: versão longa em `997a6fe^`.
     """
     return read_env_var(root, "OLLAMA_MODEL")
 

@@ -12,7 +12,7 @@ from webui_support import RunningServer, make_initial_config
 def isolated_password_sources(monkeypatch, tmp_path):
     """Nenhum teste deste arquivo pode enxergar a senha de auditoria do
     próprio desenvolvedor, porque `<repo>/.env` é arquivo real num checkout
-    real e isto já aconteceu: `REGISTRO`, "Texto movido do código".
+    real e isto já aconteceu: versão longa em `997a6fe^`.
     """
     import ethical_agent.webui.auth as auth_module
 
@@ -37,7 +37,7 @@ def test_server_socket_is_bound_to_127_0_0_1_only(server):
 def test_a_second_server_cannot_take_a_port_already_in_use(tmp_path, server):
     """O defeito que isto guarda era silencioso e só no Windows: sob
     `SO_REUSEADDR` um segundo servidor ligava na mesma porta e o navegador
-    seguia falando com o processo antigo: `REGISTRO`, "Texto movido do código".
+    seguia falando com o processo antigo: versão longa em `997a6fe^`.
     """
     port = server.server.server_address[1]
     with pytest.raises(PortInUseError):
@@ -121,7 +121,7 @@ def test_serve_never_takes_a_password_as_an_argument_value(capsys):
     # Não existe flag `--audit-password VALUE`, porque valor de argumento vai
     # parar na lista de processos e no histórico do shell; o prefixo ambíguo é
     # resolvido como *nome de arquivo* e falha alto, que é o comportamento
-    # fixado aqui: `REGISTRO`, "Texto movido do código".
+    # fixado aqui: versão longa em `997a6fe^`.
     code = main(["serve", "--audit-password", "hunter2", "--port", "0"])
     assert code == 2
     err = capsys.readouterr().err
@@ -213,7 +213,7 @@ def test_dotenv_password_enables_the_audit_screen_with_no_flag_at_all(
     monkeypatch, tmp_path, capsys
 ):
     # O ponto inteiro de o wizard escrever no `.env`, e a guarda de regressão da
-    # recusa acima: `REGISTRO`, "Texto movido do código".
+    # recusa acima: versão longa em `997a6fe^`.
     (tmp_path / ".env").write_text(
         f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
     )
@@ -360,7 +360,7 @@ def test_the_disabled_banner_no_longer_tells_anyone_to_export_the_variable(
 def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, capsys):
     # Uma varredura de stdout+stderr por fonte: o banner pode nomear a origem e
     # mais nada. Os dois casos que recusam estão aqui de propósito, por serem o
-    # único texto que fala de duas senhas ao mesmo tempo: `REGISTRO`, "Texto movido do código".
+    # único texto que fala de duas senhas ao mesmo tempo: versão longa em `997a6fe^`.
     password_file = tmp_path / "senha.txt"
     password_file.write_text(f"{CANARY}\n", encoding="utf-8")
     dotenv = f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n"
@@ -381,7 +381,7 @@ def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, 
         assert CANARY not in streams.out, f"vazou em stdout via {label}"
         assert CANARY not in streams.err, f"vazou em stderr via {label}"
         # E nem em `initial_config`, que `handlers_choices` serve verbatim e sem
-        # autenticação em `/api/choices`: `REGISTRO`, "Texto movido do código".
+        # autenticação em `/api/choices`: versão longa em `997a6fe^`.
         if label in recusados:
             assert code == 2, label
             assert "initial_config" not in captured, label
@@ -421,7 +421,7 @@ def test_serve_subcommand_accepts_port_flag():
 def test_serve_default_config_calls_the_real_model_not_mock(monkeypatch):
     # Default só da interface web: `serve` semeia o painel com `mock=False`, e
     # `resolve_llm` ainda cai para `MockLLM` sozinho — isto muda só o que é
-    # *tentado* primeiro: `REGISTRO`, "Texto movido do código".
+    # *tentado* primeiro: versão longa em `997a6fe^`.
     captured = {}
 
     class FakeServer:
@@ -444,6 +444,6 @@ def test_serve_default_config_calls_the_real_model_not_mock(monkeypatch):
     assert code == 0
     assert captured["initial_config"]["mock"] is False
     # A senha chega a `make_server` como argumento próprio e nunca por
-    # `initial_config`: `REGISTRO`, "Texto movido do código".
+    # `initial_config`: versão longa em `997a6fe^`.
     assert captured["kwargs"]["audit_password"] is None
     assert not any("password" in key for key in captured["initial_config"])

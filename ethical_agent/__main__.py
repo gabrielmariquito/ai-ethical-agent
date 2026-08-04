@@ -39,7 +39,7 @@ from .relaieo import (
 from .types import ActionContext, Stage
 
 # Se o wizard instalou um modelo local ele o gravou no `.env`; usar isso evita
-# defaultar para um modelo que nunca foi baixado — `REGISTRO`, "Texto movido do código".
+# defaultar para um modelo que nunca foi baixado — versão longa em `997a6fe^`.
 _DEFAULT_MODEL = read_env_model(Path(__file__).resolve().parent.parent, DEFAULT_LOCAL_MODEL)
 
 
@@ -269,7 +269,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     except PortInUseError:
         # Até isto ser pego, um segundo `serve` em porta ocupada não falhava no
         # Windows: ligava ao lado do primeiro e deixava o navegador falando com o
-        # processo antigo — `REGISTRO`, "Texto movido do código".
+        # processo antigo — versão longa em `997a6fe^`.
         from .uninstall import web_ui_running
 
         print(f"error: a porta {args.port} já está em uso.", file=sys.stderr)

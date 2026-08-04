@@ -21,7 +21,7 @@ JOB_TERMINAL_GC_SECONDS = 300
 class _WebAuditLogger(AuditLogger):
     """`AuditLogger` que falha macio, e que aqui também **serializa** escritas
     porque `.log()` pode ser chamado de mais de uma thread de requisição:
-    `REGISTRO`, "Texto movido do código".
+    versão longa em `997a6fe^`.
     """
 
     def __init__(self, path, lock: threading.Lock):
@@ -52,7 +52,7 @@ class _WebAuditLogger(AuditLogger):
 class ConversationStore:
     """Histórico por conversa, só na memória do processo e nunca reconstruído da
     trilha, com um lock por conversa segurado pelo chamador durante o turno
-    inteiro: `REGISTRO`, "Texto movido do código".
+    inteiro: versão longa em `997a6fe^`.
     """
 
     def __init__(self):
@@ -159,7 +159,7 @@ class JobRegistry:
 class ServerState:
     """Tudo que o servidor guarda pela vida do processo, construído uma vez em
     `make_server()`; `initial_config` semeia o painel do frontend e é servido
-    verbatim e sem autenticação por `handlers_choices` — `REGISTRO`, "Texto movido do código".
+    verbatim e sem autenticação por `handlers_choices` — versão longa em `997a6fe^`.
     """
 
     def __init__(

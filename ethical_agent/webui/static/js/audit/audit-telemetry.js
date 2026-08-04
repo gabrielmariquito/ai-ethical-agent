@@ -1,6 +1,6 @@
 // Instrumentação da própria sessão do auditor, divulgada antes do login e
 // permanentemente durante o trabalho, com relógio monotônico e dois números de
-// permanência — REGISTRO, "Texto movido do código".
+// permanência — versão longa em `997a6fe^`.
 
 const FLUSH_EVERY_MS = 10_000;
 const FLUSH_AT_QUEUED = 20;

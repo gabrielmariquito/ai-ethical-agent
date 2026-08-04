@@ -1,5 +1,5 @@
 // A tarja permanente de "esta sessão está sendo gravada", não-dispensável de
-// propósito — REGISTRO, "Texto movido do código".
+// propósito — versão longa em `997a6fe^`.
 
 import { getJSON } from "../api.js";
 import { onEventCount, track } from "./audit-telemetry.js";

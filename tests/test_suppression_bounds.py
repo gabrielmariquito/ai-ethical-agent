@@ -27,7 +27,7 @@ def _avalia(engine, texto, stage=Stage.OUTPUT):
 
 def _aviso_aplicado(veredito) -> bool:
     """R-TRANS-001 disparou, ou seja o aviso médico foi aplicado — sobre
-    `matches`, e não sobre `suppressed` nem sobre a decisão final: `REGISTRO`, "Texto movido do código".
+    `matches`, e não sobre `suppressed` nem sobre a decisão final: versão longa em `997a6fe^`.
     """
     return "R-TRANS-001" in [m.rule_id for m in veredito.matches]
 
@@ -41,7 +41,7 @@ def _isento_sec_002(veredito) -> bool:
 
 def test_disclaimer_nao_suprimido_por_professionalism(engine):
     # O caso medido que motivou a leva, e que FALHAVA antes da correção:
-    # `REGISTRO`, "Texto movido do código".
+    # versão longa em `997a6fe^`.
     texto = f"{DOSE_EN} At this clinic we seek professionalism."
     v = _avalia(engine, texto)
     assert _aviso_aplicado(v), (
@@ -62,7 +62,7 @@ def test_disclaimer_nao_suprimido_por_professionalism(engine):
 )
 def test_colisao_doctoral_e_doctorate(engine, cauda, palavra):
     # Defeito NOVO da varredura desta leva: `consult a doctor` casava dentro
-    # de `doctoral`/`doctorate` — `REGISTRO`, "Texto movido do código".
+    # de `doctoral`/`doctorate` — versão longa em `997a6fe^`.
     texto = f"{DOSE_EN} {cauda}"
     v = _avalia(engine, texto)
     assert _aviso_aplicado(v), f"{palavra!r} suprimiu o aviso: {texto!r}"
@@ -96,7 +96,7 @@ def test_colisao_not_a_substitute_for_professionalism(engine):
 )
 def test_supressao_legitima_preservada(engine, texto, matcher):
     # A contraprova dos testes 1 e 2, sem a qual apagar o bloco `not` inteiro
-    # passaria por correção: `REGISTRO`, "Texto movido do código".
+    # passaria por correção: versão longa em `997a6fe^`.
     v = _avalia(engine, texto)
     assert not _aviso_aplicado(v), f"{matcher!r} deixou de suprimir: {texto!r}"
 
@@ -115,7 +115,7 @@ def test_supressao_legitima_preservada(engine, texto, matcher):
 def test_nao_substitui_preserva_flexao(engine, cauda, forma):
     """A regressão que o remédio errado teria embarcado, fixada e não só
     evitada: é quem grita se alguém uniformizar as seis entradas do bloco
-    para âncora pura: `REGISTRO`, "Texto movido do código".
+    para âncora pura: versão longa em `997a6fe^`.
     """
     texto = f"{DOSE_PT} {cauda}"
     v = _avalia(engine, texto)
@@ -137,7 +137,7 @@ def test_nao_substitui_preserva_flexao(engine, cauda, forma):
 )
 def test_plural_de_professional_preservado(engine, cauda, forma):
     # A última palavra flexiona E o prefixo colide, que é o caso em que a
-    # regra manda enumerar as formas: `REGISTRO`, "Texto movido do código".
+    # regra manda enumerar as formas: versão longa em `997a6fe^`.
     texto = f"{DOSE_EN} {cauda}"
     v = _avalia(engine, texto)
     assert not _aviso_aplicado(v), f"o plural {forma!r} perdeu a supressão: {texto!r}"
@@ -145,7 +145,7 @@ def test_plural_de_professional_preservado(engine, cauda, forma):
 
 def test_hifen_nao_quebra_a_locucao_pt(engine):
     # Guarda de que `whole_word` nas três entradas de português é o no-op que
-    # a varredura mediu: `REGISTRO`, "Texto movido do código".
+    # a varredura mediu: versão longa em `997a6fe^`.
     texto = f"{DOSE_PT} Consulte um médico-legista."
     v = _avalia(engine, texto)
     assert not _aviso_aplicado(v), f"o hífen quebrou a supressão: {texto!r}"
@@ -173,7 +173,7 @@ def test_hifen_nao_quebra_a_locucao_pt(engine):
 def test_excecoes_de_r_sec_002_inalteradas(engine, texto, entrada):
     """As 11 entradas do `exceptions` de R-SEC-002, conferidas e **não**
     mudadas, porque a evidência de classe fechada é a varredura completa e
-    não a contagem de correções: `REGISTRO`, "Texto movido do código".
+    não a contagem de correções: versão longa em `997a6fe^`.
     """
     v = _avalia(engine, texto, stage=Stage.INPUT)
     assert _isento_sec_002(v), f"a entrada {entrada!r} perdeu a isenção: {texto!r}"

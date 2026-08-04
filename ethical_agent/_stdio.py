@@ -1,6 +1,6 @@
 """Faz `stdout`/`stderr` conseguirem imprimir qualquer caractere Unicode, em
 código, porque sob cp1252 um `print` fora da página levanta
-`UnicodeEncodeError`: `REGISTRO`, "Texto movido do código".
+`UnicodeEncodeError`: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 

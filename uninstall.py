@@ -6,7 +6,7 @@ Uso:
     python3 uninstall.py                    # abre a janela se houver sessão
     python3 uninstall.py --dry-run          # só mostra o plano
 
-`REGISTRO`, "Texto movido do código".
+versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def ask_yes_no(
 def _mid_sentence(label: str) -> str:
     """Rótulo do plano encaixado no MEIO de uma frase, em caixa baixa porque
     aqui ele entra depois de "Remover o " — a caixa é decisão de apresentação,
-    e cada casca toma a sua: `REGISTRO`, "Texto movido do código".
+    e cada casca toma a sua: versão longa em `997a6fe^`.
     """
     return label[:1].lower() + label[1:]
 
@@ -475,7 +475,7 @@ def _ask_optional(plan: UninstallPlan, choices: Choices, ask: Callable[[str], st
                     remove_logs = True
                     continue
             # Duas perguntas normais, como as duas caixas da janela, e a segunda enuncia
-            # a CONSEQUÊNCIA: `REGISTRO`, "Texto movido do código".
+            # a CONSEQUÊNCIA: versão longa em `997a6fe^`.
             if ask_yes_no("Apagar a trilha de auditoria?", ask=ask):
                 remove_logs = ask_yes_no(
                     "Apagar definitivamente todos os arquivos da trilha? (irreversível)",

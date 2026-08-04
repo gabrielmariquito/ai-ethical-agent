@@ -1,6 +1,6 @@
 """Instrumentação da sessão do auditor, cuja invariante é que o comportamento
 dele nunca acabe dentro da trilha que é o objeto de estudo — concern separado,
-arquivo separado: `REGISTRO`, "Texto movido do código".
+arquivo separado: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 

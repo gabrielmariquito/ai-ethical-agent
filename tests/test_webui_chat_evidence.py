@@ -1,6 +1,6 @@
 """O chat diz ao funcionário qual regra se aplicou, nunca **como** ela decide,
 e é asseverado sobre o payload da API e não sobre o HTML — porque "Copiar
-registro" serializa o turno inteiro para a área de transferência: `REGISTRO`, "Texto movido do código".
+registro" serializa o turno inteiro para a área de transferência: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """Plano de fases e aritmética da barra do instalador, que era uma barra
 `indeterminate` correndo do primeiro ao último segundo sem dizer em que passo
-estava: `REGISTRO`, "Texto movido do código".
+estava: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def plan_phases(
 ) -> tuple[Phase, ...]:
     """Os passos que esta instalação vai rodar, decididos de antemão;
     `writes_config` é separado de `want_llm` porque a senha é escrita em toda
-    instalação que define ou remove uma: `REGISTRO`, "Texto movido do código".
+    instalação que define ou remove uma: versão longa em `997a6fe^`.
     """
     keys = [PHASE_VENV, PHASE_PIP]
     if want_llm and llm_mode == "local":
@@ -201,7 +201,7 @@ class ProgressTracker:
 class PullProgress:
     """Transforma a saída do `ollama pull` numa fração somando bytes por camada,
     porque ler a porcentagem por camada direto é o caminho óbvio e errado:
-    `REGISTRO`, "Texto movido do código".
+    versão longa em `997a6fe^`.
     """
 
     def __init__(self, model: str) -> None:
@@ -211,7 +211,7 @@ class PullProgress:
     def update(self, chunk: str) -> tuple[Optional[float], Optional[str]]:
         """Consome um chunk e devolve (fração, detalhe), qualquer um podendo ser
         `None` quando a linha não carrega número ou o modelo não tem
-        denominador confiável: `REGISTRO`, "Texto movido do código".
+        denominador confiável: versão longa em `997a6fe^`.
         """
         match = _PULL_LAYER_RE.search(chunk)
         if match is None:

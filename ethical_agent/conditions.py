@@ -20,7 +20,7 @@ class Condition(ABC):
     def evaluate(self, text: str, limit: Optional[int] = MAX_EVIDENCE) -> List[Evidence]:
         """Avalia esta condição contra `text`; `limit` limita quantas evidências
         são coletadas, e `limit=None` faz a varredura completa que só a
-        redação precisa: `REGISTRO`, "Texto movido do código".
+        redação precisa: versão longa em `997a6fe^`.
         """
         ...
 
@@ -31,7 +31,7 @@ class Condition(ABC):
     def shape(self) -> str:
         """Como esta condição é construída, nunca o que ela procura — existe
         porque descrição de evidência é lida por quem não pode receber a
-        política: `REGISTRO`, "Texto movido do código".
+        política: versão longa em `997a6fe^`.
         """
         return self.type_name
 

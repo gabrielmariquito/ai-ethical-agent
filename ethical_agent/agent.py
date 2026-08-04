@@ -176,7 +176,7 @@ class GuardedAgent:
     ) -> list:
         """Monta a lista de mensagens do LLM: system prompt, um par por turno
         anterior e a entrada aprovada do turno atual — turno cuja entrada foi
-        negada é omitido inteiro, porque o modelo nunca a viu: `REGISTRO`, "Texto movido do código".
+        negada é omitido inteiro, porque o modelo nunca a viu: versão longa em `997a6fe^`.
         """
         messages = [{"role": "system", "content": self.system_prompt}]
         for past in history or []:

@@ -80,7 +80,7 @@ def resolve_llm(
 ) -> tuple[LLMClient, dict]:
     """Monta o `LLMClient` que o `process` vai usar mais um registro de
     procedência dizendo o que de fato produziu o conteúdo — modelo real,
-    simulação pedida, ou simulação por fallback: `REGISTRO`, "Texto movido do código".
+    simulação pedida, ou simulação por fallback: versão longa em `997a6fe^`.
     """
     if mock:
         return (

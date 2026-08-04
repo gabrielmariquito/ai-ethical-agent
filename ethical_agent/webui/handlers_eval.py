@@ -25,7 +25,7 @@ def default_dataset_path() -> str:
 
 def _resolve_dataset(raw) -> str:
     """Confina o dataset a `eval/`: sem isto, qualquer JSON com um array
-    `cases` era legível e as mensagens distinguiam os erros — um oráculo: `REGISTRO`, "Texto movido do código".
+    `cases` era legível e as mensagens distinguiam os erros — um oráculo: versão longa em `997a6fe^`.
     """
     if raw is None or raw == "":
         return default_dataset_path()
@@ -57,7 +57,7 @@ def _resolve_dataset(raw) -> str:
 )
 def post_eval(state, params, body):
     """Espelha o `eval` da CLI e nunca toca no `AuditLogger`, porque roda um
-    lote de casos sintéticos direto no motor: `REGISTRO`, "Texto movido do código".
+    lote de casos sintéticos direto no motor: versão longa em `997a6fe^`.
     """
     dataset = _resolve_dataset(body.get("dataset"))
     config = body.get("config") or {}

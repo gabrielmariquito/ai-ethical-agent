@@ -12,7 +12,7 @@ from .dto import classify_intervention
 # Lê `logs/audit.jsonl` para reconstruir a lista de conversas e a transcrição
 # somente-leitura, sendo a única fonte de histórico que sobrevive a reinício, e
 # varre de trás para a frente parando assim que tem o que precisa:
-# `REGISTRO`, "Texto movido do código".
+# versão longa em `997a6fe^`.
 
 LIST_LIMIT = 50
 MAX_SCAN_LINES = 20_000
@@ -23,7 +23,7 @@ def iter_lines_reverse_offsets(
 ) -> Iterator[Tuple[int, str]]:
     """Devolve (offset em bytes, linha) do fim do arquivo para trás, em blocos,
     com o offset permanecendo válido pela vida de um arquivo append-only — é
-    o que deixa a tela paginar por cursor e pular direto a um registro: `REGISTRO`, "Texto movido do código".
+    o que deixa a tela paginar por cursor e pular direto a um registro: versão longa em `997a6fe^`.
     """
     with path.open("rb") as handle:
         if end_offset is None:
@@ -139,7 +139,7 @@ def summarize_conversations(audit_log_path: str, limit: int = LIST_LIMIT) -> dic
 def build_readonly_transcript(audit_log_path: str, conversation_id: str) -> Optional[List[dict]]:
     """`None` se a conversa não está na trilha; cada turno tem a mesma forma que
     um turno vivo **exceto** `response`, porque reusar `raw_response` ali
-    derrotaria a razão de aquela chave ser condicional: `REGISTRO`, "Texto movido do código".
+    derrotaria a razão de aquela chave ser condicional: versão longa em `997a6fe^`.
     """
     path = Path(audit_log_path)
     if not path.exists():

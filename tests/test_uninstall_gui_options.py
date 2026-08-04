@@ -1,7 +1,7 @@
 """Toda coisa removível que o plano oferece chega a um checkbox na tela,
 porque `variables.get(cand.key)` pula em silêncio o que não conhece e
 `Choices` tem default `False` — a caixa que não é desenhada vira "a pessoa
-não pediu" até o fim: `REGISTRO`, "Texto movido do código".
+não pediu" até o fim: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations

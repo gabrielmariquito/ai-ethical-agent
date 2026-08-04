@@ -65,7 +65,7 @@ def test_check_writes_exactly_one_audit_record(server):
 def test_check_endpoint_uses_shared_audit_record_builder(server):
     # Substituto comportamental do antigo teste de texto-fonte: constrói o
     # registro do jeito real e compara com o que o endpoint persistiu, em vez de
-    # ler o fonte: `REGISTRO`, "Texto movido do código".
+    # ler o fonte: versão longa em `997a6fe^`.
     text = "contact bob@example.com for help"
     status, body, _ = server.post("/api/check", {"text": text, "stage": "output", "config": {}})
     assert status == 200

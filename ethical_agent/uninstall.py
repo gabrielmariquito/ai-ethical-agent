@@ -1,6 +1,6 @@
 """Helpers puros do desinstalador, contraparte de `ollama_install.py`: apuram
 o que existe, o tamanho, o que está rodando, e removem o que mandarem — como
-funções com hooks injetáveis, testáveis sem tkinter: `REGISTRO`, "Texto movido do código".
+funções com hooks injetáveis, testáveis sem tkinter: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations
@@ -154,7 +154,7 @@ def running_inside_venv(
 ) -> Optional[str]:
     """Devolve uma razão pt-BR para recusar, ou `None` quando é seguro seguir:
     no Windows apagar o interpretador em execução deixaria um venv pela
-    metade, que é pior que não oferecer — `REGISTRO`, "Texto movido do código".
+    metade, que é pior que não oferecer — versão longa em `997a6fe^`.
     """
     prefix = sys.prefix if prefix is None else prefix
     executable = sys.executable if executable is None else executable
@@ -549,7 +549,7 @@ def detect_running(
 
 def stop_hint(service: str, platform: Optional[str] = None, port: int = 0) -> List[str]:
     """Como parar: SÓ COMANDOS, um por linha, porque as cascas renderizam isto
-    como bloco copiável e prosa aqui vira linha que falha no terminal: `REGISTRO`, "Texto movido do código".
+    como bloco copiável e prosa aqui vira linha que falha no terminal: versão longa em `997a6fe^`.
     """
     platform = platform if platform is not None else sys.platform
     windows = platform == "win32"
@@ -570,7 +570,7 @@ def stop_hint(service: str, platform: Optional[str] = None, port: int = 0) -> Li
 
 def stop_note(service: str, platform: Optional[str] = None) -> Optional[str]:
     """A prosa que vai AO LADO dos comandos de `stop_hint`, nunca dentro deles:
-    as duas moravam numa lista só e os chamadores colavam tudo como comando: `REGISTRO`, "Texto movido do código".
+    as duas moravam numa lista só e os chamadores colavam tudo como comando: versão longa em `997a6fe^`.
     """
     platform = platform if platform is not None else sys.platform
     windows = platform == "win32"
@@ -840,7 +840,7 @@ def remove_path(
 ) -> RemovalResult:
     """Apaga arquivo ou árvore coletando erros por entrada em vez de levantar,
     porque "falhar em remover um item não pode abortar o resto" vale *dentro*
-    do venv também: `REGISTRO`, "Texto movido do código".
+    do venv também: versão longa em `997a6fe^`.
     """
     target = str(path)
     if not path.exists() and not path.is_symlink():

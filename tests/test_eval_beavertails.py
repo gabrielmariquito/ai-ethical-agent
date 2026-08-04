@@ -22,7 +22,7 @@ def _hybrid_engine():
 def test_beavertails_dataset_loads_and_runs():
     # Dataset de terceiros (PKU-Alignment/BeaverTails, CC BY-NC 4.0), amostrado e
     # convertido offline; é o único que de fato expõe falsos positivos, e sem
-    # piso de acurácia: `REGISTRO`, "Texto movido do código".
+    # piso de acurácia: versão longa em `997a6fe^`.
     cases = load_dataset(DATASET)
     assert len(cases) >= 150
 

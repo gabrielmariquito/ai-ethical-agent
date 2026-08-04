@@ -16,7 +16,7 @@ _VALID_EFFECTS = {Decision.DENY, Decision.REWRITE, Decision.FLAG}
 
 # `suppressed_effect` admite um valor que `effect` não admite: ALLOW — como
 # *efeito* seria uma regra que não decide, como *sucessor* é a única forma de
-# dizer "esta isenção libera de propósito" — `REGISTRO`, "Texto movido do código".
+# dizer "esta isenção libera de propósito" — versão longa em `997a6fe^`.
 _VALID_SUPPRESSED_EFFECTS = _VALID_EFFECTS | {Decision.ALLOW}
 
 
@@ -58,7 +58,7 @@ class Rule:
             errors.append(f"{rule_id}: missing 'principle'")
         elif principle not in KNOWN_PRINCIPLES:
             # Verificado, não apenas declarado: `KNOWN_PRINCIPLES` passou muito tempo sem
-            # leitor, e uma grafia errada carregava sem uma palavra — `REGISTRO`, "Texto movido do código".
+            # leitor, e uma grafia errada carregava sem uma palavra — versão longa em `997a6fe^`.
             errors.append(
                 f"{rule_id}: unknown principle {principle!r}, "
                 f"expected one of {sorted(KNOWN_PRINCIPLES)}"
@@ -123,7 +123,7 @@ class Rule:
 
         # Default `None`, e deliberadamente não um valor que rebaixa: um default que
         # rebaixasse daria a todo bloco `exceptions` um sucessor que o autor nunca
-        # escreveu — `REGISTRO`, "Texto movido do código".
+        # escreveu — versão longa em `997a6fe^`.
         suppressed_effect: Optional[Decision] = None
         raw_suppressed = data.get("suppressed_effect")
         if raw_suppressed is not None:

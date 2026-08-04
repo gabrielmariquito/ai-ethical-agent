@@ -1,6 +1,6 @@
 """Listagem, paginação e busca de registro sobre uma trilha real via HTTP
 real, com o requisito de que todo limite que a tela se impõe apareça na
-resposta em vez de encurtar em silêncio o que o auditor pensa estar vendo: `REGISTRO`, "Texto movido do código".
+resposta em vez de encurtar em silêncio o que o auditor pensa estar vendo: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -324,7 +324,7 @@ def test_conversation_reports_duplicate_turn_indices(server):
 def test_conversation_scan_stops_at_the_first_turn_one_it_meets(server):
     # Documenta uma limitação conhecida e delimitada: a varredura para em
     # `turn_index == 1`, então um segundo registro de turno 1 mais antigo não é
-    # coletado: `REGISTRO`, "Texto movido do código".
+    # coletado: versão longa em `997a6fe^`.
     write_trail(
         server.audit_log_path,
         [

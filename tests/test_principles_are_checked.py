@@ -1,6 +1,6 @@
 """`KNOWN_PRINCIPLES` é verificado e não apenas declarado, e a fronteira que
 estes testes escrevem é que o campo `principle` dos datasets é **outro**
-vocabulário com o mesmo nome — validá-los seria erro de categoria: `REGISTRO`, "Texto movido do código".
+vocabulário com o mesmo nome — validá-los seria erro de categoria: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations
@@ -120,7 +120,7 @@ def test_the_shipped_policy_and_ontology_still_load():
 def test_datasets_are_not_validated_against_the_principle_vocabulary(dataset):
     # "benign" é o valor mais comum nos datasets e NÃO está em
     # `KNOWN_PRINCIPLES`, de propósito: ali quer dizer "nenhum princípio se
-    # aplica": `REGISTRO`, "Texto movido do código".
+    # aplica": versão longa em `997a6fe^`.
     cases = json.loads(dataset.read_text(encoding="utf-8"))["cases"]
     used = {c.get("principle") for c in cases if c.get("principle")}
     assert used - KNOWN_PRINCIPLES, (

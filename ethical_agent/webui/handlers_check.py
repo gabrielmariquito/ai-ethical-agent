@@ -19,7 +19,7 @@ def _require_str(body: dict, field: str) -> str:
 )
 def post_check(state, params, body):
     """Espelha o `check` da CLI: avalia UM conteúdo contra o guardrail, sem
-    chamada de LLM, pelo `build_check_audit_record` compartilhado: `REGISTRO`, "Texto movido do código".
+    chamada de LLM, pelo `build_check_audit_record` compartilhado: versão longa em `997a6fe^`.
     """
     text = _require_str(body, "text")
     stage_raw = body.get("stage") or "input"

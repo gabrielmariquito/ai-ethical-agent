@@ -25,14 +25,14 @@ class PolicyEngine(ABC):
     def describe_config(self) -> dict:
         """Identifica a(s) versão(ões) de configuração por trás dos vereditos,
         para carimbar registros de auditoria — reporta versão **declarada**,
-        e o que foi de fato carregado está em `config_artifacts`: `REGISTRO`, "Texto movido do código".
+        e o que foi de fato carregado está em `config_artifacts`: versão longa em `997a6fe^`.
         """
         return {}
 
     def config_artifacts(self) -> List[ConfigArtifact]:
         """Os arquivos de configuração por trás dos vereditos, **planos** mesmo
         no `CompositeEngine`, porque a configuração que governa uma decisão é
-        uma coisa só: `REGISTRO`, "Texto movido do código".
+        uma coisa só: versão longa em `997a6fe^`.
         """
         return []
 
@@ -83,7 +83,7 @@ class RuleBasedEngine(PolicyEngine):
                     if successor is Decision.ALLOW:
                         continue
                     # A evidência do gatilho, não a da exceção: é o gatilho que justifica o
-                    # efeito que sobreviver — `REGISTRO`, "Texto movido do código".
+                    # efeito que sobreviver — versão longa em `997a6fe^`.
                     fired.append((rule, successor, evidence))
                     continue
             fired.append((rule, rule.effect, evidence))
@@ -170,7 +170,7 @@ class RuleBasedEngine(PolicyEngine):
             if not rule.redact:
                 continue
             # A redação tem de ser completa mesmo além do teto de evidências, então esta
-            # varredura é sem limite — `REGISTRO`, "Texto movido do código".
+            # varredura é sem limite — versão longa em `997a6fe^`.
             full_evidence = rule.condition.evaluate(content, limit=None)
             for item in full_evidence:
                 if item.span is not None:
@@ -180,7 +180,7 @@ class RuleBasedEngine(PolicyEngine):
 
         if redactions:
             # Funde spans sobrepostos em intervalos unificados antes de substituir, senão
-            # conteúdo é descartado — `REGISTRO`, "Texto movido do código".
+            # conteúdo é descartado — versão longa em `997a6fe^`.
             redactions.sort(key=lambda r: (r[0], r[1]))
             merged: List[List] = []  # [start, end, [(severity_rank, rule_id), ...]]
             for start, end, rule_id, sev in redactions:

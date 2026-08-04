@@ -22,7 +22,7 @@ def new_conversation(state, params, body):
 def get_conversation(state, params, body):
     """Usado só na reconciliação do frontend após recarga: o navegador nunca
     confia no espelho de `sessionStorage` sem conferir aqui, e a rota não é
-    `/api/chat/{id}` porque o curinga engoliria os literais irmãos: `REGISTRO`, "Texto movido do código".
+    `/api/chat/{id}` porque o curinga engoliria os literais irmãos: versão longa em `997a6fe^`.
     """
     turn_count = state.conversations.turn_count(params["conversation_id"])
     if turn_count is None:

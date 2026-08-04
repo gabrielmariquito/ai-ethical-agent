@@ -22,7 +22,7 @@ def _hybrid_engine():
 def test_huggingface_dataset_loads_and_runs():
     # Dataset de terceiros (deepset/prompt-injections, Apache 2.0), convertido
     # offline e commitado para dispensar rede; sem piso de acurácia, isto guarda
-    # só contra dataset/motor quebrarem: `REGISTRO`, "Texto movido do código".
+    # só contra dataset/motor quebrarem: versão longa em `997a6fe^`.
     cases = load_dataset(DATASET)
     assert len(cases) >= 500
 

@@ -1,7 +1,7 @@
 """A política não aparece nos lugares que descrevem a política, e eram duas
 portas: a `description` de um bloco `not`, que despejava a lista inteira das
 expressões que impedem a regra de disparar, e a mensagem de erro, que
-imprimia o conteúdo da política na tela do funcionário: `REGISTRO`, "Texto movido do código".
+imprimia o conteúdo da política na tela do funcionário: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations

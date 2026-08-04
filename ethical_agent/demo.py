@@ -34,7 +34,7 @@ def demo_scripted(messages: List[dict]) -> str:
 def interactive_mock_response(messages: List[dict]) -> str:
     """Respondedor de mentira do modo Mock do chat, delegando ao
     `demo_scripted()` e acrescentando um ramo que dispara uma *constraint*
-    dura na saída: `REGISTRO`, "Texto movido do código".
+    dura na saída: versão longa em `997a6fe^`.
     """
     user = messages[-1]["content"].lower()
     if "unsafe response" in user:

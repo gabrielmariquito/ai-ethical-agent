@@ -1,6 +1,6 @@
 """Testes de `ethical_agent/uninstall.py`, com a regra dura de que **nenhum
 teste passa a raiz real do repositório** — subprocesso, rede e plataforma
-são todos injetados: `REGISTRO`, "Texto movido do código".
+são todos injetados: versão longa em `997a6fe^`.
 """
 
 import json
@@ -389,7 +389,7 @@ def test_env_question_says_which_keys_without_printing_the_value(tmp_path):
 
 def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path, monkeypatch):
     # A variável tem de ser limpa explicitamente: numa máquina que a exporta,
-    # remover o `.env` não desliga a tela: `REGISTRO`, "Texto movido do código".
+    # remover o `.env` não desliga a tela: versão longa em `997a6fe^`.
     monkeypatch.delenv("ETHICAL_AGENT_AUDIT_PASSWORD", raising=False)
     root = _make_root(
         tmp_path,
@@ -468,7 +468,7 @@ def test_build_plan_reports_the_web_ui_so_the_shells_can_warn(tmp_path):
 
 def test_stop_hint_is_commands_only_and_stop_note_carries_the_prose():
     # Isto era uma lista só com a prosa no item 0, e cada chamador colava tudo
-    # como comandos: uma linha de prosa aqui é uma linha que falha ao colar: `REGISTRO`, "Texto movido do código".
+    # como comandos: uma linha de prosa aqui é uma linha que falha ao colar: versão longa em `997a6fe^`.
     for service in ("web_ui", "ollama"):
         for platform in ("win32", "linux", "darwin"):
             for line in stop_hint(service, platform=platform, port=8765):

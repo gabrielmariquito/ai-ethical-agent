@@ -33,7 +33,7 @@ from .state import ServerState
 class _ExclusiveThreadingHTTPServer(ThreadingHTTPServer):
     """`ThreadingHTTPServer` que recusa uma porta em que outro já está: no
     Windows `SO_REUSEADDR` deixa um segundo socket ligar num endereço em uso
-    ativo, e o navegador continuava falando com o processo antigo: `REGISTRO`, "Texto movido do código".
+    ativo, e o navegador continuava falando com o processo antigo: versão longa em `997a6fe^`.
     """
 
     # POSIX keeps the inherited True; there the flag is not the problem and
@@ -68,7 +68,7 @@ def make_server(
 ) -> ThreadingHTTPServer:
     """Liga só em 127.0.0.1, sem flag para mudar; `audit_password` habilita o
     realm de auditoria e é passado como argumento, nunca por `initial_config`:
-    `REGISTRO`, "Texto movido do código".
+    versão longa em `997a6fe^`.
     """
     auditor_session_log = auditor_session_log or DEFAULT_AUDITOR_SESSION_LOG
     change_requests_log = change_requests_log or DEFAULT_CHANGE_REQUESTS_LOG

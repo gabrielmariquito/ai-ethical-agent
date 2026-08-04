@@ -8,7 +8,7 @@ from .dto import classify_intervention
 
 # Molda um registro já escrito para a tela — puro, sem I/O e sem recomputar
 # veredito —, com a estratificação em três camadas como ponto da tela e a
-# redação pt-BR no frontend: `REGISTRO`, "Texto movido do código".
+# redação pt-BR no frontend: versão longa em `997a6fe^`.
 SYNTHETIC_ENGINE = "SYNTHETIC-SAMPLE-DATA"
 DEMO_SOURCE = "demo"
 
@@ -21,7 +21,7 @@ KIND_SYNTHETIC = "synthetic"
 RECORD_KINDS = (KIND_WEB_CHAT, KIND_CLI_PROCESS, KIND_DEMO, KIND_CHECK, KIND_SYNTHETIC)
 
 # A visão padrão é deliberadamente estreita, e o custo do filtro fica sempre na
-# tela — filtro de custo invisível é filtro que engana: `REGISTRO`, "Texto movido do código".
+# tela — filtro de custo invisível é filtro que engana: versão longa em `997a6fe^`.
 DEFAULT_KINDS = (KIND_WEB_CHAT,)
 
 # Per-request scan budget for one page of the list. Deliberately NOT
@@ -37,7 +37,7 @@ PREVIEW_CHARS = 160
 
 # Toda chave que esta tela sabe posicionar; o resto sai verbatim em
 # `unknown_fields` da camada 3 em vez de ser descartado — leitor de registro
-# histórico que descarta em silêncio não é ferramenta de auditoria: `REGISTRO`, "Texto movido do código".
+# histórico que descarta em silêncio não é ferramenta de auditoria: versão longa em `997a6fe^`.
 KNOWN_RECORD_KEYS = frozenset(
     {
         "event_id",
@@ -65,7 +65,7 @@ KNOWN_RECORD_KEYS = frozenset(
 def classify_record_kind(record: dict) -> str:
     """Qual atividade produziu este registro, distinguível só por presença
     porque é tudo que o escritor deixou — e a ordem importa, porque o
-    sintético também não tem "message": `REGISTRO`, "Texto movido do código".
+    sintético também não tem "message": versão longa em `997a6fe^`.
     """
     if record.get("engine") == SYNTHETIC_ENGINE:
         return KIND_SYNTHETIC
@@ -213,7 +213,7 @@ def summarize_record(record: dict, offset: int) -> dict:
 def _matched_text_policy(record: dict) -> dict:
     """Onde neste registro uma regra `redact` limpou o próprio `matched_text`;
     `redacted_stages` fica porque a camada 2 precisa saber em que estágio a
-    redação ocorreu antes de oferecer um antes/depois: `REGISTRO`, "Texto movido do código".
+    redação ocorreu antes de oferecer um antes/depois: versão longa em `997a6fe^`.
     """
     redacted_stages: List[str] = []
 
@@ -246,7 +246,7 @@ def detail_from_record(record: dict, offset: int) -> dict:
 
     # O que a camada 1 pode dizer sobre o *porquê*: contagem não é razão, e a
     # natureza da preocupação tem de sobreviver aqui ou o corte está no lugar
-    # errado — `REGISTRO`, "Texto movido do código".
+    # errado — versão longa em `997a6fe^`.
     principles: List[str] = []
     deontics: List[str] = []
     has_hard_rule = False

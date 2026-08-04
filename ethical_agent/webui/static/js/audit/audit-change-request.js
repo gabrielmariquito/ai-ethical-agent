@@ -1,6 +1,6 @@
 // "Isso deveria ser diferente" — registra intenção e não muda nada, e as duas
 // coisas que a redação carrega são de validade de pesquisa:
-// REGISTRO, "Texto movido do código".
+// versão longa em `997a6fe^`.
 
 import { postJSON } from "../api.js";
 import { track } from "./audit-telemetry.js";

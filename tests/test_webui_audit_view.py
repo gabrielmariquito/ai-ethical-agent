@@ -1,6 +1,6 @@
 """Moldagem pura de registro para a tela de auditoria, cujo ponto é que uma
 trilha de meses traz formas que a tela não previu e ela tem de degradar
-legivelmente: `REGISTRO`, "Texto movido do código".
+legivelmente: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -221,7 +221,7 @@ def test_preview_falls_back_to_message_when_there_is_no_input():
 
 def test_matched_text_policy_reports_which_stage_was_redacted():
     # Tudo que sobrou deste helper; o que a tela ainda precisa é o estágio,
-    # porque só reescrita de *saída* tem "texto antes da reescrita": `REGISTRO`, "Texto movido do código".
+    # porque só reescrita de *saída* tem "texto antes da reescrita": versão longa em `997a6fe^`.
     redacted = {
         "output_verdict": verdict(
             "REWRITE",

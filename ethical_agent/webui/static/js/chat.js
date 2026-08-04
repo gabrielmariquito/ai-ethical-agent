@@ -33,7 +33,7 @@ let turns = []; // mirrored, display-only -- the server holds the real history
 let configPanel = null;
 let sidebar = null;
 // Não-nulo enquanto se olha uma conversa passada reconstruída da trilha, com
-// o compositor desabilitado o tempo todo — REGISTRO, "Texto movido do código".
+// o compositor desabilitado o tempo todo — versão longa em `997a6fe^`.
 let viewingArchivedId = null;
 
 // -------------------------------------------------------------- persistence
@@ -133,7 +133,7 @@ async function bootstrapConversation() {
       return;
     }
     // A conversa viva sumiu ou divergiu, e o espelho nunca é parcialmente
-    // confiado — REGISTRO, "Texto movido do código".
+    // confiado — versão longa em `997a6fe^`.
     clearMirror();
     try {
       await openArchivedConversation(storedId, {
@@ -270,7 +270,7 @@ function buildAssistantTurnEl(turn) {
 
   // Exposto como aviso visível na transcrição e não só na barra de status,
   // porque é a primeira coisa que quem não tem Ollama encontra —
-  // REGISTRO, "Texto movido do código".
+  // versão longa em `997a6fe^`.
   const showFallbackNotice =
     kind !== "blocked_input" && turn.llm_provenance && turn.llm_provenance.kind === "mock_fallback";
   if (showFallbackNotice) {

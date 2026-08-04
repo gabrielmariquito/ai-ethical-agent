@@ -1,7 +1,7 @@
 """Guards for the tune/holdout split (recipe `divisao/v1`), resting on
 stability and on a recipe anyone can recompute — the second pinned only by
 `test_atribuicao_bate_com_valor_dourado`, which must not be deleted for
-looking like a hardcoded duplicate: `REGISTRO`, "Texto movido do código".
+looking like a hardcoded duplicate: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def test_divisao_e_deterministica(nome):
 @pytest.mark.parametrize("nome", EXTERNOS, ids=IDS_EXTERNOS)
 def test_a_ordem_de_entrada_nao_muda_a_divisao(nome):
     """Nothing about the split may depend on read order: same input => same
-    split, across runs and machines — `REGISTRO`, "Texto movido do código".
+    split, across runs and machines — versão longa em `997a6fe^`.
     """
     casos = _casos(nome)
     direto = dividir(casos)
@@ -186,7 +186,7 @@ def test_dataset_sem_id_continua_avaliavel_inteiro():
 def test_dataset_curado_nao_e_dividido(metade, capsys):
     """eval/dataset.json is in-distribution by construction, so asking for half
     of it fails loudly instead of producing a number labelled `holdout` that
-    is not one: `REGISTRO`, "Texto movido do código".
+    is not one: versão longa em `997a6fe^`.
     """
     code = main(["eval", "--half", metade])
     assert code == 2
@@ -235,7 +235,7 @@ def test_identificador_nao_depende_da_ordem_da_lista(nome):
 
 # 7. a receita, presa: valores computados uma vez com `divisao/v1` e escritos,
 # porque é o único teste do arquivo que notaria o material do hash mudar —
-# `REGISTRO`, "Texto movido do código".
+# versão longa em `997a6fe^`.
 ATRIBUICAO_DOURADA = {
     "HF-BT-0000": "holdout",
     "HF-BT-0001": "tune",
@@ -309,7 +309,7 @@ def test_erro_padrao_do_recall_encolhe_com_o_estrato():
 @pytest.mark.parametrize("metade", ("tune", "holdout", "full"), ids=("tune", "holdout", "full"))
 def test_relatorio_nomeia_a_metade_e_traz_a_escala(metade, capsys):
     """No path through the CLI prints recall without its half and its noise
-    floor, `full` included: `REGISTRO`, "Texto movido do código".
+    floor, `full` included: versão longa em `997a6fe^`.
     """
     code = main(["eval", "--dataset", str(EVAL / "dataset_beavertails.json"),
                  "--half", metade])

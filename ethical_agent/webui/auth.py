@@ -19,12 +19,12 @@ from ..ollama_install import (
 
 # Separação de acesso da tela de auditoria: o que este módulo entrega é uma
 # **barreira de papel**, não segurança, e a diferença está escrita para o
-# auditor na tela, no README e no AUDIT_GUIDE — `REGISTRO`, "Texto movido do código".
+# auditor na tela, no README e no AUDIT_GUIDE — versão longa em `997a6fe^`.
 ENV_PASSWORD_VAR = AUDIT_PASSWORD_ENV_VAR
 
 # O nome do cookie de sessão, definido uma vez porque dois módulos precisam do
 # MESMO: renomear um lado não quebraria nada alto, só faria toda requisição
-# depois do login responder 401 — `REGISTRO`, "Texto movido do código".
+# depois do login responder 401 — versão longa em `997a6fe^`.
 AUDIT_SESSION_COOKIE = "ea_audit_session"
 
 # .../ai-ethical-agent -- this file is at webui/auth.py, two packages deep.
@@ -52,7 +52,7 @@ LOCKOUT_SECONDS = 60
 class AuditPasswordError(Exception):
     """Levantada no arranque para fonte de senha que existe e é inutilizável,
     ou para variável remanescente que contradiz a senha em vigor: falhar alto
-    bate subir em silêncio um servidor cuja tela não existe — `REGISTRO`, "Texto movido do código"."""
+    bate subir em silêncio um servidor cuja tela não existe — versão longa em `997a6fe^`."""
 
 
 @dataclass
@@ -71,7 +71,7 @@ def load_audit_password(
     """Devolve (senha, descrição da origem, avisos), com a descrição e os avisos
     seguros de imprimir e a senha nunca — e são **duas** fontes,
     `--audit-password-file` e o `.env`, com a variável de ambiente fora:
-    `REGISTRO`, "Texto movido do código".
+    versão longa em `997a6fe^`.
     """
     env = os.environ if env is None else env
     root = REPO_ROOT if root is None else root

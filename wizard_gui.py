@@ -65,7 +65,7 @@ from ethical_agent.ollama_install import (  # noqa: E402
 # `AUDIT_PASSWORD_ENV_VAR` vem de `ollama_install` porque este instalador roda
 # no Python do *sistema*, antes do pip install, e só pode importar o que um
 # checkout nu oferece — e ele é o único escritor da senha de auditoria em todo
-# o projeto: `REGISTRO`, "Texto movido do código".
+# o projeto: versão longa em `997a6fe^`.
 OLLAMA_PROBE_TIMEOUT = 3.0
 OLLAMA_START_TIMEOUT = 30.0
 
@@ -219,7 +219,7 @@ def _no_launch_env_requested() -> bool:
 def _is_headless() -> bool:
     """Detecção best-effort de ambiente sem humano no teclado, para o caso
     intermediário de um display tecnicamente presente onde abrir uma segunda
-    janela ainda não serve a ninguém: `REGISTRO`, "Texto movido do código".
+    janela ainda não serve a ninguém: versão longa em `997a6fe^`.
     """
     if any(os.environ.get(v) for v in _CI_ENV_VARS):
         return True
@@ -251,12 +251,12 @@ class WizardApp(tk.Tk):
         self.audit_password_var = tk.StringVar(value="")
         # Este instalador DEFINE uma senha de auditoria; nunca troca nem remove uma,
         # porque quem roda um instalador não é necessariamente quem decide quem lê
-        # a trilha: `REGISTRO`, "Texto movido do código".
+        # a trilha: versão longa em `997a6fe^`.
         self.install_ok = False
         self.llm_ready = False
         # Fotografia das escolhas com que a instalação REALMENTE rodou, tirada na
         # thread principal: variável Tk pertence à thread do mainloop, e o botão
-        # Voltar continua habilitado durante a instalação — `REGISTRO`, "Texto movido do código".
+        # Voltar continua habilitado durante a instalação — versão longa em `997a6fe^`.
         self.chosen_want_llm = False
         self.chosen_llm_mode = "local"
         self.chosen_model = DEFAULT_LOCAL_MODEL
@@ -345,7 +345,7 @@ class WizardApp(tk.Tk):
         port = DEFAULT_WEB_PORT
         # O stderr do servidor vai para um arquivo, não `DEVNULL` nem `PIPE`: com
         # `DEVNULL` a recusa de subir parecia lentidão, e um `PIPE` que ninguém drena
-        # congelaria a interface quando o buffer enchesse — `REGISTRO`, "Texto movido do código".
+        # congelaria a interface quando o buffer enchesse — versão longa em `997a6fe^`.
         stderr_path = Path(tempfile.gettempdir()) / f"ethical-agent-serve-{os.getpid()}.log"
         try:
             stderr_file = open(stderr_path, "w", encoding="utf-8")
@@ -445,7 +445,7 @@ def _autowrap(widget: tk.Widget, container: tk.Widget, padding: int = 48) -> Non
 def _mono_font(bold: bool = False) -> object:
     """A fonte fixa que o Tk garante existir no sistema, porque um family fixo
     é um palpite que falha calado — o widget deixa de ser monoespaçado sem
-    nada acusar: `REGISTRO`, "Texto movido do código".
+    nada acusar: versão longa em `997a6fe^`.
     """
     font = tkfont.nametofont("TkFixedFont").copy()
     font.configure(size=10, weight="bold" if bold else "normal")
@@ -524,7 +524,7 @@ class OptionsPage(_Page):
         _autowrap(venv_label, self)
 
         # `ttk` e não `tk`, com rótulo curto: o Checkbutton clássico sai cortado em
-        # escala fracionária e se lê como terceiro estado — `REGISTRO`, "Texto movido do código".
+        # escala fracionária e se lê como terceiro estado — versão longa em `997a6fe^`.
         llm_check = ttk.Checkbutton(
             self,
             text="Configurar `ethical-agent process` com um modelo real via Ollama",
@@ -611,7 +611,7 @@ class OptionsPage(_Page):
         # -- audit screen ---------------------------------------------------
         #
         # Seção própria, fora de `llm_frame`, porque a trilha é escrita em toda
-        # execução: `REGISTRO`, "Texto movido do código".
+        # execução: versão longa em `997a6fe^`.
         audit_frame = tk.Frame(self)
         audit_frame.pack(padx=24, pady=(16, 0), anchor="w", fill="x")
 
@@ -656,12 +656,12 @@ class OptionsPage(_Page):
     def on_show(self) -> None:
         # Re-read on every visit: a página pode ser revisitada com Voltar, e
         # esta tela não fala da variável de ambiente de propósito — quem
-        # recusa é o servidor: `REGISTRO`, "Texto movido do código".
+        # recusa é o servidor: versão longa em `997a6fe^`.
         self._existing_audit_password = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
 
         if self._existing_audit_password:
             # Senha já existente não pode ser trocada daqui, e o campo é desabilitado em
-            # vez de ignorado: `REGISTRO`, "Texto movido do código".
+            # vez de ignorado: versão longa em `997a6fe^`.
             self.audit_entry.config(state="disabled")
             self.app.audit_password_var.set("")
             self.audit_state_label.config(
@@ -720,7 +720,7 @@ class OptionsPage(_Page):
                 )
                 return False
         # Nada sobre a senha bloqueia esta tela: ela define uma onde não há, ou não
-        # faz nada — a variável remanescente é assunto do servidor: `REGISTRO`, "Texto movido do código".
+        # faz nada — a variável remanescente é assunto do servidor: versão longa em `997a6fe^`.
         self.validation_label.config(text="")
         return True
 
@@ -874,7 +874,7 @@ class ProgressPage(_Page):
     def _apply_audit_password(self) -> bool:
         """Define uma senha de auditoria ou deixa a existente em paz; nunca troca
         nem remove, e a imutabilidade é imposta **aqui** e não só no widget:
-        `REGISTRO`, "Texto movido do código".
+        versão longa em `997a6fe^`.
         """
         ja_gravada = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
 
@@ -936,7 +936,7 @@ class ProgressPage(_Page):
         self._phase(PHASE_OLLAMA)
         ollama_exe = find_ollama_exe()
         # Este é o único instante em que "havia um Ollama aqui antes?" é observável, e
-        # é gravado já, não no fim: `REGISTRO`, "Texto movido do código".
+        # é gravado já, não no fim: versão longa em `997a6fe^`.
         write_record(ROOT, InstallRecord(ollama_was_present_before=ollama_exe is not None))
         if ollama_exe is None:
             ollama_exe = self._install_ollama_server()
@@ -980,7 +980,7 @@ class ProgressPage(_Page):
 
     def _start_ollama_server(self, ollama_exe: Path) -> bool:
         """Último recurso antes de degradar: no Windows o Ollama só sobe como
-        item de login, e "instalado mas parado" é o estado usual: `REGISTRO`, "Texto movido do código".
+        item de login, e "instalado mas parado" é o estado usual: versão longa em `997a6fe^`.
         """
         self._queue.put(
             "O servidor não respondeu -- tentando iniciar `ollama serve` em segundo plano...\n"

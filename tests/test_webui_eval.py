@@ -31,7 +31,7 @@ def test_eval_happy_path(server):
 
 def test_eval_names_the_half_and_carries_the_noise_floor(server):
     """A regra de relatório alcança a tela de auditoria, não só a CLI: `full`
-    é uma metade como outra qualquer e tem de se nomear: `REGISTRO`, "Texto movido do código".
+    é uma metade como outra qualquer e tem de se nomear: versão longa em `997a6fe^`.
     """
     status, body, _ = server.post("/api/eval", {"dataset": REAL_DATASET, "config": {}})
     assert status == 200
@@ -79,7 +79,7 @@ def test_eval_never_writes_to_audit_log_even_if_config_has_one(server):
 
 # O caminho do dataset é confinado: antes, qualquer JSON com um array
 # "cases" era legível, e as mensagens distinguiam os erros — um oráculo de
-# arquivos: `REGISTRO`, "Texto movido do código".
+# arquivos: versão longa em `997a6fe^`.
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 """As ferramentas do avaliador não **existem** sem sessão, e não apenas são
 recusadas — 401 confirma que o endpoint está lá, e 405 confirma ainda mais.
 A distinção contra `/api/audit/*`, que responde 401, é deliberada e também
-testada aqui: `REGISTRO`, "Texto movido do código".
+testada aqui: versão longa em `997a6fe^`.
 """
 
 from __future__ import annotations

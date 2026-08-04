@@ -59,7 +59,7 @@ def test_the_disabled_branch_still_looks_inert_in_both_unknown_and_false(nav):
 def test_every_screen_renders_the_nav_before_it_knows_and_again_after():
     # A primeira chamada renderiza o estado desconhecido e a segunda traz a
     # resposta; perder qualquer uma é como a nav volta a mentir. A primeira pode
-    # trazer `sessionActive`, nunca `auditEnabled`: `REGISTRO`, "Texto movido do código".
+    # trazer `sessionActive`, nunca `auditEnabled`: versão longa em `997a6fe^`.
     for name in SCREENS:
         source = (STATIC_JS / name).read_text(encoding="utf-8")
         calls = re.findall(r"renderNav\(els\.nav,[^)]*\)", source)

@@ -6,7 +6,7 @@ from typing import Callable, List, Optional, Pattern, Tuple
 
 # Populado no import pelos decoradores `@route`, e uma rota pode declarar um
 # `realm`: grupo nomeado que só existe quando o servidor subiu com a
-# configuração daquele realm — `REGISTRO`, "Texto movido do código".
+# configuração daquele realm — versão longa em `997a6fe^`.
 ROUTES: List["Route"] = []
 
 _PARAM_RE = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -50,7 +50,7 @@ def route(
 ):
     """Decorador que registra um handler; `realm` nomeia o portão de
     configuração e `requires_session` faz o dispatcher recusar centralmente,
-    para que um handler novo não possa esquecer de conferir: `REGISTRO`, "Texto movido do código".
+    para que um handler novo não possa esquecer de conferir: versão longa em `997a6fe^`.
     """
     pattern = _compile_pattern(path)
 
@@ -78,7 +78,7 @@ def match(
 ) -> Tuple[Optional["Route"], Optional[dict], bool]:
     """Devolve (rota, params, path_known), com `path_known` distinguindo 404 de
     405; `realm_enabled` e `has_session` são injetados para que o roteador
-    seja testável direto: `REGISTRO`, "Texto movido do código".
+    seja testável direto: versão longa em `997a6fe^`.
     """
     path_known = False
     for candidate in ROUTES:

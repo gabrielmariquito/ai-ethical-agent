@@ -99,7 +99,7 @@ def test_blocked_input_never_reaches_output_stage_or_calls_the_model(server):
 def test_response_field_is_suppressed_when_output_is_redacted(server):
     # Regressão de um vazamento real: `AgentResult.response` não é suprimido por
     # `agent.py` numa REWRITE com `redact:true`, e sem o conserto o "Copiar
-    # registro" devolveria o e-mail que R-PRIV-002 existe para esconder: `REGISTRO`, "Texto movido do código".
+    # registro" devolveria o e-mail que R-PRIV-002 existe para esconder: versão longa em `997a6fe^`.
     _, conv, _ = server.post("/api/chat/new")
     cid = conv["conversation_id"]
     job = server.send_chat_message(cid, "What is the support contact?")
@@ -146,7 +146,7 @@ def test_utf8_roundtrip_through_audit_log(server):
 def test_two_visible_phases_when_the_model_call_is_slow(server, monkeypatch):
     # Com motor de regras e LLM de mentira, a thread de fundo pode passar direto
     # por "generating" e "verifying" antes do primeiro poll; segurar as duas fases
-    # exercita as transições reais e as torna observáveis: `REGISTRO`, "Texto movido do código".
+    # exercita as transições reais e as torna observáveis: versão longa em `997a6fe^`.
     state = server.server.state
     original_set_phase = state.jobs.set_phase
 
@@ -193,7 +193,7 @@ def test_history_and_audit_are_written_before_response_formatting_can_fail(serve
 
     # Apesar de o job terminar em erro, `agent.process()` já rodou inteiro e já
     # gravou o registro, então tudo isso tem de sobreviver a `turn_result_to_dict`
-    # explodir: `REGISTRO`, "Texto movido do código".
+    # explodir: versão longa em `997a6fe^`.
     _, conv_status, _ = server.get(f"/api/chat/conversations/{cid}")
     assert conv_status == {"exists": True, "turn_count": 1}
 

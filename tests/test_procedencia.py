@@ -1,6 +1,6 @@
 """Procedência da configuração, guardando a diferença entre **versão
 declarada** e **digest do arquivo** — e `test_config_id_muda_sem_bump_de_versao`
-é o único que justifica o digest existir, logo o que não pode sair: `REGISTRO`, "Texto movido do código".
+é o único que justifica o digest existir, logo o que não pode sair: versão longa em `997a6fe^`.
 """
 import json
 import shutil
@@ -71,7 +71,7 @@ def test_os_quatro_papeis_vem_do_codigo_que_carrega(caminhos):
 
 def test_o_ttl_nao_declara_versao_e_so_o_digest_o_identifica(caminhos):
     # `relaieo.ttl` é upstream vendorizado sem versão declarada: é o caso mais
-    # limpo da assimetria, porque sem digest não teria identidade nenhuma: `REGISTRO`, "Texto movido do código".
+    # limpo da assimetria, porque sem digest não teria identidade nenhuma: versão longa em `997a6fe^`.
     configuration = build_configuration(_motor(caminhos))
     ttl = next(a for a in configuration["artifacts"] if a["role"] == "ontology_ttl")
     assert ttl["version"] is None
@@ -101,7 +101,7 @@ def test_config_id_identico_em_duas_execucoes(caminhos):
 @pytest.mark.parametrize("role", sorted(ROLES_ESPERADOS))
 def test_config_id_muda_quando_qualquer_artefato_muda(caminhos, role):
     # A edição é só espaço em branco no fim, de propósito: sensibilidade a byte
-    # e não a campo, que é a forma mais forte da afirmação: `REGISTRO`, "Texto movido do código".
+    # e não a campo, que é a forma mais forte da afirmação: versão longa em `997a6fe^`.
     antes = build_configuration(_motor(caminhos))["config_id"]
     alvo = caminhos[role]
     alvo.write_text(alvo.read_text(encoding="utf-8") + "\n", encoding="utf-8")
@@ -151,7 +151,7 @@ def test_path_omitido_da_digest_vazio_e_mantem_versao_declarada():
 
 def test_o_caminho_nao_entra_no_config_id(caminhos, tmp_path):
     # Path é ambiente, não regra: duas cópias idênticas em diretórios diferentes
-    # têm de dar o mesmo `config_id`: `REGISTRO`, "Texto movido do código".
+    # têm de dar o mesmo `config_id`: versão longa em `997a6fe^`.
     outro = _copiar_config(tmp_path / "outro-lugar")
     assert caminhos["policy"] != outro["policy"]
     assert (build_configuration(_motor(caminhos))["config_id"]

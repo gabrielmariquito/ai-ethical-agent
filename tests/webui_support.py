@@ -1,6 +1,6 @@
 """Helpers compartilhados dos `test_webui_*`, sem prefixo `test_` para o
 pytest não coletar, que sobem um servidor real em porta efêmera e falam HTTP
-de verdade em vez de importar handlers: `REGISTRO`, "Texto movido do código".
+de verdade em vez de importar handlers: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 

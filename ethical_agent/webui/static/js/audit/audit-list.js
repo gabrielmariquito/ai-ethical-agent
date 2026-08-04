@@ -1,5 +1,5 @@
 // A lista de registros, que não pode fazer DENY e REWRITE parecerem iguais
-// nem esconder o custo do próprio filtro — REGISTRO, "Texto movido do código".
+// nem esconder o custo do próprio filtro — versão longa em `997a6fe^`.
 
 import { getJSON } from "../api.js";
 import { gravityLabel, kindLabel, formatTimestamp } from "./audit-layers.js";

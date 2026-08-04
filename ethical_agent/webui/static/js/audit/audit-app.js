@@ -1,5 +1,5 @@
 // Ponto de entrada da tela de auditoria, com duas visões numa página: a
-// casca de login e a tela propriamente — REGISTRO, "Texto movido do código".
+// casca de login e a tela propriamente — versão longa em `997a6fe^`.
 
 import { getJSON, showErrorBanner } from "../api.js";
 import { renderNav } from "../nav.js";

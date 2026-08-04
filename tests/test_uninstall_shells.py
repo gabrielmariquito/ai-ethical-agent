@@ -1,6 +1,6 @@
 """As duas cascas do desinstalador: `uninstall.py` é importado e dirigido de
 verdade, e `uninstall_gui.py` mantém a técnica de texto-fonte porque precisa
-de tkinter — e nenhum teste aqui passa a raiz real do repositório: `REGISTRO`, "Texto movido do código".
+de tkinter — e nenhum teste aqui passa a raiz real do repositório: versão longa em `997a6fe^`.
 """
 
 import json
@@ -197,7 +197,7 @@ def test_move_logs_to_implies_remove_logs_and_moves_instead_of_deleting(tmp_path
 def test_main_exits_nonzero_when_something_failed(tmp_path, monkeypatch, capsys):
     # `execute()` resolve `remove_path` do namespace do módulo em tempo de
     # chamada; o que se assevera aqui é que a casca expõe a falha como código
-    # de saída e texto legível: `REGISTRO`, "Texto movido do código".
+    # de saída e texto legível: versão longa em `997a6fe^`.
     import ethical_agent.uninstall as lib
 
     root = _make_root(tmp_path)
@@ -346,7 +346,7 @@ def test_removing_env_while_keeping_the_model_prints_how_to_remove_it_later(tmp_
 @pytest.fixture
 def dispatch(monkeypatch):
     """Espiões para os dois destinos de `run()`, que só decide para onde ir —
-    substituir `main()` impede que estes testes montem um plano de verdade: `REGISTRO`, "Texto movido do código".
+    substituir `main()` impede que estes testes montem um plano de verdade: versão longa em `997a6fe^`.
     """
 
     class Spy:
@@ -440,7 +440,7 @@ def test_graphical_detection_reuses_the_wizards_headless_check():
 def test_importing_the_entry_point_never_imports_tkinter():
     # O ponto mais frágil desta mudança: se o import de tkinter subir para o
     # topo, o modo texto passa a exigir Tk e o caminho de volta deixa de
-    # existir. Roda em subprocesso por isso: `REGISTRO`, "Texto movido do código".
+    # existir. Roda em subprocesso por isso: versão longa em `997a6fe^`.
     repo_root = Path(__file__).resolve().parent.parent
     proc = subprocess.run(
         [sys.executable, "-c",
@@ -491,7 +491,7 @@ def test_gui_disables_bytecode_writing_before_importing_the_package():
 def test_gui_options_all_start_unchecked():
     # O requisito central da tela de opções — nada é removido porque a pessoa
     # não olhou —, dito como "nenhuma começa marcada" e não como contagem:
-    # `REGISTRO`, "Texto movido do código".
+    # versão longa em `997a6fe^`.
     assert "tk.BooleanVar(value=True)" not in GUI_SOURCE
     assert "tk.BooleanVar(value=False)" in GUI_SOURCE
     # Every BooleanVar in the file is explicitly initialised: a bare
@@ -537,7 +537,7 @@ def test_gui_warns_about_running_services_before_removing():
 
 def test_gui_grades_the_warnings_instead_of_painting_them_all_red():
     # Os três não são equivalentes, e num vermelho uniforme o olho tratava
-    # todos como igualmente graves e pulava os três: `REGISTRO`, "Texto movido do código".
+    # todos como igualmente graves e pulava os três: versão longa em `997a6fe^`.
     assert "SEVERITY_FG" in GUI_SOURCE
     poll = GUI_SOURCE[
         GUI_SOURCE.index("def _poll", GUI_SOURCE.index("class WelcomePage")) :
@@ -555,7 +555,7 @@ def test_gui_shows_the_stop_commands_as_a_block_it_can_copy():
     assert "stop_note" in GUI_SOURCE, "a prosa dos comandos tem função própria"
     assert "clipboard_append" in GUI_SOURCE
     # Família fixa é um palpite que falha em silêncio — o Tk cai para a
-    # proporcional e o bloco deixa de ser monoespaçado sem avisar: `REGISTRO`, "Texto movido do código".
+    # proporcional e o bloco deixa de ser monoespaçado sem avisar: versão longa em `997a6fe^`.
     assert "_mono_font()" in GUI_SOURCE
     assert '("Menlo"' not in GUI_SOURCE
     wizard = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(
@@ -571,7 +571,7 @@ def test_gui_reuses_the_wizards_helpers_instead_of_copying_them():
 
 def test_gui_reads_the_options_on_the_main_thread_not_in_the_worker():
     # Ler um `BooleanVar` da thread de trabalho levanta "main thread is not in
-    # main loop", e isto falhou assim de verdade: `REGISTRO`, "Texto movido do código".
+    # main loop", e isto falhou assim de verdade: versão longa em `997a6fe^`.
     assert "self.app.executed_choices = self.app.choices()" in GUI_SOURCE
     run_body = GUI_SOURCE[GUI_SOURCE.index("    def _run(self)") :]
     run_body = run_body[: run_body.index("    def _poll")]

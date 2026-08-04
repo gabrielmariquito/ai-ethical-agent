@@ -60,7 +60,7 @@ _SEVERITY_RANK = {
 # O vocabulário fechado de princípios que uma regra ou norma pode reivindicar,
 # VERIFICADO e não apenas declarado; `beneficence` está reservado de propósito,
 # e isto **não** se aplica aos datasets de avaliação, cujo campo `principle` é
-# outro vocabulário com o mesmo nome — `REGISTRO`, "Texto movido do código".
+# outro vocabulário com o mesmo nome — versão longa em `997a6fe^`.
 KNOWN_PRINCIPLES = frozenset(
     {
         "non_maleficence",
@@ -194,7 +194,7 @@ class Verdict:
     def suppresses_raw_content(self) -> bool:
         """Verdadeiro quando esta REWRITE veio (ao menos em parte) de uma regra
         `redact`, e nesse caso o conteúdo bruto anterior nunca pode ser retido
-        em lugar nenhum — redação é pegajosa e vence: `REGISTRO`, "Texto movido do código".
+        em lugar nenhum — redação é pegajosa e vence: versão longa em `997a6fe^`.
         """
         return self.decision is Decision.REWRITE and any(
             m.redacted for m in self.matches

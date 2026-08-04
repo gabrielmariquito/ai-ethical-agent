@@ -1,6 +1,6 @@
 """Cobertura de regressão do `UnicodeEncodeError` sob cp1252, forçado via
 `PYTHONIOENCODING` num subprocesso porque o ambiente normal do pytest nunca
-reproduz a condição: `REGISTRO`, "Texto movido do código".
+reproduz a condição: versão longa em `997a6fe^`.
 """
 from __future__ import annotations
 
