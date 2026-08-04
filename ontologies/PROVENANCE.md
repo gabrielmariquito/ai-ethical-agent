@@ -51,3 +51,46 @@ reference its concept IDs:
 Keeping these separate means the professor's ontology stays authoritative and
 re-syncable, while our text-grounding and enforcement decisions evolve
 independently.
+
+## harm_taxonomy.ttl + harm_grounding.json + harm_norms.json — **ours, not upstream**
+
+Added 2026-08-04. These three files are **authored here**. Neither RelAIEO's
+authors nor its GPL v3 licence apply to them; the loader keeps their metadata
+separate from RelAIEO's for exactly that reason (`relaieo._METADATA_DANO`), and
+every concept carries the source it came from (`Concept.source`, `"relaieo"` or
+`"harm"`).
+
+**Why the taxonomy did not fit RelAIEO's vocabulary.** Measured, not assumed:
+of RelAIEO's 154 classes, **none** names violence, weapons, theft, drugs,
+self-harm, sexual content, extremism or intrusion. The complete list of its
+harm-bearing concepts is `bias`, `censorship`, `defamation`, `deskilling`,
+`dishonest_anthropomorphism`, `exclusionary_norm`, `hate_speech`, `inaccuracy`,
+`inequality`, `information_disorder`, `surveillance`, `threat_to_privacy`,
+`weakening_of_democracy`, plus the `ethics_manipulation` family and three
+umbrellas. Over the `tune` half of the external benchmarks, **106 of 198 DENY
+cases fall in a category RelAIEO does not name**.
+
+**This is not a gap in RelAIEO.** It is a gap of fit between RelAIEO and this
+task. RelAIEO is a reflective instrument for auditing *systems being designed*;
+these benchmarks are *content* produced by an assistant. The two are different
+objects, and the honest response is a second vocabulary beside the first, not a
+stretched reading of the first.
+
+**How the two connect without touching the vendored file.** Where one of our
+concepts specialises a RelAIEO one, its `rdfs:subClassOf` names the RelAIEO id
+directly — `:targeted_surveillance rdfs:subClassOf :surveillance`. Relation
+endpoints are validated against the **union** of both sources, so the link
+resolves and activation propagates into RelAIEO's hierarchy with **zero edits**
+to `relaieo.ttl`. Five of our twelve concepts have a RelAIEO parent; seven do
+not, and that proportion is what sizes the gap.
+
+**Why our norms drop `design`.** Five of RelAIEO's six norms require the
+`design` concept — an intent to *build* a system. An assistant answer that
+explains how to follow someone mentions building nothing, so those norms never
+fired on it: that is the measured cause of a 0.0615 recall on BeaverTails.
+Our norms act on **content** and therefore do not require `design`. The six
+RelAIEO norms are untouched, `design` and all.
+
+`harm_taxonomy.ttl` declares **no version**, like `relaieo.ttl`: the format does
+not carry one. For both, the sha256 in `configuration.artifacts[]` is the only
+identity they have.

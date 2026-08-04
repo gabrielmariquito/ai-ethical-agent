@@ -1,0 +1,117 @@
+# Taxonomia de dano de conteúdo — NOSSA, não upstream.
+#
+# O RelAIEO não nomeia dano de conteúdo: das suas 154 classes, nenhuma cobre
+# violência, arma, roubo, droga, auto-dano, conteúdo sexual, extremismo ou
+# intrusão. Isso é coerente com o que ele é -- um instrumento reflexivo de
+# auditoria de sistemas em projeto -- e não é lacuna dele. É lacuna de ajuste
+# entre ele e a tarefa, medida em MINERACAO-tune-2026-08-03.md: 106 dos 198
+# casos DENY da metade `tune` caem em categoria que o RelAIEO não nomeia.
+#
+# `relaieo.ttl` é vendorizado verbatim sob GPL v3 e NÃO SE TOCA (PROVENANCE.md).
+# Este arquivo é carregado ao lado dele, com origem declarada em cada conceito
+# (`Concept.source == "harm"`). Onde um conceito de dano é especialização de um
+# conceito RelAIEO, o `rdfs:subClassOf` aponta para lá e a ativação propaga --
+# a união acontece em `relaieo.load_relaieo`, sem editar o arquivo emprestado.
+# Cinco dos doze conceitos abaixo têm pai no RelAIEO; sete não têm, e é essa
+# proporção que dimensiona a lacuna.
+#
+# NOTA SOBRE O PREFIXO: o parser desta casa deriva o id do conceito só da forma
+# `:nome` (prefixo default). O `@prefix` abaixo é declarado para leitor humano e
+# para ferramenta RDF externa; o parser o ignora. Prefixo próprio (`harm:x`)
+# seria descartado em silêncio.
+#
+# Sem versão declarada: o formato não a carrega. O digest é a única identidade,
+# como no `ontology_ttl` -- ver Ontology._CHAVE_DE_VERSAO.
+
+@prefix : <https://ai-ethical-agent.local/harm#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+###  Raiz da taxonomia autoral.
+:content_harm rdf:type owl:Class ;
+    rdfs:label "Content harm" ;
+    rdfs:comment "Dano que está no conteúdo do texto -- no que ele entrega, ensina ou expõe -- e não no sistema que o produziu. Raiz separada da raiz do RelAIEO porque o RelAIEO fala de risco de sistema em projeto, não de conteúdo nocivo." .
+
+
+###  ---- Com pai no RelAIEO: a ativação propaga para lá ----
+
+:targeted_surveillance rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:subClassOf :surveillance ;
+    rdfs:label "Targeted surveillance of a person" ;
+    rdfs:comment "Entregar meio de vigiar, seguir, localizar ou monitorar uma pessoa específica sem que ela saiba. Distingue-se de :surveillance do RelAIEO, que fala do sistema que vigia; aqui o dano é a resposta que ensina a vigiar." ;
+    rdfs:provocation "Quem é a pessoa vigiada nesta resposta, e ela teria como saber que foi?" .
+
+:personal_data_exposure rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:subClassOf :threat_to_privacy ;
+    rdfs:label "Exposure of a person's contact or location data" ;
+    rdfs:comment "Entregar endereço residencial, telefone ou outro dado de contato de indivíduo identificável." ;
+    rdfs:provocation "A pessoa cujo dado aparece aqui consentiu em ser localizável por quem lê?" .
+
+:demeaning_speech rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:subClassOf :hate_speech ;
+    rdfs:label "Demeaning speech produced on request" ;
+    rdfs:comment "Produzir insulto ou termo depreciativo sob encomenda. Mais largo que :hate_speech do RelAIEO, que exige grupo protegido: aqui o alvo pode ser um indivíduo." ;
+    rdfs:provocation "O alvo do insulto é uma pessoa concreta, e o texto foi pedido para atingi-la?" .
+
+:dehumanising_stereotype rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:subClassOf :bias ;
+    rdfs:label "Dehumanising stereotype asserted as fact" ;
+    rdfs:comment "Afirmar inferioridade racial, genética ou social como explicação. Especializa :bias do RelAIEO, que fala de viés sistêmico do modelo, para a asserção explícita no texto." ;
+    rdfs:provocation "A afirmação é apresentada como fato sobre um grupo inteiro?" .
+
+:instrumental_deception rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:subClassOf :information_disorder ;
+    rdfs:label "Deception as a means to an end" ;
+    rdfs:comment "Mentira instrumental ou manipulação de pessoa para obter algo dela." ;
+    rdfs:provocation "Quem é enganado nesta resposta, e o que perde por isso?" .
+
+
+###  ---- Sem conceito correspondente no RelAIEO ----
+
+:physical_violence rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:label "Physical violence against a person" ;
+    rdfs:comment "Método de ferir ou matar pessoa." ;
+    rdfs:provocation "A resposta descreve um método, ou fala sobre violência sem ensiná-la?" .
+
+:weapon_making rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:label "Weapon and explosive making" ;
+    rdfs:comment "Fabricação, obtenção ou uso de arma de fogo e explosivo." ;
+    rdfs:provocation "O que a resposta entrega que uma busca comum não entregaria?" .
+
+:system_intrusion rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:label "Intrusion into someone else's account or system" ;
+    rdfs:comment "Invadir conta, quebrar senha, instalar registrador de teclas ou distribuir código malicioso." ;
+    rdfs:provocation "De quem é o sistema invadido, e essa pessoa é parte da conversa?" .
+
+:theft rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:label "Theft, robbery and burglary" ;
+    rdfs:comment "Furto, roubo, arrombamento e fraude patrimonial." ;
+    rdfs:provocation "A resposta descreve como fazer, ou por que não fazer?" .
+
+:extremist_affiliation rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:label "Affiliation with an extremist group" ;
+    rdfs:comment "Filiação, recrutamento ou apoio a grupo extremista violento." ;
+    rdfs:provocation "A resposta trata o grupo como opção legítima?" .
+
+:arson rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:label "Arson and property destruction by fire" ;
+    rdfs:comment "Incêndio criminoso e destruição de propriedade pelo fogo." ;
+    rdfs:provocation "Há pessoas no lugar que a resposta manda queimar?" .
+
+:illicit_drug_use rdf:type owl:Class ;
+    rdfs:subClassOf :content_harm ;
+    rdfs:label "Illicit drug acquisition and administration" ;
+    rdfs:comment "Obtenção ou administração de droga ilícita." ;
+    rdfs:provocation "A resposta é de redução de danos, ou de aquisição?" .

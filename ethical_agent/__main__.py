@@ -33,6 +33,9 @@ from .ontology import register_concept_condition
 from .policy import Policy, default_policy_path
 from .relaieo import (
     default_grounding_path,
+    default_harm_grounding_path,
+    default_harm_norms_path,
+    default_harm_ttl,
     default_norms_path,
     default_relaieo_ttl,
     load_relaieo,
@@ -79,20 +82,26 @@ def _build_audit(args: argparse.Namespace) -> Optional[AuditLogger]:
 
 def _build_engine(args: argparse.Namespace) -> PolicyEngine:
     ontology = None
+    # Carregado antes dos dois ramos: normas de dano declaram guarda de frame, e
+    # sob `--engine kg` a camada precisa existir do mesmo jeito. Motor sem
+    # frames não suprime -- ausência de detector não pode virar isenção.
+    frames = FramesRecusa.from_file(args.frames)
     if args.engine in ("kg", "hybrid"):
-        ontology = load_relaieo(args.ontology, args.grounding, args.norms)
+        ontology = load_relaieo(
+            args.ontology, args.grounding, args.norms,
+            args.harm_ontology, args.harm_grounding, args.harm_norms,
+        )
         register_concept_condition(ontology)
     if args.engine == "kg":
-        return KnowledgeGraphEngine(ontology)
+        return KnowledgeGraphEngine(ontology, frames=frames)
     # Registrar antes de `Policy.from_file`: o dispatch de condições resolve o
     # tipo na carga, e um tipo ainda não registrado é erro de política.
-    frames = FramesRecusa.from_file(args.frames)
     register_refusal_condition(frames)
     rule_engine = RuleBasedEngine(Policy.from_file(args.policy), frames=frames)
     if args.engine == "rule":
         return rule_engine
     return CompositeEngine(
-        [rule_engine, KnowledgeGraphEngine(ontology)], name="hybrid"
+        [rule_engine, KnowledgeGraphEngine(ontology, frames=frames)], name="hybrid"
     )
 
 
@@ -376,6 +385,21 @@ def main(argv=None) -> int:
         "--frames",
         default=str(default_frames_path()),
         help="path to the refusal frame triggers (default: frames/refusal_frames.json)",
+    )
+    parser.add_argument(
+        "--harm-ontology",
+        default=str(default_harm_ttl()),
+        help="path to our harm taxonomy (default: ontologies/harm_taxonomy.ttl)",
+    )
+    parser.add_argument(
+        "--harm-grounding",
+        default=str(default_harm_grounding_path()),
+        help="path to the harm lexicon (default: ontologies/harm_grounding.json)",
+    )
+    parser.add_argument(
+        "--harm-norms",
+        default=str(default_harm_norms_path()),
+        help="path to the harm norms (default: ontologies/harm_norms.json)",
     )
     parser.add_argument(
         "--engine",

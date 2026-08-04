@@ -19,10 +19,74 @@ _VALID_DEONTICS = {"prohibition", "obligation"}
 MAX_GROUND_EVIDENCE = 10
 
 
+# Guardas de frame que uma norma pode declarar. Uma só hoje, e a lista existe
+# para que declarar uma inexistente seja erro de carga em vez de guarda que
+# nunca dispara.
+GUARDAS_DE_FRAME = ("recusa",)
+
+# Fonte da qual um conceito veio. Ver `Concept.source`.
+FONTE_RELAIEO = "relaieo"
+FONTE_DANO = "harm"
+
+
 class OntologyError(ValueError):
     def __init__(self, errors: List[str]):
         self.errors = errors
         super().__init__("invalid ontology:\n" + "\n".join(f"- {e}" for e in errors))
+
+
+def _fonte_provavel(ref: str, concepts: dict) -> str:
+    """Sufixo de diagnóstico dizendo em que fontes o id **não** está.
+
+    A ontologia é a união de duas fontes e `from_dict` já recebe tudo achatado;
+    sem isto, "unknown concept 'x'" não diz se o autor errou o nome ou esqueceu
+    de declarar o conceito no arquivo da taxonomia.
+    """
+    fontes = sorted({c.source for c in concepts.values() if c.source})
+    if not fontes:
+        return ""
+    return f" (não está em nenhuma das fontes carregadas: {', '.join(fontes)})"
+
+
+def _erros_de_guarda_de_frame(norm_id, raw, when, unless_frame, scopes, concepts) -> List[str]:
+    """`H-1` e `H-2`: a guarda de frame é declarada, e prende a norma à saída.
+
+    `H-1` existe pelo mesmo motivo que `policy.py` recusa `suppressed_effect`
+    sem `exceptions`: sem obrigar a declaração, uma norma de dano **sem** guarda
+    é indistinguível de uma norma de dano cujo autor não pensou no assunto, e a
+    escolha some do arquivo que o auditor lê.
+
+    `H-2` prende a guarda à saída. Aqui a prisão **não** é por impossibilidade
+    técnica -- o motor do grafo enxerga o `stage` (`kg_engine.evaluate`), ao
+    contrário de uma `Condition`, que só recebe texto. É para que a escolha
+    fique legível no arquivo em vez de implícita no motor, e porque uma norma de
+    dano com guarda de recusa valendo na entrada isentaria "I'm sorry, how do I
+    stalk her" -- a porta que `policy._erros_de_frame` fechou do outro lado.
+    """
+    errors: List[str] = []
+
+    if unless_frame is not None and unless_frame not in GUARDAS_DE_FRAME:
+        errors.append(
+            f"{norm_id}: unknown frame guard {unless_frame!r}, "
+            f"expected one of {sorted(GUARDAS_DE_FRAME)} or null"
+        )
+
+    de_dano = [ref for ref in when
+               if ref in concepts and concepts[ref].source == FONTE_DANO]
+    if de_dano and "unless_frame" not in raw:
+        errors.append(
+            f"{norm_id}: norm over harm concept(s) {sorted(de_dano)} must declare "
+            f"'unless_frame' explicitly (\"recusa\" or null) -- an undeclared guard "
+            f"is indistinguishable from an unconsidered one"
+        )
+
+    if unless_frame is not None and scopes and scopes != {Stage.OUTPUT}:
+        errors.append(
+            f"{norm_id}: 'unless_frame' requires scopes exactly ['output']; "
+            f"got {sorted(s.value for s in scopes)}"
+        )
+
+    return errors
 
 
 @dataclass(frozen=True)
@@ -40,6 +104,12 @@ class Concept:
     provocation: str = ""
     references: list = field(default_factory=list)
     terms: List[Lexicalization] = field(default_factory=list)
+    # De qual fonte este conceito veio: "relaieo" (upstream vendorizado) ou
+    # "harm" (nossa taxonomia). A ontologia é montada da união de duas fontes e
+    # `from_dict` recebe um dicionário já achatado, então a origem tem de viajar
+    # com o conceito -- é ela que permite dizer de onde veio um id desconhecido,
+    # e é ela que a validação `H-1` consulta para exigir guarda declarada.
+    source: str = ""
     _patterns: list = field(default_factory=list, repr=False)
 
     def compile(self) -> None:
@@ -92,6 +162,11 @@ class Norm:
     scopes: frozenset
     when: List[str]
     unless: List[str] = field(default_factory=list)
+    # Guarda de frame, **declarada e nunca inferida** -- mesma doutrina de
+    # `suppressed_effect`: uma norma que não declara guarda diz que não declara,
+    # em vez de herdar uma que ninguém escreveu. `None` é "sem guarda", e para
+    # norma de dano é escolha escrita, não omissão (validação `H-1`).
+    unless_frame: Optional[str] = None
     description: str = ""
     rationale: str = ""
     references: list = field(default_factory=list)
@@ -126,6 +201,13 @@ class Ontology:
         "grounding": "grounding_version",
         "norms": "norms_version",
         "ontology_ttl": None,
+        # A taxonomia de dano é nossa, mas o TTL segue sem versão declarada pelo
+        # mesmo motivo que o upstream: o formato não a carrega. Para os dois, o
+        # digest é a única identidade. Papel não registrado aqui cairia no
+        # fallback "version" e reportaria `None` em silêncio.
+        "harm_ttl": None,
+        "harm_grounding": "harm_grounding_version",
+        "harm_norms": "harm_norms_version",
     }
 
     def config_artifacts(self) -> List["ConfigArtifact"]:
@@ -176,6 +258,7 @@ class Ontology:
                 provocation=raw.get("provocation", ""),
                 references=list(raw.get("references", [])),
                 terms=terms,
+                source=raw.get("source", ""),
             )
 
         relations: List[Relation] = []
@@ -243,7 +326,13 @@ class Ontology:
             unless = list(raw.get("unless", []))
             for ref in when + unless:
                 if ref not in concepts:
-                    errors.append(f"{norm_id}: unknown concept {ref!r}")
+                    fonte = _fonte_provavel(ref, concepts)
+                    errors.append(f"{norm_id}: unknown concept {ref!r}{fonte}")
+
+            unless_frame = raw.get("unless_frame")
+            errors.extend(
+                _erros_de_guarda_de_frame(norm_id, raw, when, unless_frame, scopes, concepts)
+            )
 
             norms.append(
                 Norm(
@@ -255,6 +344,7 @@ class Ontology:
                     scopes=frozenset(scopes),
                     when=when,
                     unless=unless,
+                    unless_frame=unless_frame,
                     description=raw.get("description", ""),
                     rationale=raw.get("rationale", ""),
                     references=list(raw.get("references", [])),

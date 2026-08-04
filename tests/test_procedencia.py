@@ -19,13 +19,19 @@ from ethical_agent.frames import FramesRecusa, default_frames_path
 from ethical_agent.provenance import CONFIG_ID_RECIPE, build_configuration
 from ethical_agent.relaieo import (
     default_grounding_path,
+    default_harm_grounding_path,
+    default_harm_norms_path,
+    default_harm_ttl,
     default_norms_path,
     default_relaieo_ttl,
     load_relaieo,
 )
 
 
-ROLES_ESPERADOS = {"policy", "ontology_ttl", "grounding", "norms", "frames_refusal"}
+ROLES_ESPERADOS = {
+    "policy", "ontology_ttl", "grounding", "norms", "frames_refusal",
+    "harm_ttl", "harm_grounding", "harm_norms",
+}
 
 
 def _copiar_config(tmp_path):
@@ -39,6 +45,9 @@ def _copiar_config(tmp_path):
         "grounding": default_grounding_path(),
         "norms": default_norms_path(),
         "frames_refusal": default_frames_path(),
+        "harm_ttl": default_harm_ttl(),
+        "harm_grounding": default_harm_grounding_path(),
+        "harm_norms": default_harm_norms_path(),
     }
     saida = {}
     for role, origem in caminhos.items():
@@ -52,7 +61,8 @@ def _motor(caminhos):
     frames = FramesRecusa.from_file(caminhos["frames_refusal"])
     rule = RuleBasedEngine(Policy.from_file(caminhos["policy"]), frames=frames)
     ontology = load_relaieo(
-        caminhos["ontology_ttl"], caminhos["grounding"], caminhos["norms"]
+        caminhos["ontology_ttl"], caminhos["grounding"], caminhos["norms"],
+        caminhos["harm_ttl"], caminhos["harm_grounding"], caminhos["harm_norms"],
     )
     return CompositeEngine([rule, KnowledgeGraphEngine(ontology)], name="hybrid")
 

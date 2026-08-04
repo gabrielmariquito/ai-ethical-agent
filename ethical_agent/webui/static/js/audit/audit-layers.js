@@ -383,6 +383,9 @@ const ROLE_LABELS = {
   grounding: "léxico de ancoragem",
   norms: "normas de verificação",
   frames_refusal: "gatilhos de recusa (camada de frames)",
+  harm_ttl: "taxonomia de dano (nossa)",
+  harm_grounding: "léxico de dano",
+  harm_norms: "normas de dano",
 };
 
 // A tabela que responde "quais arquivos governaram esta decisão", com versão

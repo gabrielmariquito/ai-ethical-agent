@@ -19,6 +19,11 @@ from ethical_agent.frames import (
     default_frames_path,
     register_refusal_condition,
 )
+from ethical_agent.relaieo import (
+    default_harm_grounding_path,
+    default_harm_norms_path,
+    default_harm_ttl,
+)
 
 from .state import _WebAuditLogger
 
@@ -30,17 +35,22 @@ def build_engine(
     policy_path, ontology_path, grounding_path, norms_path, engine_kind, frames_path=None
 ):
     ontology = None
+    frames = FramesRecusa.from_file(frames_path or default_frames_path())
     if engine_kind in ("kg", "hybrid"):
-        ontology = load_relaieo(ontology_path, grounding_path, norms_path)
+        ontology = load_relaieo(
+            ontology_path, grounding_path, norms_path,
+            default_harm_ttl(), default_harm_grounding_path(), default_harm_norms_path(),
+        )
         register_concept_condition(ontology)
     if engine_kind == "kg":
-        return KnowledgeGraphEngine(ontology)
-    frames = FramesRecusa.from_file(frames_path or default_frames_path())
+        return KnowledgeGraphEngine(ontology, frames=frames)
     register_refusal_condition(frames)
     rule_engine = RuleBasedEngine(Policy.from_file(policy_path), frames=frames)
     if engine_kind == "rule":
         return rule_engine
-    return CompositeEngine([rule_engine, KnowledgeGraphEngine(ontology)], name="hybrid")
+    return CompositeEngine(
+        [rule_engine, KnowledgeGraphEngine(ontology, frames=frames)], name="hybrid"
+    )
 
 
 def build_llm(

@@ -169,23 +169,40 @@ def test_constraint_dura_continua_recusando_qualquer_isencao():
 
 # ------------------------------------------- a política embarcada não usa
 
-def test_a_politica_embarcada_nao_prende_a_camada_ainda():
-    """O mecanismo embarca **desprendido**, e isso é sequenciamento declarado.
+def test_a_camada_foi_presa_por_norma_e_nao_por_regra_de_politica():
+    """A camada **foi** presa, na leva da taxonomia de dano -- pela outra rota.
 
-    Não existe hoje regra de escopo `output` que case vocabulário de dano: as
-    únicas são `R-PRIV-002` (redação) e `R-TRANS-001` (aviso), e as três
-    constraints duras não admitem `exceptions`. A condição de prendimento é a
-    leva da taxonomia de dano -- a primeira regra `scopes: ["output"]` que
-    casar vocabulário de dano nasce com `exceptions` de recusa.
+    Em `aedd5e0` este teste dizia "o mecanismo embarca desprendido" e prometia
+    falhar quando a taxonomia chegasse. A taxonomia chegou e ele **não falhou**,
+    porque o prendimento foi por `Norm.unless_frame`, no motor do grafo, e não
+    por `exceptions` numa regra de política. Ficar verde por caminho diferente
+    do previsto é o modo silencioso de um tripwire apodrecer, então ele foi
+    reescrito para afirmar a verdade de hoje em vez de uma ausência que deixou
+    de significar o que significava.
 
-    Este teste falha quando isso acontecer, e é o lembrete de que a linha de
-    cima precisa ser reescrita junto.
+    O que ele guarda agora: a rota de política continua **não** usada, e usá-la
+    é decisão normativa nova -- `Rule.exceptions` com `refusal` obriga
+    `scopes: ["output"]` e é outro ponto de manutenção. Se alguém a abrir, que
+    seja de propósito.
     """
     from ethical_agent.policy import default_policy_path
 
     politica = Policy.from_file(default_policy_path())
     for regra in list(politica.rules) + list(politica.constraints):
         assert not condicoes_de_recusa_da_regra(regra), regra.id
+
+
+def test_o_prendimento_real_esta_nas_normas_de_dano():
+    """A contraparte do teste acima: a camada não está solta.
+
+    Sem esta asserção, a de cima passaria também num mundo em que a marca de
+    recusa não é usada em lugar nenhum -- que era o mundo de `aedd5e0`.
+    """
+    from ethical_agent.relaieo import load_default_ontology
+
+    normas = load_default_ontology().norms
+    com_guarda = [n.id for n in normas if n.unless_frame == "recusa"]
+    assert com_guarda, "a camada de recusa deve estar presa a alguma norma de dano"
 
 
 def condicoes_de_recusa_da_regra(regra):

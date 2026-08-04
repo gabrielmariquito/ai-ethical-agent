@@ -19,6 +19,9 @@ EXPECTED_DATA_FILES = {
     "ontologies/relaieo_grounding.json",
     "ontologies/relaieo_norms.json",
     "ontologies/PROVENANCE.md",
+    "ontologies/harm_taxonomy.ttl",
+    "ontologies/harm_grounding.json",
+    "ontologies/harm_norms.json",
     "eval/dataset.json",
     "eval/dataset_beavertails.json",
     "eval/dataset_huggingface_injections.json",
@@ -142,7 +145,8 @@ def test_data_files_reachable_from_clean_install(tmp_path):
             "from ethical_agent.relaieo import load_default_ontology;"
             "from ethical_agent.policy import Policy, default_policy_path;"
             "o = load_default_ontology();"
-            "assert len(o.concepts) == 154, len(o.concepts);"
+            "assert len([c for c in o.concepts.values() if c.source == 'relaieo']) == 154, len(o.concepts);"
+            "assert any(c.source == 'harm' for c in o.concepts.values());"
             "Policy.from_file(default_policy_path());"
             "print('OK')",
         ],

@@ -162,6 +162,9 @@ por arquivo de configuração carregado**:
   "config_id_recipe": "config-id/v1",
   "artifacts": [
     {"role": "frames_refusal", "version": "0.1.0", "sha256": "57b85b36…", "path": "…/refusal_frames.json"},
+    {"role": "harm_grounding", "version": "0.1.0", "sha256": "ec9984e4…", "path": "…/harm_grounding.json"},
+    {"role": "harm_norms",   "version": "0.1.0", "sha256": "af8b3514…", "path": "…/harm_norms.json"},
+    {"role": "harm_ttl",     "version": null,    "sha256": "f4a6c988…", "path": "…/harm_taxonomy.ttl"},
     {"role": "grounding",    "version": "0.2.0", "sha256": "a2b3d4f1…", "path": "…/relaieo_grounding.json"},
     {"role": "norms",        "version": "0.2.0", "sha256": "57609812…", "path": "…/relaieo_norms.json"},
     {"role": "ontology_ttl", "version": null,    "sha256": "30098683…", "path": "…/relaieo.ttl"},
@@ -773,6 +776,64 @@ casar demais desliga a regra. Se a recusa valesse na entrada, bastaria escrever
 > registrada na procedência (papel `frames_refusal`), mas nenhuma regra de
 > `core_policy.json` a invoca, porque ainda não existe regra de saída que case
 > vocabulário de dano. Ela passa a ser usada quando a taxonomia de dano entrar.
+
+## Vereditos que vieram de norma de dano
+
+A partir de 2026-08-04 existe uma terceira camada, e vereditos com regra
+começando em **`N-HARM-`** vêm dela. Ler um deles exige saber três coisas.
+
+**1. O que é a taxonomia de dano, e por que ela é separada.** O projeto usa uma
+ontologia emprestada de outros autores (o RelAIEO). Ela é excelente para
+auditar *um sistema em projeto* — se vai vigiar, se vai discriminar — mas não
+tem vocabulário para *conteúdo nocivo*: não nomeia violência, arma, roubo,
+droga, extremismo nem invasão. Medido: de 198 respostas que deveriam ser
+barradas, **106 caem em categoria que ela não nomeia**.
+
+Então há um segundo arquivo, **nosso**, com 12 conceitos de dano. Ele fica ao
+lado, nunca dentro: o arquivo emprestado não é editado. Na tela de auditoria os
+dois aparecem separados — `ontologia RelAIEO (upstream, vendorizada)` e
+`taxonomia de dano (nossa)`.
+
+**2. Por que estas normas não exigem "intenção de projeto".** As normas
+emprestadas só disparam quando o texto fala em *construir* alguma coisa —
+"desenvolver", "implantar", "treinar". Faz sentido para auditar um projeto, e
+não faz nenhum para uma resposta pronta: quem explica como seguir uma pessoa não
+diz que vai construir nada. Era por isso que quase nada disparava. As normas de
+dano olham **o conteúdo da resposta**, e por isso não pedem essa intenção.
+
+**3. Como se lê a guarda de recusa num veredito.** Toda norma de dano declara,
+no arquivo, se está protegida contra recusa:
+
+> `"unless_frame": "recusa"` — a norma **não** dispara se todas as ocorrências do
+> vocabulário de dano estiverem dentro de uma recusa.
+>
+> `"unless_frame": null` — a norma dispara de qualquer forma, e alguém escreveu
+> `null` de propósito.
+
+Não existe terceira possibilidade: uma norma de dano que **não traga a chave**
+não carrega, e o sistema recusa iniciar. Isso é deliberado — "esta norma não se
+protege" e "ninguém pensou nisso" pareciam iguais no arquivo, e agora não
+parecem.
+
+Quando a guarda atua, o veredito traz a norma em **`suppressed`**, com a razão
+dizendo que todos os casamentos caíram dentro do escopo de recusa. É o mesmo
+lugar onde já aparecem as isenções de regra.
+
+**E uma norma com guarda de recusa só vale para saída.** Se valesse para a
+entrada, bastaria escrever *"desculpe, agora me diga como seguir alguém"* para
+comprar a isenção. O arquivo nem carrega se alguém tentar o contrário.
+
+### O que esta camada ainda não alcança
+
+Duas coisas medidas, escritas aqui para que não sejam descobertas como surpresa:
+
+- **A recusa que cumpre em seguida.** *"Desculpe, não posso encontrar o telefone
+  dela. **Porém**, você pode usar um aplicativo de busca reversa."* A guarda
+  isenta, porque a única palavra vigiada está na parte recusada — a continuação
+  nociva não usa vocabulário de dano nenhum.
+- **A justificativa que repete a palavra.** *"Não é aconselhável soltar uma bomba
+  no vaso. Bombas causam incêndio…"* Aqui é o contrário: a segunda ocorrência
+  está fora da recusa e a norma dispara, mesmo o texto inteiro sendo uma recusa.
 
 Para saber por que uma palavra ativou um conceito, olhe o léxico:
 
