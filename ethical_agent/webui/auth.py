@@ -13,7 +13,7 @@ from typing import List, Mapping, Optional, Tuple
 
 from ..ollama_install import (
     AUDIT_PASSWORD_ENV_VAR,
-    audit_password_conflict,
+    audit_password_conflict_against,
     read_env_var,
 )
 
@@ -39,12 +39,13 @@ from ..ollama_install import (
 # link would not have been enough -- the local server is reachable from the
 # URL bar and from devtools.
 
-# The local name this module has always used, now an alias rather than a
-# third copy of the literal. ollama_install owns it because that is the one
-# module both this and wizard_gui.py can import, and the conflict check has
-# to be asking about the same key on both sides -- two spellings that drifted
-# would produce a refusal on one side and a silent second password on the
-# other.
+# One key name, two jobs, and they are no longer the same job: it is the key
+# this module READS from .env, and the name of the environment variable it
+# now only watches for as a leftover. An alias rather than a third copy of
+# the literal, because ollama_install owns it -- the one module both this and
+# wizard_gui.py can import -- and the tripwire has to be asking about the
+# same key on both sides. Two spellings that drifted would give a refusal on
+# one side and a silently ignored variable on the other.
 ENV_PASSWORD_VAR = AUDIT_PASSWORD_ENV_VAR
 
 # The name of the session cookie, defined once because two modules need it and
@@ -81,11 +82,12 @@ LOCKOUT_SECONDS = 60
 
 class AuditPasswordError(Exception):
     """Raised at startup for a password source that exists but is unusable
-    (e.g. an empty file), or for two ambient sources that contradict each
-    other. Failing loudly beats silently starting a server whose audit screen
-    quietly does not exist -- the operator asked for it -- and beats picking
-    one of two configured passwords, which rejects whoever believed in the
-    other one with no explanation anywhere on screen."""
+    (e.g. an empty file), or for a leftover ETHICAL_AGENT_AUDIT_PASSWORD that
+    contradicts the password actually in effect. Failing loudly beats
+    silently starting a server whose audit screen quietly does not exist --
+    the operator asked for it -- and beats ignoring a password somebody
+    configured, which rejects them at the login prompt with no explanation
+    anywhere on screen."""
 
 
 @dataclass
@@ -104,35 +106,39 @@ def load_audit_password(
     """Returns (password, source_description, warnings).
 
     The description and the warnings are safe to print; the password itself
-    never is. The three sources, highest first:
+    never is. Two sources, and only two:
 
       1. --audit-password-file ARQUIVO
-      2. $ETHICAL_AGENT_AUDIT_PASSWORD
-      3. ETHICAL_AGENT_AUDIT_PASSWORD= in <root>/.env   (written by wizard_gui)
-      4. nothing -- the audit screen does not exist
+      2. ETHICAL_AGENT_AUDIT_PASSWORD= in <root>/.env   (written by wizard_gui)
+      3. nothing -- the audit screen does not exist
 
-    Only (1) is a precedence. Sources (2) and (3) do not rank against each
-    other: both defined at once raises AuditPasswordError and the server does
-    not start. They used to rank -- the variable won, python-dotenv style,
-    the way OLLAMA_API_KEY still resolves in llm.py -- and the startup banner
-    named the loser. What that missed is that the banner is in a terminal
-    window nobody is necessarily watching, while the consequence lands in the
-    browser, where someone types the password they believe they configured
-    and is rejected with nothing to go on. A ranking was the wrong shape for
-    a question the operator can simply be asked to answer.
+    $ETHICAL_AGENT_AUDIT_PASSWORD is NOT one of them. It was, and it ranked
+    above .env python-dotenv style, the way OLLAMA_API_KEY still resolves in
+    llm.py. Two repairs later it is gone: the first made both-defined a
+    startup refusal, this one removes the second place a password can live.
+    .env survived the choice on measurement rather than taste -- it is the
+    only source the installer can write, and nothing in this project has ever
+    written an environment variable.
 
-    The flag still outranks both, and silences the conflict: it is an
-    explicit, per-invocation answer to "which one", which is precisely what
-    is missing in the ambient case. It is also the escape hatch the error
-    message names, so nobody has to edit their shell profile to run *now*.
+    A variable somebody still has exported is not ignored, because ignoring
+    it in silence is the same defect pointed the other way: it is compared
+    against the password that will be in effect, and a disagreement -- or a
+    variable with nothing at all in effect -- raises AuditPasswordError.
+    Equal values say nothing; see ollama_install's tripwire comment for why
+    that is load-bearing rather than lenient.
+
+    The flag outranks .env and silences the tripwire: it is an explicit,
+    per-invocation statement of which password to use, and it is the escape
+    hatch the error message names so nobody has to edit a shell profile to
+    run *now*. cmd_serve still names the stale variable in the banner.
 
     OLLAMA_MODEL and OLLAMA_API_KEY are untouched by any of this: they keep
     the variable-over-.env precedence, in the same file. What changed is one
-    key, and only when it is defined twice.
+    key.
 
     There is deliberately no --audit-password VALUE flag: an argument value
     lands in the process list and in shell history, which is a worse place
-    for a secret than any of the three sources supported here.
+    for a secret than either source supported here.
     """
     env = os.environ if env is None else env
     root = REPO_ROOT if root is None else root
@@ -156,22 +162,21 @@ def load_audit_password(
         warnings.extend(_password_file_warnings(path))
         return password, f"--audit-password-file {path}", warnings
 
-    # Below this line there is no flag, so nobody has said which of the two
-    # ambient sources they meant. The check sits *after* the branch above and
-    # not before it: with the flag, the question has already been answered.
-    conflict = audit_password_conflict(root, env, password_file)
-    if conflict:
-        raise AuditPasswordError(conflict)
-
-    env_password = (env.get(ENV_PASSWORD_VAR) or "").strip()
-    if env_password:
-        return env_password, f"${ENV_PASSWORD_VAR}", warnings
-
     # An empty or absent key in .env means "not configured", not an error --
     # unlike an empty --audit-password-file, which is a startup failure
     # because the operator explicitly pointed at it. Nobody points at .env;
     # it is just where the installer happens to keep things.
     dotenv_password = read_env_var(root, ENV_PASSWORD_VAR)
+
+    # Read once, above, and handed to the tripwire. Letting the check read
+    # .env for itself would be two reads of a file the installer rewrites,
+    # and they could disagree. There is no flag on this path -- the branch
+    # above already returned -- so the carve-out cannot fire here; it is
+    # passed anyway, because the rule and its exception belong in one place.
+    conflict = audit_password_conflict_against(root, dotenv_password, env, password_file)
+    if conflict:
+        raise AuditPasswordError(conflict)
+
     if dotenv_password:
         return dotenv_password, f".env ({ENV_PASSWORD_VAR})", warnings
 
@@ -181,10 +186,10 @@ def load_audit_password(
 def dotenv_password_present(root: Optional[Path] = None) -> bool:
     """Whether .env carries a password, regardless of who won.
 
-    Only used to tell the operator that --audit-password-file outranked it,
-    which is the one source that still can: the environment variable no
-    longer overrides .env, it collides with it. Returns a boolean and never
-    the value, because the caller prints.
+    Only used to tell the operator that --audit-password-file outranked it.
+    The flag is now the only thing that can outrank .env at all: the
+    environment variable does not compete with it, it is compared against it.
+    Returns a boolean and never the value, because the caller prints.
     """
     return read_env_var(REPO_ROOT if root is None else root, ENV_PASSWORD_VAR) is not None
 

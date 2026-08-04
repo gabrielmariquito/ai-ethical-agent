@@ -813,7 +813,8 @@ depois do fato, sobre decisões que não são dele.
 
 ```bash
 ethical-agent serve --audit-password-file ~/.ethical-agent-audit-password
-# ou:  ETHICAL_AGENT_AUDIT_PASSWORD=... ethical-agent serve
+# ou, sem flag nenhuma, com a senha que o instalador gravou no .env da raiz:
+ethical-agent serve
 ```
 
 Depois, `http://127.0.0.1:8765/audit`.
@@ -867,25 +868,30 @@ na lista de processos e no histórico do shell. Também não guarde a senha num
 arquivo dentro do repositório — o servidor avisa no `stderr` se você fizer isso,
 porque é um `git add -A` de distância de ser commitada.
 
-**Duas senhas configuradas é erro de configuração, não uma disputa a resolver.**
-A senha pode vir de três lugares: da flag acima, da variável de ambiente
-`$ETHICAL_AGENT_AUDIT_PASSWORD`, ou da chave de mesmo nome no `.env` da raiz
-(que é onde o instalador gráfico grava). Se as **duas últimas** estiverem
-definidas ao mesmo tempo, `ethical-agent serve` **não sobe**: diz onde cada uma
-está e sai com código diferente de zero. Remova uma das duas — qual delas é
-decisão de quem instalou.
+**A senha mora num lugar só.** Ou no `.env` da raiz — a chave
+`ETHICAL_AGENT_AUDIT_PASSWORD`, que é o que o instalador gráfico grava — ou num
+arquivo apontado por `--audit-password-file`, que tem precedência sobre ele.
+Não há terceira fonte.
 
-O motivo é desta seção. Antes, a variável de ambiente ganhava e o arranque
-avisava que o `.env` tinha outra. Só que o aviso mora num terminal, e a
-consequência mora no navegador: quem tentava entrar com a senha do `.env` era
-recusado sem ter, em lugar nenhum da tela, como saber por quê. Uma tela de
-login que recusa a senha certa não é um problema de senha — é a auditoria
-parecendo quebrada para exatamente a pessoa que ela deveria servir.
+**A variável de ambiente de mesmo nome não é lida.** Ela já foi, e ganhava do
+`.env`. Se ela ainda estiver exportada na sua máquina, `ethical-agent serve`
+compara com a senha em vigor e **não sobe** se elas divergirem, ou se não
+houver senha nenhuma configurada — dizendo onde a senha mora agora e pedindo
+que você apague a variável. Se o valor for o mesmo, sobe normalmente: não há o
+que desambiguar.
 
-Para subir agora sem mexer em nenhuma das duas, use
-`--audit-password-file ARQUIVO`: a flag tem precedência sobre ambas e é uma
-resposta explícita, naquela invocação, a "qual delas vale". A própria mensagem
-de erro diz isso, para ninguém precisar voltar aqui.
+O motivo de recusar em vez de simplesmente ignorar é desta seção. Uma variável
+ignorada em silêncio é alguém que acredita ter configurado uma senha e só
+descobre que não na hora em que a tela de login recusa o que ele digitou. Uma
+tela de auditoria que recusa a senha certa não é um problema de senha — é a
+auditoria parecendo quebrada para exatamente a pessoa que ela deveria servir.
+Foi assim que este defeito apareceu, quando as duas fontes ainda se ordenavam
+e um aviso no terminal era tudo que separava as duas senhas.
+
+Para subir agora sem mexer em configuração nenhuma, use
+`--audit-password-file ARQUIVO`: a flag declara qual senha usar naquela
+invocação e passa por cima de tudo. A própria mensagem de erro diz isso, para
+ninguém precisar voltar aqui.
 
 Reiniciar o servidor invalida todas as sessões (elas vivem só na memória do
 processo). É comportamento documentado, não defeito: persistir um token de

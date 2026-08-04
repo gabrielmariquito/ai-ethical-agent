@@ -242,7 +242,9 @@ DEFAULT_WEB_PORT = 8765
 def cmd_serve(args: argparse.Namespace) -> int:
     # Lazy import: webui/ is only needed for this one subcommand, so the
     # other subcommands (check/eval/demo/process) don't pay its import cost.
+    from .ollama_install import env_audit_password_present
     from .webui.auth import (
+        ENV_PASSWORD_VAR,
         AuditPasswordError,
         dotenv_password_present,
         load_audit_password,
@@ -322,18 +324,22 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if audit_password:
         # The source, never the value.
         print(f"Auditoria: habilitada em /audit (senha de {password_source})")
-        # One source can still outrank a password in .env: the flag. The
-        # variable-versus-.env case never reaches this line any more -- it is
-        # refused in load_audit_password, because a banner in a terminal
-        # nobody is watching was not enough to keep the loser's password from
-        # being rejected in the browser with no explanation. Where the flag
-        # is concerned the warning is still exactly right: the operator typed
-        # it, in this invocation, so naming what it displaced is news they
-        # can act on rather than a puzzle.
+        # The flag is the only thing that can outrank .env, and naming what
+        # it displaced is news the operator can act on: they typed it, in
+        # this invocation, so the surprise is bounded to one command line.
         if password_source.startswith("--audit-password-file") and dotenv_password_present():
             print(
                 f"           atenção: o .env também tem uma senha, e não é a "
                 f"que está valendo ({password_source} tem precedência)"
+            )
+        # And the flag also silences the stale-variable refusal, which would
+        # leave a displaced source unmentioned -- the exact shape of the gap
+        # this project logged as D-9. Naming it here is what closes it.
+        if password_source.startswith("--audit-password-file") and env_audit_password_present():
+            print(
+                f"           atenção: ${ENV_PASSWORD_VAR} está definida no "
+                "ambiente e não é lida como senha (só o .env e esta flag são "
+                "fontes); pode apagá-la"
             )
         print(f"           sessões do auditor em {args.auditor_session_log}")
         print(
@@ -341,11 +347,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "(ver AUDIT_GUIDE.pt-BR.md, Passo 8)"
         )
     else:
+        # Never says "defina ETHICAL_AGENT_AUDIT_PASSWORD" any more: doing
+        # that would produce exit 2 on the next run, which is a banner
+        # instructing someone into the error it exists to prevent. (This
+        # branch is also unreachable with the variable set -- that state
+        # refuses before here -- so it has no reason to mention it.)
         print(
             "Auditoria: desabilitada (/audit não existe). Para habilitar, rode "
             "o instalador (python wizard_gui.py) e preencha o campo de senha, "
-            "ou use --audit-password-file ARQUIVO, ou defina "
-            "ETHICAL_AGENT_AUDIT_PASSWORD"
+            "que grava a senha no .env da raiz, ou use "
+            "--audit-password-file ARQUIVO"
         )
     try:
         server.serve_forever()
@@ -459,14 +470,14 @@ def main(argv=None) -> int:
         "--audit-password-file",
         help=(
             "file whose contents are the password for the /audit screen. "
-            "Outranks the other two sources, $ETHICAL_AGENT_AUDIT_PASSWORD "
-            "and ETHICAL_AGENT_AUDIT_PASSWORD in .env (what the graphical "
-            "installer writes), and is the only way to start with both of "
-            "them defined -- on their own the two do not rank against each "
-            "other, they are a configuration error and serve refuses to "
-            "start. With no source at all the audit screen does not exist. "
-            "There is deliberately no --audit-password VALUE flag: it would "
-            "land in the process list and shell history"
+            "Outranks the only other source, ETHICAL_AGENT_AUDIT_PASSWORD in "
+            ".env (what the graphical installer writes). The environment "
+            "variable of that name is NOT a source: if it is set and "
+            "disagrees with the password in effect, serve refuses to start "
+            "rather than ignore it, and this flag is what starts anyway. "
+            "With no source at all the audit screen does not exist. There is "
+            "deliberately no --audit-password VALUE flag: it would land in "
+            "the process list and shell history"
         ),
     )
     p_serve.add_argument(

@@ -796,22 +796,23 @@ def build_plan(
         # condicionado à chave existir porque, sem ela, a tela já está
         # desligada e prometer que ela some seria falso.
         if "ETHICAL_AGENT_AUDIT_PASSWORD" in keys:
-            # ...a menos que o ambiente exporte uma, caso em que ela assume e
-            # a tela continua de pé. Prometer o desligamento nesse caso seria
-            # tão falso quanto prometê-lo sem a chave.
+            detail += (
+                "\nRemover este arquivo desativa a tela de auditoria "
+                "(/audit): a senha dela mora aqui. É recuperável -- rode o "
+                "instalador de novo, ou defina a senha à mão."
+            )
+            # A variável de ambiente de mesmo nome NÃO é uma senha de reserva:
+            # ela não é lida. Quem a tiver exportada e remover este arquivo
+            # fica com a tela desligada E com um servidor que se recusa a
+            # subir, então isto tem de ser dito aqui e não descoberto depois.
             from .ollama_install import env_audit_password_present
 
             if env_audit_password_present():
                 detail += (
-                    "\nA senha da tela de auditoria (/audit) mora aqui, mas o "
-                    "ambiente exporta ETHICAL_AGENT_AUDIT_PASSWORD -- remover "
-                    "este arquivo passa a tela a usar essa, não a desativa."
-                )
-            else:
-                detail += (
-                    "\nRemover este arquivo desativa a tela de auditoria "
-                    "(/audit): a senha dela mora aqui. É recuperável -- rode o "
-                    "instalador de novo, ou defina a senha à mão."
+                    "\nA variável de ambiente ETHICAL_AGENT_AUDIT_PASSWORD está "
+                    "definida, mas não é fonte de senha -- ela não assume o "
+                    "lugar deste arquivo. Removendo um sem apagar a outra, "
+                    "`ethical-agent serve` passa a recusar de subir."
                 )
         optional.append(
             Candidate(

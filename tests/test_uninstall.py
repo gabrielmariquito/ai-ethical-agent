@@ -420,13 +420,13 @@ def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path,
     assert "recuperável" in env_cand.detail
 
 
-def test_env_question_does_not_promise_a_shutdown_the_environment_prevents(
+def test_env_question_says_the_exported_variable_is_not_a_spare_password(
     tmp_path, monkeypatch
 ):
-    # With a password exported, removing .env is the *remedy* for having two
-    # of them -- the screen stays up on the exported one. Saying "desativa a
-    # tela" here would talk someone out of the one action that fixes their
-    # configuration.
+    # The variable is not a source, so it does not take over when this file
+    # goes: removing one without clearing the other leaves the screen off AND
+    # a server that refuses to start. Saying nothing here would let someone
+    # discover that at the next launch.
     monkeypatch.setenv("ETHICAL_AGENT_AUDIT_PASSWORD", "do-ambiente")
     root = _make_root(
         tmp_path,
@@ -435,7 +435,11 @@ def test_env_question_does_not_promise_a_shutdown_the_environment_prevents(
     plan = build_plan(root, port=8765, probe=False)
     env_cand = [c for c in plan.optional if c.key == "env"][0]
 
-    assert "não a desativa" in env_cand.detail
+    # The consequence of removal is unchanged and still stated...
+    assert "desativa a tela de auditoria" in env_cand.detail
+    # ...and the leftover variable is named as a leftover, never as a backup.
+    assert "não é fonte de senha" in env_cand.detail
+    assert "recusar de subir" in env_cand.detail
     assert "senha-secreta" not in env_cand.detail
     assert "do-ambiente" not in env_cand.detail
 

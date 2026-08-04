@@ -288,13 +288,21 @@ def test_password_file_takes_precedence_over_env_var(tmp_path):
     assert "do-arquivo" not in source
 
 
-def test_env_var_used_when_no_file_given(tmp_path):
-    password, source, _ = load_audit_password(
-        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=tmp_path
-    )
-    assert password == "do-ambiente"
-    assert source == "$ETHICAL_AGENT_AUDIT_PASSWORD"
-    assert "do-ambiente" not in source
+def test_the_env_var_is_not_a_password_source_any_more(tmp_path):
+    # It was, and it outranked .env. What replaced it is not "the variable
+    # loses" -- it is not read at all, so leaving it set has to be refused
+    # rather than ignored: someone who exported it believes they configured
+    # a password, and silence would take the audit screen away without ever
+    # telling them.
+    with pytest.raises(AuditPasswordError) as excinfo:
+        load_audit_password(
+            None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=tmp_path
+        )
+
+    message = str(excinfo.value)
+    assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in message
+    assert "apague a variável" in message.lower()
+    assert "do-ambiente" not in message
 
 
 def test_dotenv_used_when_there_is_no_file_and_no_env_var(tmp_path):
@@ -305,11 +313,7 @@ def test_dotenv_used_when_there_is_no_file_and_no_env_var(tmp_path):
     assert "do-dotenv" not in source
 
 
-def test_env_var_and_dotenv_together_are_refused_instead_of_ranked(tmp_path):
-    # This used to be a precedence question -- the variable won and the banner
-    # said so. It is a contradiction, not a ranking: whoever types the losing
-    # password gets rejected in the browser with no explanation at all, and
-    # the banner that explains it is in a terminal window nobody is watching.
+def test_a_leftover_variable_that_disagrees_with_dotenv_is_refused(tmp_path):
     with pytest.raises(AuditPasswordError) as excinfo:
         load_audit_password(
             None,
@@ -321,15 +325,31 @@ def test_env_var_and_dotenv_together_are_refused_instead_of_ranked(tmp_path):
     assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in message
     assert str((tmp_path / ".env").resolve()) in message
     assert "--audit-password-file" in message
+    # It may say they differ. It may not say how, and may not quote either.
     assert "do-ambiente" not in message
     assert "do-dotenv" not in message
 
 
-def test_password_file_silences_the_conflict_between_the_other_two(tmp_path):
+def test_a_leftover_variable_that_repeats_the_dotenv_password_is_silent(tmp_path):
+    # Nothing is ambiguous, so there is nothing to refuse -- and this is the
+    # state python-dotenv's load_dotenv() can produce on its own by copying
+    # .env into os.environ, which a presence-only rule would refuse over one
+    # password seen twice.
+    password, source, _ = load_audit_password(
+        None,
+        {"ETHICAL_AGENT_AUDIT_PASSWORD": "a-mesma"},
+        root=_dotenv(tmp_path, "a-mesma"),
+    )
+    assert password == "a-mesma"
+    assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
+
+
+def test_password_file_silences_the_tripwire(tmp_path):
     # The regression test for where the check sits: inside
     # load_audit_password, *after* the --audit-password-file branch has
-    # already returned. The flag is an explicit per-invocation answer to
-    # "which one", so there is no ambiguity left to refuse.
+    # already returned. The flag states which password to use, so a leftover
+    # variable cannot make the invocation ambiguous. (cmd_serve still names
+    # it in the banner -- silencing the refusal is not saying nothing.)
     path = tmp_path / "senha.txt"
     path.write_text("do-arquivo\n", encoding="utf-8")
     password, source, _ = load_audit_password(
@@ -341,24 +361,44 @@ def test_password_file_silences_the_conflict_between_the_other_two(tmp_path):
     assert "do-ambiente" not in source
 
 
-def test_env_var_with_a_dotenv_that_has_no_password_is_not_a_conflict(tmp_path):
-    # One source is still one source. The .env exists and is read -- it just
-    # does not carry this key.
+def test_a_variable_with_a_dotenv_that_has_no_password_is_refused(tmp_path):
+    # The .env exists and is read -- it just does not carry this key. Nothing
+    # would be in effect, so the variable's owner would lose the screen in
+    # silence. This is the case that used to work, and it is the one the
+    # README's one-liner produced.
     (tmp_path / ".env").write_text("OLLAMA_MODEL=llama3.2:3b\n", encoding="utf-8")
-    password, source, _ = load_audit_password(
-        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=tmp_path
-    )
-    assert password == "do-ambiente"
-    assert source == "$ETHICAL_AGENT_AUDIT_PASSWORD"
+    with pytest.raises(AuditPasswordError) as excinfo:
+        load_audit_password(
+            None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=tmp_path
+        )
+    assert "wizard_gui.py" in str(excinfo.value), "tem de dizer onde a senha passa a morar"
 
 
-def test_a_blank_env_var_does_not_conflict_with_a_password_in_dotenv(tmp_path):
+def test_a_blank_env_var_is_not_a_leftover_at_all(tmp_path):
     # An exported-but-empty variable is how a shell profile leaves the name
-    # defined without meaning anything by it. Refusing to start over that
-    # would be refusing over nothing.
+    # defined without meaning anything by it. Refusing over that would be
+    # refusing over nothing.
     password, source, _ = load_audit_password(
         None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "   "}, root=_dotenv(tmp_path, "do-dotenv")
     )
+    assert password == "do-dotenv"
+    assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
+
+    # ...and with nothing configured anywhere, a blank variable is still just
+    # a disabled audit screen, not an error.
+    password, source, _ = load_audit_password(
+        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": ""}, root=tmp_path / "vazio"
+    )
+    assert password is None
+    assert source is None
+
+
+def test_the_resolver_never_reads_the_real_environment_when_env_is_passed(monkeypatch, tmp_path):
+    # The property every other test in this file leans on: `env` is honoured
+    # exactly, so a developer's own exported password cannot reach in. It
+    # matters more now that a stray variable raises instead of being ranked.
+    monkeypatch.setenv("ETHICAL_AGENT_AUDIT_PASSWORD", "veneno-do-ambiente-real")
+    password, source, _ = load_audit_password(None, {}, root=_dotenv(tmp_path, "do-dotenv"))
     assert password == "do-dotenv"
     assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
 

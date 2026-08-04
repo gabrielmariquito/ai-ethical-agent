@@ -354,17 +354,42 @@ def read_env_var(root: Path, key: str) -> Optional[str]:
     return None
 
 
-# -- two audit passwords at once ---------------------------------------------
+# -- one ambient source, and a tripwire on the one that died -----------------
 #
-# The audit-screen password can arrive from two *ambient* places: the
-# environment variable, and .env at the project root (where the graphical
-# installer writes it). Both defined at the same time used to be a precedence
-# question -- the variable won, and the startup banner named the loser. In
-# use that turned out to be the wrong shape for the problem: the banner is in
-# a terminal window nobody is necessarily watching, and the person who then
-# types the .env password into the browser is simply rejected, with no
-# explanation available anywhere on screen. Two configured passwords is a
-# configuration error, and the server refuses to start on it.
+# .env at the project root -- where the graphical installer writes it -- is
+# the only *ambient* source of the audit-screen password.
+# $ETHICAL_AGENT_AUDIT_PASSWORD is not read as a password any more.
+#
+# It used to be, and the two ranked against each other: the variable won,
+# python-dotenv style, and the startup banner named the loser. That was wrong
+# in a way a banner cannot fix, because the banner is in a terminal nobody is
+# necessarily watching while the consequence lands in the browser, where
+# someone types the password they believe they configured and is rejected
+# with nothing to go on. The first repair made both-defined a startup
+# refusal; this is the second, and it removes the second place a password can
+# live rather than arbitrating between two.
+#
+# .env won the coin-flip on measurement, not taste: it is the only source the
+# installer can write. There is no writer of the environment variable
+# anywhere in this project, and giving it one would mean setx / HKCU /
+# shell-profile edits that nothing here does.
+#
+# What survives of the refusal is a tripwire. A variable somebody still has
+# exported must not be *ignored* in silence -- that is the same defect over
+# again, pointed the other way -- so it is compared against the password that
+# will actually be in effect:
+#
+#   variable absent                      -> nothing to say
+#   variable == the effective password   -> nothing to say (see below)
+#   variable != the effective password   -> refuse
+#   variable set, nothing in effect      -> refuse
+#
+# The equal case is silence rather than a refusal for a reason that is not
+# politeness: python-dotenv's load_dotenv() (llm.py) copies every .env key
+# into os.environ, so a process can populate the variable from .env by
+# itself. A presence-only rule would refuse over one password seen twice, and
+# would do it more often as the LLM path grew. Comparing values is what makes
+# the tripwire immune to the program's own reflection.
 #
 # This lives here, next to the .env reader, because it is the only module
 # both callers can reach: webui/auth.py imports it, and wizard_gui.py imports
@@ -375,17 +400,89 @@ def read_env_var(root: Path, key: str) -> Optional[str]:
 AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 
 
-def env_audit_password_present(env: Optional[Mapping[str, str]] = None) -> bool:
-    """Whether the environment defines a usable audit password.
+def exported_audit_password(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    """The audit password exported in the environment, or None.
 
     Stripped, so that an exported-but-empty variable -- how a shell profile
     leaves a name defined without meaning anything by it -- counts as absent,
-    exactly as read_env_var already treats a bare `KEY=` line in .env. The
-    two halves of the conflict check have to agree on what "defined" means,
-    or they disagree about how many passwords exist.
+    exactly as read_env_var already treats a bare `KEY=` line in .env. Both
+    sides of the comparison have to agree on what "defined" means.
+
+    This is no longer a password *source*. The value is read only to compare
+    it against the one in effect, and it must never be printed.
     """
     source = os.environ if env is None else env
-    return bool((source.get(AUDIT_PASSWORD_ENV_VAR) or "").strip())
+    return (source.get(AUDIT_PASSWORD_ENV_VAR) or "").strip() or None
+
+
+def env_audit_password_present(env: Optional[Mapping[str, str]] = None) -> bool:
+    """Whether the environment still has the variable set at all.
+
+    Presence, not usability: the variable no longer configures anything, so
+    what callers ask here is "is there a stale one to warn about" -- the
+    uninstaller's wording and the startup banner both want exactly that.
+    """
+    return exported_audit_password(env) is not None
+
+
+def audit_password_conflict_against(
+    root: Path,
+    effective: Optional[str],
+    env: Optional[Mapping[str, str]] = None,
+    password_file: Optional[str] = None,
+) -> Optional[str]:
+    """The message when a stale exported variable disagrees with `effective`
+    -- the password that will actually be in effect -- or None when there is
+    nothing to say. Returning the text, rather than a bool, is what keeps the
+    CLI and the installer saying the same thing.
+
+    `effective` is a parameter rather than something read here so that a
+    caller which has already resolved the password does not read .env twice
+    and cannot disagree with itself if the file changes in between.
+
+    `password_file` is likewise a parameter and not a check the callers do
+    for themselves. The flag silences the refusal -- it is an explicit,
+    per-invocation statement of which password to use -- and that exception
+    has to live in the same place as the rule. Implemented twice, the two
+    callers would drift apart on the *exception* while still appearing to
+    share the rule, which is the divergence nobody notices. Silencing the
+    refusal is not silence: cmd_serve still names the stale variable in the
+    banner.
+
+    Neither message quotes either value, and neither says how they differ --
+    only that they do.
+    """
+    if password_file:
+        return None
+    exported = exported_audit_password(env)
+    if exported is None:
+        return None
+    if effective is not None and effective == exported:
+        return None
+
+    env_path = (root / ".env").resolve()
+    saida = (
+        "\nPara subir agora sem mexer em configuração nenhuma: "
+        "--audit-password-file ARQUIVO."
+    )
+    if effective is not None:
+        return (
+            f"a variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} está definida com "
+            "um valor diferente da senha que está em vigor.\n"
+            f"A senha de auditoria mora em {env_path}, e é essa que vale. A "
+            "variável não é mais lida -- quem entrar com o valor dela vai ser "
+            "recusado no login sem explicação.\n"
+            "Apague a variável de ambiente." + saida
+        )
+    return (
+        f"a variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} está definida, mas "
+        "ela não é mais uma fonte de senha de auditoria.\n"
+        f"A senha mora em {env_path}, que não tem nenhuma -- do jeito que está, "
+        "a tela de auditoria não existiria, e quem entrasse com o valor da "
+        "variável seria recusado sem explicação.\n"
+        "Grave a senha no .env (rode o instalador, `python wizard_gui.py`) e "
+        "apague a variável de ambiente." + saida
+    )
 
 
 def audit_password_conflict(
@@ -393,66 +490,35 @@ def audit_password_conflict(
     env: Optional[Mapping[str, str]] = None,
     password_file: Optional[str] = None,
 ) -> Optional[str]:
-    """The message to show when both ambient sources define a password, or
-    None when there is no conflict. Returning the text, rather than a bool,
-    is what keeps the CLI and the installer saying the same thing.
-
-    `password_file` is a parameter here rather than a check the callers do
-    for themselves. The flag is an explicit, per-invocation answer to "which
-    one", so it silences the conflict -- and that exception has to live in
-    the same place as the rule. Implemented twice, the two callers would
-    drift apart on the *exception* while still appearing to share the rule,
-    which is the divergence nobody notices.
-    """
-    if password_file:
-        return None
-    if not env_audit_password_present(env):
-        return None
-    if read_env_var(root, AUDIT_PASSWORD_ENV_VAR) is None:
-        return None
-
-    env_path = (root / ".env").resolve()
-    return (
-        "há duas senhas de auditoria definidas ao mesmo tempo, e não dá para "
-        "saber qual delas é a que vale:\n"
-        f"  - a variável de ambiente ${AUDIT_PASSWORD_ENV_VAR}\n"
-        f"  - a chave {AUDIT_PASSWORD_ENV_VAR} do arquivo {env_path}\n"
-        "Usar uma das duas em silêncio faz a outra ser recusada no login sem "
-        "explicação nenhuma, que foi como este caso apareceu. Remova uma das "
-        "duas -- qual delas é decisão de quem instalou, não deste programa.\n"
-        "Para subir agora sem mexer em nenhuma das duas: "
-        "--audit-password-file ARQUIVO, que tem precedência sobre ambas."
+    """Is this machine already in the refusing state? Reads .env for the
+    password in effect and compares. Same name and signature as when it
+    guarded two competing sources -- it is still asking whether something
+    contradicts the password that will be used."""
+    return audit_password_conflict_against(
+        root, read_env_var(root, AUDIT_PASSWORD_ENV_VAR), env, password_file
     )
 
 
 def audit_password_would_conflict(
-    root: Path, env: Optional[Mapping[str, str]] = None
+    root: Path,
+    candidate: Optional[str],
+    env: Optional[Mapping[str, str]] = None,
 ) -> Optional[str]:
-    """The other half of the same rule: the environment already defines a
-    password and the caller is about to write a second one into .env. None
-    when there is nothing exported and the write is fine.
+    """Would writing `candidate` into .env leave this machine refusing?
 
-    Separate from audit_password_conflict because the two are asked at
-    different moments and answer different questions -- "is this machine
-    already misconfigured?" versus "would what I am about to do misconfigure
-    it?" -- and because the second one has to be answerable *before* the .env
-    key exists, which is exactly when the first one is still None. Callers
-    append their own way out: what that is depends on whether there is still
-    a field on screen to edit.
+    `candidate` is required and positional. Optional, a caller that forgot it
+    would silently get the presence-only answer, which is now wrong in the
+    equal case -- and wrong in the direction of blocking an install that is
+    perfectly fine. Required, it breaks the moment the file is compiled.
 
-    Returned ready to display, first letter and all. A caller that
-    capitalized it would lowercase the variable name in the middle of it,
-    which is how the message ends up naming a variable that does not exist.
+    None means "about to remove the password", which is a real case: with a
+    variable exported, removal leaves nothing in effect and a machine that
+    refuses to start, so the installer must not offer it as a way out.
+
+    Asked before .env has the key, which is exactly when audit_password_conflict
+    would still answer None -- that is why the two exist separately.
     """
-    if not env_audit_password_present(env):
-        return None
-
-    env_path = (root / ".env").resolve()
-    return (
-        f"A variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} já define uma senha "
-        f"de auditoria nesta máquina. Gravar outra em {env_path} deixaria duas "
-        "definidas ao mesmo tempo, e a interface web se recusa a subir assim."
-    )
+    return audit_password_conflict_against(root, (candidate or "").strip() or None, env)
 
 
 def read_env_model_optional(root: Path) -> Optional[str]:

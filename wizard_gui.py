@@ -50,10 +50,9 @@ from ethical_agent.ollama_install import (  # noqa: E402
     AUDIT_PASSWORD_ENV_VAR,
     DEFAULT_LOCAL_MODEL,
     DEFAULT_OLLAMA_HOST,
-    audit_password_conflict,
     audit_password_would_conflict,
     download_file,
-    env_audit_password_present,
+    exported_audit_password,
     estimate_model_size_text,
     find_ollama_exe,
     installer_plan_for_platform,
@@ -69,16 +68,21 @@ from ethical_agent.ollama_install import (  # noqa: E402
     write_env_model,
 )
 
-# AUDIT_PASSWORD_ENV_VAR, audit_password_conflict and
-# env_audit_password_present all arrive from ollama_install above, and the
+# AUDIT_PASSWORD_ENV_VAR, audit_password_would_conflict and
+# exported_audit_password all arrive from ollama_install above, and the
 # import list is the whole reason they live there: this installer runs on the
 # *system* Python, before the project has been pip-installed into the venv,
 # so it can only import what is importable from a bare checkout --
 # ollama_install is (stdlib only), webui/auth is not. The key name used to be
 # re-declared here as its own literal for that reason. It no longer is,
-# because the refusal has to be the same refusal on both sides: a wizard that
-# writes a second password the server then refuses to start on would be worse
-# than the ambiguity it is meant to remove.
+# because the check has to be the same check on both sides: a wizard that
+# writes a .env the server then refuses to start on would be worse than the
+# leftover variable it is meant to resolve.
+#
+# This installer is also the only writer of the audit password anywhere in
+# the project. Nothing here, or in the package, ever writes an environment
+# variable -- which is why .env is the source that survived and the variable
+# is the one that became a leftover to notice.
 
 # A server that is already up answers the first probe right away, so keep it
 # short -- the common Windows case is "installed but stopped", and spending
@@ -276,6 +280,12 @@ class WizardApp(tk.Tk):
         # Starts unchecked, always: this is the only way to make an existing
         # password disappear, so it has to be an act, never a default.
         self.remove_audit_password = tk.BooleanVar(value=False)
+        # The way out for someone who has ETHICAL_AGENT_AUDIT_PASSWORD in a
+        # shell profile: adopt it into .env, which is where the password now
+        # lives. Without this the only purely graphical exit is to retype a
+        # secret from memory -- and this installer exists precisely for the
+        # people who do not want to go editing shells.
+        self.adopt_exported_password = tk.BooleanVar(value=False)
         self.install_ok = False
         self.llm_ready = False
         # Snapshot das escolhas com que a instalação REALMENTE rodou, tirado
@@ -712,15 +722,25 @@ class OptionsPage(_Page):
 
         # Only shown when there is something to remove. The label names the
         # consequence, not the action: losing the screen, not just a
-        # credential. on_show rewrites it when the environment exports a
-        # password, because then removing the one in .env does not lose the
-        # screen at all -- the exported one takes over, and a checkbox that
-        # promised otherwise would be lying at the exact moment it is being
-        # offered as the way out of the conflict.
+        # credential. It says the same thing in every state now -- removing
+        # the .env password always disables the screen, because .env is the
+        # only place the password can live.
         self.audit_remove_check = tk.Checkbutton(
             audit_frame,
             text="Remover a senha e desativar a tela de auditoria",
             variable=app.remove_audit_password,
+            justify="left",
+        )
+
+        # Only shown when the environment still exports a password that .env
+        # does not match. Ticking it copies that value into .env without ever
+        # displaying it -- the same file the field above writes to, and the
+        # only way to resolve the leftover without leaving this window.
+        self.audit_adopt_check = tk.Checkbutton(
+            audit_frame,
+            text=f"Usar a senha que já está em ${AUDIT_PASSWORD_ENV_VAR} "
+            "(grava a mesma no .env; depois pode apagar a variável)",
+            variable=app.adopt_exported_password,
             justify="left",
         )
 
@@ -734,33 +754,40 @@ class OptionsPage(_Page):
         # Re-read on every visit: the page can be revisited with Back, and a
         # reinstall over an existing setup is the whole reason this branch
         # exists.
-        self._existing_audit_password = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
-        # A password exported in the environment is as configured as one in
-        # .env, and it is invisible from this screen -- which is how somebody
-        # types a second one here and only finds out at launch.
-        exported = env_audit_password_present()
+        #
+        # Four states, not three. .env is the only place the password lives,
+        # but a leftover ETHICAL_AGENT_AUDIT_PASSWORD is invisible from here
+        # and is what makes `serve` refuse -- so whether it *matches* what is
+        # in .env is the difference between "nothing to do" and "this machine
+        # will not start". The screen has no other way to show a password it
+        # did not write.
+        no_dotenv = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
+        self._existing_audit_password = no_dotenv is not None
+        exportada = exported_audit_password()
+        repetida = exportada is not None and exportada == no_dotenv
 
         if self._existing_audit_password:
-            if exported:
+            if exportada is not None and not repetida:
                 self.audit_state_label.config(
-                    text="Há duas senhas de auditoria definidas: uma no .env e "
-                    f"uma na variável de ambiente ${AUDIT_PASSWORD_ENV_VAR}. A "
-                    "interface web se recusa a subir assim. Marque a remoção "
-                    "abaixo para ficar só com a variável de ambiente, ou apague "
-                    "a variável e mantenha a do .env."
+                    text=f"A variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} está "
+                    "definida com um valor diferente da senha do .env, e a "
+                    "interface web se recusa a subir assim. A variável não é mais "
+                    "lida: a senha mora no .env.\n"
+                    "Apague a variável, ou marque abaixo para adotar o valor dela."
                 )
-                # Removing the .env one does not disable anything here: the
-                # exported password takes over.
-                self.audit_remove_check.config(
-                    text="Remover a senha do .env e usar a da variável de ambiente"
+            elif repetida:
+                self.audit_state_label.config(
+                    text="Já existe uma senha configurada. Deixe o campo em branco "
+                    "para mantê-la, ou digite outra para trocar.\n"
+                    f"A variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} repete essa "
+                    "mesma senha; ela não é mais lida e pode ser apagada. Enquanto "
+                    "ela existir, trocar a senha aqui vai fazer a interface recusar "
+                    "de subir até você apagá-la."
                 )
             else:
                 self.audit_state_label.config(
                     text="Já existe uma senha configurada. Deixe o campo em branco "
                     "para mantê-la, ou digite outra para trocar."
-                )
-                self.audit_remove_check.config(
-                    text="Remover a senha e desativar a tela de auditoria"
                 )
             # after= nos dois: pack() depois de um pack_forget() re-anexa no FIM
             # da ordem do master, não de volta ao lugar -- o mesmo motivo que
@@ -774,20 +801,28 @@ class OptionsPage(_Page):
             # Nothing to remove, so the flag must not survive from an earlier
             # visit where there was.
             self.app.remove_audit_password.set(False)
-            if exported:
-                # Nothing to remove and nothing to fix -- but leaving this
-                # unsaid is what makes the block on the next click look
-                # arbitrary. The screen has no other way to show a password
-                # it did not write.
+            if exportada is not None:
                 self.audit_state_label.config(
-                    text="A auditoria já está habilitada pela variável de "
-                    f"ambiente ${AUDIT_PASSWORD_ENV_VAR}. Deixe o campo em branco "
-                    "para usá-la; digitar uma senha aqui deixaria duas definidas "
-                    "ao mesmo tempo, e a interface web se recusa a subir assim."
+                    text=f"A variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} está "
+                    "definida, mas ela não é mais uma fonte de senha -- a senha "
+                    "de auditoria mora no .env, que ainda não tem nenhuma. Do "
+                    "jeito que está, a interface web se recusa a subir.\n"
+                    "Digite uma senha aqui, ou marque abaixo para adotar a que já "
+                    "está na variável."
                 )
                 self.audit_state_label.pack(anchor="w", pady=(2, 0), after=self.audit_note)
             else:
                 self.audit_state_label.pack_forget()
+
+        # The adopt box exists only where there is something to adopt: a
+        # leftover variable whose value .env does not already have.
+        if exportada is not None and not repetida:
+            self.audit_adopt_check.pack(
+                anchor="w", pady=(4, 0), after=self.audit_state_label
+            )
+        else:
+            self.audit_adopt_check.pack_forget()
+            self.app.adopt_exported_password.set(False)
 
     def _sync_visibility(self) -> None:
         # pack()ing a widget that was pack_forget()'d re-appends it at the
@@ -832,37 +867,45 @@ class OptionsPage(_Page):
                 return False
         # "Set this password" and "remove the password" are contradictory
         # instructions, and silently picking one of them is exactly the kind
-        # of quiet resolution this field is supposed to avoid.
-        if self.app.remove_audit_password.get() and self.app.audit_password_var.get().strip():
+        # of quiet resolution this field is supposed to avoid. Same for
+        # adopting the exported one: three checked boxes, three instructions.
+        digitada = self.app.audit_password_var.get().strip()
+        remover = self.app.remove_audit_password.get()
+        adotar = self.app.adopt_exported_password.get()
+        if sum((bool(digitada), remover, adotar)) > 1:
             self.validation_label.config(
-                text="Escolha uma coisa só: ou digite uma senha nova para a "
-                "auditoria, ou marque a remoção -- não os dois."
+                text="Escolha uma coisa só: digitar uma senha nova, adotar a da "
+                "variável de ambiente, ou marcar a remoção -- não mais de uma."
             )
             return False
-        # Writing a password into .env while the environment already exports
-        # one produces the configuration the web interface now refuses to
-        # start on -- so it is caught here, where there is still a field to
-        # edit, and not three screens later as a server that dies on launch.
-        #
-        # Every branch below names both ways out. Someone with that variable
-        # in their shell profile is not doing anything wrong, and a wizard
-        # that only says "no" to them is a wizard they cannot finish.
-        if not self.app.remove_audit_password.get() and env_audit_password_present():
-            if self.app.audit_password_var.get().strip():
-                self.validation_label.config(
-                    text=audit_password_would_conflict(ROOT)
-                    + "\nSaídas: apague a variável de ambiente e continue aqui, "
-                    "ou deixe este campo em branco e use a que já está exportada "
-                    "-- a auditoria funciona igual, e nada é gravado no .env."
-                )
-                return False
-            conflict = audit_password_conflict(ROOT)
-            if conflict:
-                self.validation_label.config(
-                    text=conflict + "\nAqui: marque a remoção acima para apagar "
-                    "a do .env e ficar só com a variável de ambiente."
-                )
-                return False
+
+        # What .env would hold after this screen. The predicate is asked once,
+        # about that, instead of once per branch: the CLI refuses on exactly
+        # this comparison at startup, and the two must not answer differently.
+        if remover:
+            candidata = None
+        elif adotar:
+            candidata = exported_audit_password()
+        else:
+            candidata = digitada or read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
+
+        conflito = audit_password_would_conflict(ROOT, candidata)
+        if conflito:
+            # Never just "no". Someone with that variable in a shell profile
+            # is not doing anything wrong, and a wizard they cannot finish is
+            # worse than the leftover it is complaining about. The adopt box
+            # is the exit that never leaves this window; the other one needs
+            # a shell and a restart, and says so rather than pretending Back
+            # would re-read an environment this process cannot see change.
+            saidas = "\nDaqui: marque a caixa para adotar a senha da variável"
+            if not remover:
+                saidas += ", ou digite a mesma senha que ela tem"
+            saidas += (
+                ". Ou apague a variável de ambiente no shell e reabra este "
+                "instalador -- ele não enxerga essa mudança enquanto está aberto."
+            )
+            self.validation_label.config(text=conflito + saidas)
+            return False
         self.validation_label.config(text="")
         return True
 
@@ -911,6 +954,7 @@ class ProgressPage(_Page):
         self.app.chosen_api_key = self.app.ollama_api_key_var.get().strip()
         self.app.chosen_audit_password = self.app.audit_password_var.get().strip()
         self.app.chosen_remove_audit_password = self.app.remove_audit_password.get()
+        self.app.chosen_adopt_exported_password = self.app.adopt_exported_password.get()
         # O plano de fases sai do snapshot, antes da thread existir: o
         # denominador da barra tem de estar fechado quando ela começa a andar,
         # ou ela anda para trás quando uma fase nova aparece no meio.
@@ -922,6 +966,7 @@ class ProgressPage(_Page):
                 writes_config=bool(
                     self.app.chosen_audit_password
                     or self.app.chosen_remove_audit_password
+                    or self.app.chosen_adopt_exported_password
                 ),
             )
         )
@@ -1019,63 +1064,66 @@ class ProgressPage(_Page):
             self._queue.put("__FAILED__")
 
     def _apply_audit_password(self) -> bool:
-        """Three cases, and doing nothing is one of them. False stops the
-        install rather than writing a configuration the server refuses.
+        """Four routes, and doing nothing is one of them. False stops the
+        install rather than writing a .env the server refuses to start on.
 
         A blank field never erases an existing password: the only way to lose
-        one is the explicit checkbox. Nothing here ever puts the value into
-        the progress log -- only the path of the file it went to, the same
-        rule _run_llm_setup_cloud follows for the Ollama key.
+        one is the explicit checkbox. Nothing here ever puts a value into the
+        progress log -- only the path of the file it went to, the same rule
+        _run_llm_setup_cloud follows for the Ollama key. That includes the
+        adopted one, which this method handles without ever seeing it printed.
         """
         password = self.app.chosen_audit_password
+        if self.app.chosen_adopt_exported_password:
+            # The exit for someone whose shell profile exports a password:
+            # copy it into .env, which is where the password lives now. Read
+            # straight from the environment into the writer -- it is never
+            # displayed, never logged, and never held in a Tk variable.
+            password = exported_audit_password() or ""
+
+        # can_advance already refused every bad combination, but it ran before
+        # the snapshot was taken and Back stays enabled during the install, so
+        # the state it approved is not necessarily the state being written.
+        # Asked here against the same predicate the CLI uses at startup.
+        candidata = None if self.app.chosen_remove_audit_password else (
+            password or read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
+        )
+        conflito = audit_password_would_conflict(ROOT, candidata)
+        if conflito:
+            saida = (
+                "\nNada foi gravado. Volte uma tela: dá para adotar a senha da "
+                "variável ali, ou apague a variável no shell e reabra este "
+                "instalador.\n"
+            )
+            self._queue.put("\n" + conflito + saida)
+            self.app.audit_enabled = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+            return False
+
         if self.app.chosen_remove_audit_password:
             env_path = remove_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
             if env_path is not None:
-                # Removing it disables the screen only if nothing else
-                # defines one. With the variable exported, this is the
-                # *remedy* for two passwords, not the loss of the feature.
-                consequence = (
-                    "-- a auditoria passa a usar a senha da variável de ambiente."
-                    if env_audit_password_present()
-                    else "-- /audit deixa de existir."
+                # .env is the only place the password can live, so removing it
+                # always costs the screen -- there is no exported one to take
+                # over any more.
+                self._queue.put(
+                    f"Senha da auditoria removida de {env_path} -- /audit deixa de existir.\n"
                 )
-                self._queue.put(f"Senha da auditoria removida de {env_path} {consequence}\n")
-            self.app.audit_enabled = env_audit_password_present()
+            self.app.audit_enabled = False
             return True
 
         if password:
-            # OptionsPage.can_advance already refuses this, but it runs before
-            # the snapshot is taken and Back stays enabled during the install.
-            # Checked again here because the cost of being wrong is a .env the
-            # web interface will not start on.
-            if env_audit_password_present():
-                aviso = audit_password_would_conflict(ROOT)
-                saida = (
-                    "\nNada foi gravado. Volte uma tela e ou limpe o campo da "
-                    "senha -- a auditoria segue habilitada pela variável de "
-                    "ambiente --, ou apague a variável e digite a senha de novo.\n"
-                )
-                self._queue.put("\n" + aviso + saida)
-                self.app.audit_enabled = True
-                return False
             env_path = write_env_audit_password(ROOT, password)
             self._queue.put(f"Senha da tela de auditoria gravada em {env_path}\n")
             self._record_env_key(AUDIT_PASSWORD_ENV_VAR)
             self.app.audit_enabled = True
             return True
 
-        # Left blank. Whether audit ends up enabled depends on whether a
-        # password was already there -- in .env, or exported, which is the
-        # supported way to finish this screen without writing anything.
+        # Left blank. Whether audit ends up enabled depends only on whether a
+        # password was already in .env -- there is nowhere else for one to be.
         # FinishPage reports whatever this decides.
-        in_dotenv = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
-        self.app.audit_enabled = in_dotenv or env_audit_password_present()
-        if in_dotenv:
+        self.app.audit_enabled = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+        if self.app.audit_enabled:
             self._queue.put("Senha da auditoria já configurada -- mantida como estava.\n")
-        elif self.app.audit_enabled:
-            self._queue.put(
-                "Auditoria habilitada pela variável de ambiente -- nada gravado no .env.\n"
-            )
         return True
 
     def _record_env_key(self, key: str) -> None:

@@ -12,6 +12,7 @@ from ethical_agent.ollama_install import (
     _WIN_NEW_GROUP,
     _WIN_NO_WINDOW,
     audit_password_conflict,
+    audit_password_would_conflict,
     download_file,
     env_audit_password_present,
     estimate_model_size_text,
@@ -211,15 +212,18 @@ def test_remove_env_var_on_the_only_line_leaves_a_valid_empty_file(tmp_path):
     assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") is None
 
 
-# -- the two ambient sources, and refusing to choose between them -------------
+# -- one ambient source, and the tripwire on the one that died ----------------
+#
+# .env is the only ambient source of the audit password. The environment
+# variable is no longer read as one -- it is read only to notice that somebody
+# still has it set, and to refuse rather than ignore it in silence.
 #
 # Both the CLI (webui/auth.load_audit_password) and the installer
-# (wizard_gui.py) have to answer "are two audit passwords defined at once?"
-# the same way, and wizard_gui cannot import webui/auth (it runs on the
-# system Python before the project is installed -- see wizard_gui.py's own
-# comment on AUDIT_PASSWORD_ENV_VAR). This module is the only place both can
-# import from, so the predicate, the exception to it, and the wording all
-# live here and are tested here.
+# (wizard_gui.py) have to answer that the same way, and wizard_gui cannot
+# import webui/auth (it runs on the system Python before the project is
+# installed -- see wizard_gui.py's own comment on AUDIT_PASSWORD_ENV_VAR).
+# This module is the only place both can import from, so the predicate, the
+# exception to it, and the wording all live here and are tested here.
 
 
 def _dotenv_with_password(root, value="do-dotenv"):
@@ -229,25 +233,47 @@ def _dotenv_with_password(root, value="do-dotenv"):
     return root
 
 
-def test_audit_password_conflict_only_when_both_ambient_sources_are_set(tmp_path):
-    env_only = {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}
-
-    # Neither.
+def test_no_exported_variable_means_nothing_to_report(tmp_path):
     assert audit_password_conflict(tmp_path, {}) is None
-    # The variable alone -- no .env file at all.
-    assert audit_password_conflict(tmp_path, env_only) is None
-    # .env alone.
     assert audit_password_conflict(_dotenv_with_password(tmp_path), {}) is None
-    # Both.
-    assert audit_password_conflict(tmp_path, env_only) is not None
+
+
+def test_a_variable_repeating_the_dotenv_password_is_not_a_problem(tmp_path):
+    # Nothing is ambiguous when both names hold the same string, so refusing
+    # would be refusing over one password seen twice. This is not merely
+    # kinder: python-dotenv's load_dotenv() (llm.py) copies every .env key
+    # into os.environ, so "the variable holds the .env value" is a state the
+    # process can reach on its own. Under a presence-only rule that reflection
+    # would refuse.
+    _dotenv_with_password(tmp_path, "a-mesma")
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "a-mesma"}) is None
+    # Whitespace is stripped on both sides, as it is on write and on read.
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "  a-mesma  "}) is None
+
+
+def test_a_variable_that_disagrees_with_the_dotenv_password_is_refused(tmp_path):
+    _dotenv_with_password(tmp_path, "do-dotenv")
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "outra"}) is not None
+
+
+def test_a_variable_with_no_dotenv_password_is_refused_rather_than_ignored(tmp_path):
+    # The case that used to work: the variable alone was a source. Now nothing
+    # would be in effect, so somebody who set it would lose the audit screen
+    # without being told -- which is the failure this whole area exists to
+    # prevent.
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
+
+    (tmp_path / ".env").write_text("OLLAMA_MODEL=llama3.2:3b\n", encoding="utf-8")
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
 
 
 def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
-    # "Defined" has to mean the same thing on both sides or the two halves of
-    # the check disagree about how many passwords exist. read_env_var already
-    # treats `KEY=` as absent; the variable is measured the same way.
+    # "Defined" has to mean the same thing on both sides. read_env_var already
+    # treats `KEY=` as absent; the variable is measured the same way, so an
+    # exported-but-empty name is silence rather than a claim.
     (tmp_path / ".env").write_text(f"{AUDIT_PASSWORD_ENV_VAR}=\n", encoding="utf-8")
-    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is None
+    # Empty .env key + a real variable: nothing in effect, so it is refused.
+    assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
 
     _dotenv_with_password(tmp_path)
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "   "}) is None
@@ -256,35 +282,86 @@ def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
     assert env_audit_password_present({}) is False
 
 
-def test_the_password_file_flag_silences_the_conflict(tmp_path):
+def test_the_password_file_flag_silences_the_tripwire(tmp_path):
     # The exception lives in the predicate, not in each caller. If the CLI
     # carved it out on its own, the installer would carve out something
     # slightly different, and the two would drift apart on the *exception*
     # while still looking like they share the rule -- which is the divergence
-    # nobody notices.
+    # nobody notices. (The banner still names the stale variable; silencing
+    # the refusal is not the same as saying nothing.)
     _dotenv_with_password(tmp_path)
-    env = {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}
+    env = {AUDIT_PASSWORD_ENV_VAR: "outra"}
 
     assert audit_password_conflict(tmp_path, env) is not None
     assert audit_password_conflict(tmp_path, env, password_file="/tmp/senha.txt") is None
 
 
-def test_the_conflict_message_names_both_origins_the_path_and_the_way_out(tmp_path):
+def test_both_messages_name_the_variable_the_path_and_removing_it(tmp_path):
+    # Two states, two messages. Unlike the message this replaces, both name
+    # *the* fix rather than offering a choice: the variable is not a source
+    # any more, so "remove one of the two" would offer something that no
+    # longer exists.
     _dotenv_with_password(tmp_path)
-    message = audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"})
+    divergente = audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "outra"})
 
-    # Where each one is.
-    assert f"${AUDIT_PASSWORD_ENV_VAR}" in message
-    assert str((tmp_path / ".env").resolve()) in message
-    # What to do, without saying which to remove -- that is the operator's
-    # call, and this program has no way to know which one was intended.
-    assert "remova uma das duas" in message.lower()
-    # And the way to run *now* without editing anything, so nobody has to go
-    # read the documentation to get unstuck.
-    assert "--audit-password-file" in message
-    # Never either value.
-    assert "do-ambiente" not in message
-    assert "do-dotenv" not in message
+    vazio = tmp_path / "sem-dotenv"
+    vazio.mkdir()
+    sem_senha = audit_password_conflict(vazio, {AUDIT_PASSWORD_ENV_VAR: "outra"})
+
+    assert divergente != sem_senha, "os dois estados não são a mesma notícia"
+    for message in (divergente, sem_senha):
+        assert f"${AUDIT_PASSWORD_ENV_VAR}" in message
+        assert "apague a variável" in message.lower()
+        assert "--audit-password-file" in message
+    assert str((tmp_path / ".env").resolve()) in divergente
+    assert str((vazio / ".env").resolve()) in sem_senha
+
+
+def test_no_message_ever_reveals_or_compares_a_value(tmp_path):
+    # The most likely place in the codebase to leak a password: the only text
+    # that has to talk about two of them at once. It may say that they differ;
+    # it may not say how, and it may not quote either one.
+    _dotenv_with_password(tmp_path, "SENHA-CANARIO-DOTENV")
+    env = {AUDIT_PASSWORD_ENV_VAR: "SENHA-CANARIO-VARIAVEL"}
+
+    textos = [
+        audit_password_conflict(tmp_path, env),
+        audit_password_would_conflict(tmp_path, "SENHA-CANARIO-CANDIDATA", env),
+        audit_password_would_conflict(tmp_path, None, env),
+    ]
+    for message in textos:
+        assert message is not None
+        assert "SENHA-CANARIO-DOTENV" not in message
+        assert "SENHA-CANARIO-VARIAVEL" not in message
+        assert "SENHA-CANARIO-CANDIDATA" not in message
+
+
+def test_would_conflict_needs_the_candidate_to_answer_at_all(tmp_path):
+    # Required and positional. Optional would let a caller that forgot it get
+    # the old presence-only answer, which is now wrong in the equal case --
+    # and wrong by refusing an install that is perfectly fine.
+    with pytest.raises(TypeError):
+        audit_password_would_conflict(tmp_path)  # noqa: E1120
+
+
+def test_would_conflict_accepts_a_candidate_equal_to_the_exported_one(tmp_path):
+    # The installer's only purely-graphical way out: type the password the
+    # variable already holds. Nothing is ambiguous afterwards.
+    env = {AUDIT_PASSWORD_ENV_VAR: "a-mesma"}
+    assert audit_password_would_conflict(tmp_path, "a-mesma", env) is None
+    assert audit_password_would_conflict(tmp_path, "  a-mesma  ", env) is None
+    assert audit_password_would_conflict(tmp_path, "outra", env) is not None
+    # Nothing exported: writing anything is fine, as it always was.
+    assert audit_password_would_conflict(tmp_path, "outra", {}) is None
+
+
+def test_would_conflict_on_removal_reports_the_state_that_would_be_left(tmp_path):
+    # candidate=None means "about to remove it". With a variable exported that
+    # leaves nothing in effect and a machine that refuses to start, so the
+    # installer must not present removal as a way out.
+    _dotenv_with_password(tmp_path)
+    assert audit_password_would_conflict(tmp_path, None, {AUDIT_PASSWORD_ENV_VAR: "outra"})
+    assert audit_password_would_conflict(tmp_path, None, {}) is None
 
 
 def test_verify_windows_signature_valid():

@@ -967,43 +967,52 @@ tela de Opções, e o que for digitado ali vai para o `.env` da raiz (já ignora
 pelo git) — depois disso, `ethical-agent serve` sem flag nenhuma já sobe com a
 auditoria habilitada. Deixar o campo em branco mantém a auditoria desativada.
 
-Pela linha de comando, as outras duas fontes continuam valendo:
+Pela linha de comando, há uma segunda fonte — um arquivo apontado por flag:
 
 ```bash
 ethical-agent serve --audit-password-file ~/.ethical-agent-audit-password
-# ou:  ETHICAL_AGENT_AUDIT_PASSWORD=... ethical-agent serve
 ```
 
-As três fontes, da mais forte para a mais fraca:
+**São só essas duas**, da mais forte para a mais fraca:
 
 1. `--audit-password-file ARQUIVO`
-2. `$ETHICAL_AGENT_AUDIT_PASSWORD`
-3. `ETHICAL_AGENT_AUDIT_PASSWORD=` no `.env` da raiz (o que o instalador grava)
-4. nenhuma — a tela não existe
+2. `ETHICAL_AGENT_AUDIT_PASSWORD=` no `.env` da raiz (o que o instalador grava)
+3. nenhuma — a tela não existe
 
-**Só a flag é precedência. As duas fontes de ambiente não se ordenam entre si:
-com as duas definidas, `serve` não sobe** — imprime onde cada uma está e sai
-com código 2. Duas senhas configuradas é erro de configuração, e remover uma
-das duas é decisão de quem instalou.
+> [!IMPORTANT]
+> **A variável de ambiente `$ETHICAL_AGENT_AUDIT_PASSWORD` não é mais uma
+> fonte.** Ela já foi, e ganhava do `.env`. Se você ainda a tiver exportada,
+> `serve` **não a ignora**: compara com a senha que está valendo e, se
+> divergir — ou se não houver nenhuma —, **não sobe**, dizendo onde a senha
+> mora agora e pedindo que você apague a variável. Valores iguais sobem em
+> silêncio, porque aí não há nada de ambíguo.
+>
+> Ignorar em silêncio seria repetir o defeito que motivou a mudança, só que
+> apontado para o outro lado: quem exportou a variável acredita ter
+> configurado uma senha, e descobriria que não na tela de login.
 
-Elas já se ordenaram: a variável ganhava, à moda do `python-dotenv`, e o banner
-de inicialização nomeava a perdedora. O que isso não cobria é onde a
-consequência aparece. O banner fica num terminal que ninguém está
-necessariamente olhando; quem digita no navegador a senha que acredita ter
-configurado é recusado **sem explicação nenhuma na tela**. Uma ordem era a
-forma errada para uma pergunta que dá para simplesmente devolver a quem
-instalou.
+Por que uma fonte só, e por que essa. Duas fontes ambientes se ordenavam, e a
+ordem era a forma errada para o problema: o banner de inicialização nomeava a
+perdedora, mas o banner fica num terminal que ninguém está necessariamente
+olhando, enquanto a consequência aparece no navegador, onde quem digita a senha
+em que acredita é recusado **sem explicação nenhuma na tela**. O `.env` é o que
+sobrou porque é o que o instalador sabe gravar — nada neste projeto jamais
+escreveu uma variável de ambiente, e dar-lhe essa capacidade significaria mexer
+em registro do Windows ou em perfil de shell.
 
-A flag continua acima das duas e **silencia o conflito** — ela é uma resposta
-explícita, naquela invocação, a "qual delas". É também a saída que a mensagem
-de erro oferece, para quem precisa subir agora sem mexer em configuração
-nenhuma. O banner ainda nomeia a origem da senha em vigor, e avisa quando a
-flag passou por cima de uma senha no `.env`. Nem o banner nem qualquer log
-imprimem o valor.
+A flag continua acima do `.env` e **silencia a recusa** — ela é uma declaração
+explícita, naquela invocação, de qual senha usar, e é a saída que a mensagem de
+erro oferece para quem precisa subir agora. Silenciar a recusa não é ficar
+calado: o banner nomeia tanto a senha do `.env` que a flag passou por cima
+quanto a variável que ficou para trás. Nem o banner nem qualquer log imprimem
+valor nenhum.
+
+Se o instalador gráfico encontrar a variável exportada, ele oferece **adotá-la**
+— grava o mesmo valor no `.env`, sem exibi-lo — para quem não quer ir editar
+perfil de shell.
 
 `OLLAMA_MODEL` e `OLLAMA_API_KEY` não mudaram: continuam no mesmo `.env`, com a
-variável de ambiente acima dele. O que mudou é uma chave só, e só quando ela
-está definida duas vezes.
+variável de ambiente acima dele. O que mudou é uma chave só.
 
 Sem senha, `/audit`, os endpoints `/api/audit/*` e os próprios arquivos
 estáticos da tela respondem o mesmo `404` de uma rota inexistente, para
