@@ -1,27 +1,4 @@
-# Taxonomia de dano de conteúdo — NOSSA, não upstream.
-#
-# O RelAIEO não nomeia dano de conteúdo: das suas 154 classes, nenhuma cobre
-# violência, arma, roubo, droga, auto-dano, conteúdo sexual, extremismo ou
-# intrusão. Isso é coerente com o que ele é -- um instrumento reflexivo de
-# auditoria de sistemas em projeto -- e não é lacuna dele. É lacuna de ajuste
-# entre ele e a tarefa, medida em MINERACAO-tune-2026-08-03.md: 106 dos 198
-# casos DENY da metade `tune` caem em categoria que o RelAIEO não nomeia.
-#
-# `relaieo.ttl` é vendorizado verbatim sob GPL v3 e NÃO SE TOCA (PROVENANCE.md).
-# Este arquivo é carregado ao lado dele, com origem declarada em cada conceito
-# (`Concept.source == "harm"`). Onde um conceito de dano é especialização de um
-# conceito RelAIEO, o `rdfs:subClassOf` aponta para lá e a ativação propaga --
-# a união acontece em `relaieo.load_relaieo`, sem editar o arquivo emprestado.
-# Cinco dos doze conceitos abaixo têm pai no RelAIEO; sete não têm, e é essa
-# proporção que dimensiona a lacuna.
-#
-# NOTA SOBRE O PREFIXO: o parser desta casa deriva o id do conceito só da forma
-# `:nome` (prefixo default). O `@prefix` abaixo é declarado para leitor humano e
-# para ferramenta RDF externa; o parser o ignora. Prefixo próprio (`harm:x`)
-# seria descartado em silêncio.
-#
-# Sem versão declarada: o formato não a carrega. O digest é a única identidade,
-# como no `ontology_ttl` -- ver Ontology._CHAVE_DE_VERSAO.
+# Taxonomia de dano de conteúdo
 
 @prefix : <https://ai-ethical-agent.local/harm#> .
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
@@ -31,10 +8,8 @@
 ###  Raiz da taxonomia autoral.
 :content_harm rdf:type owl:Class ;
     rdfs:label "Content harm" ;
-    rdfs:comment "Dano que está no conteúdo do texto -- no que ele entrega, ensina ou expõe -- e não no sistema que o produziu. Raiz separada da raiz do RelAIEO porque o RelAIEO fala de risco de sistema em projeto, não de conteúdo nocivo." .
+    rdfs:comment "Dano que está no conteúdo do texto. " .
 
-
-###  ---- Com pai no RelAIEO: a ativação propaga para lá ----
 
 :targeted_surveillance rdf:type owl:Class ;
     rdfs:subClassOf :content_harm ;
