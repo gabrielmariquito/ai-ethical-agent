@@ -156,6 +156,7 @@ def render_plan(plan: UninstallPlan, choices: Choices, mode: str) -> str:
             "ollama": choices.remove_ollama,
             "model": choices.remove_model,
             "env": choices.remove_env,
+            "audit_password": choices.remove_audit_password,
         }
         for cand in plan.optional:
             mark = "[será removido]" if chosen.get(cand.key) else f"[requer {cand.optin_flag}]"
@@ -246,6 +247,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="apaga o .env (contém OLLAMA_MODEL e, se configurada, OLLAMA_API_KEY)",
     )
     parser.add_argument(
+        "--remove-audit-password",
+        action="store_true",
+        help=(
+            "apaga o .audit-password (o hash da senha da tela de auditoria); "
+            "desativa /audit"
+        ),
+    )
+    parser.add_argument(
         "--remove-ollama",
         action="store_true",
         help=(
@@ -288,6 +297,7 @@ def _wants_text_mode(args: argparse.Namespace) -> bool:
         or args.move_logs_to
         or args.remove_model
         or args.remove_env
+        or args.remove_audit_password
         or args.remove_ollama
         or args.no_probe
     )
@@ -397,6 +407,7 @@ def main(
         move_logs_to=move_to,
         remove_model=args.remove_model,
         remove_env=args.remove_env,
+        remove_audit_password=args.remove_audit_password,
         remove_ollama=args.remove_ollama,
     )
 
@@ -457,6 +468,7 @@ def _ask_optional(plan: UninstallPlan, choices: Choices, ask: Callable[[str], st
     move_logs_to = choices.move_logs_to
     remove_model = choices.remove_model
     remove_env = choices.remove_env
+    remove_audit_password = choices.remove_audit_password
     remove_ollama = choices.remove_ollama
 
     for cand in plan.optional:
@@ -493,12 +505,19 @@ def _ask_optional(plan: UninstallPlan, choices: Choices, ask: Callable[[str], st
             )
         elif cand.key == "env" and not remove_env:
             remove_env = ask_yes_no("Remover o .env?", cand.detail.splitlines(), ask=ask)
+        elif cand.key == "audit_password" and not remove_audit_password:
+            remove_audit_password = ask_yes_no(
+                f"Remover o {_mid_sentence(cand.label)}?",
+                cand.detail.splitlines(),
+                ask=ask,
+            )
 
     return Choices(
         remove_logs=remove_logs,
         move_logs_to=move_logs_to,
         remove_model=remove_model,
         remove_env=remove_env,
+        remove_audit_password=remove_audit_password,
         remove_ollama=remove_ollama,
     )
 

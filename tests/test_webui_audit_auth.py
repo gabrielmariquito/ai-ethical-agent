@@ -8,6 +8,7 @@ import json
 
 import pytest
 
+from ethical_agent import senha_auditoria
 from ethical_agent.webui.auth import (
     AuditPasswordError,
     dotenv_password_present,
@@ -256,11 +257,35 @@ def test_non_ascii_password_round_trips(tmp_path):
 
 
 def _dotenv(root, value):
+    """Uma máquina **anterior** à leva do hash: senha em claro no `.env`.
+
+    Depois da primeira `load_audit_password`, esta máquina não existe mais --
+    a senha vira hash e a linha some. É por isso que quase todo teste abaixo
+    que usa este helper está, na verdade, exercitando a migração.
+    """
+    root.mkdir(parents=True, exist_ok=True)
     (root / ".env").write_text(
         f"OLLAMA_MODEL=llama3.2:3b\nETHICAL_AGENT_AUDIT_PASSWORD={value}\n",
         encoding="utf-8",
     )
     return root
+
+
+def _hasheada(root, value):
+    """Uma máquina já migrada: só o registro `senha/v1`, nenhum `.env`."""
+    root.mkdir(parents=True, exist_ok=True)
+    senha_auditoria.gravar(root, senha_auditoria.registrar_senha(value))
+    return root
+
+
+def _confere(credencial, senha):
+    """A credencial verifica aquela senha -- e, sendo hash, não *é* a senha."""
+    assert credencial is not None
+    assert credencial != senha
+    return senha_auditoria.verificar(credencial, senha)
+
+
+FONTE = f"{senha_auditoria.NOME_ARQUIVO} ({senha_auditoria.RECEITA_SENHA})"
 
 
 def test_password_file_takes_precedence_over_env_var(tmp_path):
@@ -290,41 +315,95 @@ def test_the_env_var_is_not_a_password_source_any_more(tmp_path):
     assert "do-ambiente" not in message
 
 
-def test_dotenv_used_when_there_is_no_file_and_no_env_var(tmp_path):
-    # The wizard's path: a password in .env and `serve` with no flag at all.
-    password, source, _ = load_audit_password(None, {}, root=_dotenv(tmp_path, "do-dotenv"))
-    assert password == "do-dotenv"
-    assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
-    assert "do-dotenv" not in source
+def test_o_registro_hasheado_e_a_fonte_quando_nao_ha_flag_nem_variavel(tmp_path):
+    # O caminho do instalador: senha definida no wizard e `serve` sem flag.
+    credencial, source, _ = load_audit_password(None, {}, root=_hasheada(tmp_path, "a-senha"))
+    assert _confere(credencial, "a-senha")
+    assert source == FONTE
+    assert "a-senha" not in source
 
 
-def test_a_leftover_variable_that_disagrees_with_dotenv_is_refused(tmp_path):
+def test_a_migracao_transforma_o_dotenv_em_hash_e_apaga_a_linha(tmp_path):
+    # Teste 5 do plano. A máquina de ontem sobe hoje, e a senha em claro deixa
+    # de existir em arquivo nenhum.
+    root = _dotenv(tmp_path, "senha-de-teste-9c2f")
+
+    credencial, source, avisos = load_audit_password(None, {}, root=root)
+
+    assert _confere(credencial, "senha-de-teste-9c2f")
+    assert source == FONTE
+    # A senha em claro sumiu do `.env`...
+    dotenv = (root / ".env").read_text(encoding="utf-8")
+    assert "senha-de-teste-9c2f" not in dotenv
+    assert "ETHICAL_AGENT_AUDIT_PASSWORD" not in dotenv
+    # ...e o resto do `.env` sobreviveu: a migração tira uma linha, não o arquivo.
+    assert "OLLAMA_MODEL=llama3.2:3b" in dotenv
+    # ...e nem no arquivo novo ela aparece.
+    registro = senha_auditoria.caminho_do_registro(root).read_text(encoding="utf-8")
+    assert "senha-de-teste-9c2f" not in registro
+    assert registro.startswith(senha_auditoria.RECEITA_SENHA)
+    # E foi dita em voz alta: migração silenciosa que apaga linha de arquivo de
+    # configuração é o que assusta quando descoberto depois.
+    assert any("migrada para hash" in a for a in avisos)
+    assert any(senha_auditoria.NOME_ARQUIVO in a for a in avisos)
+    assert not any("senha-de-teste-9c2f" in a for a in avisos)
+
+
+def test_a_migracao_e_idempotente_e_nao_sobrescreve_hash_em_vigor(tmp_path):
+    root = _hasheada(tmp_path, "a-que-vale")
+    # Um `.env` reeditado à mão depois da migração não pode ganhar do hash.
+    (root / ".env").write_text(
+        "ETHICAL_AGENT_AUDIT_PASSWORD=a-que-nao-vale\n", encoding="utf-8"
+    )
+
+    credencial, _, avisos = load_audit_password(None, {}, root=root)
+
+    assert _confere(credencial, "a-que-vale")
+    assert senha_auditoria.verificar(credencial, "a-que-nao-vale") is False
+    assert avisos == []
+
+
+def test_a_migracao_roda_antes_da_checagem_de_conflito(tmp_path):
+    # Teste 7 do plano, e a interação que quebraria calado: a leva anterior fez
+    # o `serve` recusar quando uma variável remanescente discorda da senha em
+    # vigor. Numa máquina não migrada, o registro ainda não existe -- se a
+    # checagem rodasse primeiro, ela chamaria a variável de órfã e recusaria a
+    # subir uma máquina que estava perfeitamente configurada.
+    credencial, source, _ = load_audit_password(
+        None,
+        {"ETHICAL_AGENT_AUDIT_PASSWORD": "senha-de-teste-9c2f"},
+        root=_dotenv(tmp_path, "senha-de-teste-9c2f"),
+    )
+
+    assert _confere(credencial, "senha-de-teste-9c2f")
+    assert source == FONTE
+
+
+def test_uma_variavel_remanescente_que_discorda_do_hash_e_recusada(tmp_path):
+    root = _hasheada(tmp_path, "a-que-vale")
     with pytest.raises(AuditPasswordError) as excinfo:
-        load_audit_password(
-            None,
-            {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"},
-            root=_dotenv(tmp_path, "do-dotenv"),
-        )
+        load_audit_password(None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=root)
 
     message = str(excinfo.value)
     assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in message
-    assert str((tmp_path / ".env").resolve()) in message
+    assert str(senha_auditoria.caminho_do_registro(root).resolve()) in message
     assert "--audit-password-file" in message
-    # It may say they differ. It may not say how, and may not quote either.
+    # Pode dizer que divergem. Não pode dizer como, nem citar nenhuma das duas.
     assert "do-ambiente" not in message
-    assert "do-dotenv" not in message
+    assert "a-que-vale" not in message
 
 
-def test_a_leftover_variable_that_repeats_the_dotenv_password_is_silent(tmp_path):
-    # Nada é ambíguo, logo não há o que recusar — e é o estado que o
-    # `load_dotenv()` produz sozinho.
-    password, source, _ = load_audit_password(
+def test_uma_variavel_remanescente_que_verifica_contra_o_hash_e_silenciosa(tmp_path):
+    # Nada é ambíguo, logo não há o que recusar. E note o que mudou: a decisão
+    # sai de `verificar`, não de `==` entre duas strings -- é o que fecha `D-10`,
+    # porque não há mais dois analisadores que precisem concordar.
+    credencial, source, _ = load_audit_password(
         None,
         {"ETHICAL_AGENT_AUDIT_PASSWORD": "a-mesma"},
-        root=_dotenv(tmp_path, "a-mesma"),
+        root=_hasheada(tmp_path, "a-mesma"),
     )
-    assert password == "a-mesma"
-    assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
+    assert _confere(credencial, "a-mesma")
+    assert source == FONTE
 
 
 def test_password_file_silences_the_tripwire(tmp_path):
@@ -335,13 +414,18 @@ def test_password_file_silences_the_tripwire(tmp_path):
     # it in the banner -- silencing the refusal is not saying nothing.)
     path = tmp_path / "senha.txt"
     path.write_text("do-arquivo\n", encoding="utf-8")
+    root = _dotenv(tmp_path, "do-dotenv")
     password, source, _ = load_audit_password(
-        str(path), {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=_dotenv(tmp_path, "do-dotenv")
+        str(path), {"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}, root=root
     )
     assert password == "do-arquivo"
     assert "do-arquivo" not in source
     assert "do-dotenv" not in source
     assert "do-ambiente" not in source
+    # E a flag não é desculpa para deixar senha em claro no disco: a migração
+    # roda antes dela e não muda quem vence esta invocação.
+    assert "do-dotenv" not in (root / ".env").read_text(encoding="utf-8")
+    assert senha_auditoria.verificar(senha_auditoria.ler(root), "do-dotenv")
 
 
 def test_a_variable_with_a_dotenv_that_has_no_password_is_refused(tmp_path):
@@ -361,18 +445,18 @@ def test_a_blank_env_var_is_not_a_leftover_at_all(tmp_path):
     # An exported-but-empty variable is how a shell profile leaves the name
     # defined without meaning anything by it. Refusing over that would be
     # refusing over nothing.
-    password, source, _ = load_audit_password(
-        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "   "}, root=_dotenv(tmp_path, "do-dotenv")
+    credencial, source, _ = load_audit_password(
+        None, {"ETHICAL_AGENT_AUDIT_PASSWORD": "   "}, root=_hasheada(tmp_path, "a-senha")
     )
-    assert password == "do-dotenv"
-    assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
+    assert _confere(credencial, "a-senha")
+    assert source == FONTE
 
     # ...and with nothing configured anywhere, a blank variable is still just
     # a disabled audit screen, not an error.
-    password, source, _ = load_audit_password(
+    credencial, source, _ = load_audit_password(
         None, {"ETHICAL_AGENT_AUDIT_PASSWORD": ""}, root=tmp_path / "vazio"
     )
-    assert password is None
+    assert credencial is None
     assert source is None
 
 
@@ -381,15 +465,15 @@ def test_the_resolver_never_reads_the_real_environment_when_env_is_passed(monkey
     # exactly, so a developer's own exported password cannot reach in. It
     # matters more now that a stray variable raises instead of being ranked.
     monkeypatch.setenv("ETHICAL_AGENT_AUDIT_PASSWORD", "veneno-do-ambiente-real")
-    password, source, _ = load_audit_password(None, {}, root=_dotenv(tmp_path, "do-dotenv"))
-    assert password == "do-dotenv"
-    assert source == ".env (ETHICAL_AGENT_AUDIT_PASSWORD)"
+    credencial, source, _ = load_audit_password(None, {}, root=_hasheada(tmp_path, "a-senha"))
+    assert _confere(credencial, "a-senha")
+    assert source == FONTE
 
 
 def test_dotenv_password_present_reports_the_loser_without_the_value(tmp_path):
-    # What the startup banner uses to say "the .env also has one, and it is
-    # not the one in effect" -- a boolean, never the value.
-    assert dotenv_password_present(root=_dotenv(tmp_path, "do-dotenv")) is True
+    # What the startup banner uses to say "there is also one configured, and it
+    # is not the one in effect" -- a boolean, never the value.
+    assert dotenv_password_present(root=_hasheada(tmp_path, "a-senha")) is True
     assert dotenv_password_present(root=tmp_path / "vazio") is False
 
 
@@ -404,16 +488,24 @@ def test_empty_key_in_dotenv_is_not_configured_rather_than_an_error(tmp_path):
     assert source is None
 
 
-def test_dotenv_password_may_contain_spaces_and_a_hash(tmp_path):
-    # The hand-rolled parser is authoritative for this key, and it takes the
-    # whole rest of the line: a `#` is part of the password, not a comment.
-    # Surrounding whitespace is stripped on both write and read, so what the
-    # login check compares is what the installer stored.
-    from ethical_agent.ollama_install import write_env_audit_password
+def test_a_migracao_preserva_espacos_e_cerquilha_da_senha_do_dotenv(tmp_path):
+    # O analisador feito à mão é autoritativo para esta chave, e leva o resto da
+    # linha inteiro: um `#` é parte da senha, não comentário. Espaço nas pontas
+    # some, porque a escrita também fazia strip.
+    #
+    # Depois da leva do hash isto só governa **a migração** -- é a última vez
+    # que este analisador toca uma senha. É também onde mora o resíduo de
+    # `D-10`: se alguém tiver editado o `.env` à mão com ASPAS, elas viajam para
+    # dentro do hash, e o conserto é rodar o instalador de novo. Não é mais
+    # recusa espúria; é uma senha migrada errada, que aparece no primeiro login.
+    (tmp_path / ".env").write_text(
+        "ETHICAL_AGENT_AUDIT_PASSWORD=  senha com espaços #1  \n", encoding="utf-8"
+    )
 
-    write_env_audit_password(tmp_path, "  senha com espaços #1  ")
-    password, _, _ = load_audit_password(None, {}, root=tmp_path)
-    assert password == "senha com espaços #1"
+    credencial, source, _ = load_audit_password(None, {}, root=tmp_path)
+
+    assert _confere(credencial, "senha com espaços #1")
+    assert source == FONTE
 
 
 def test_no_password_source_means_the_screen_is_disabled(tmp_path):

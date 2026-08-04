@@ -987,6 +987,65 @@ escondendo e quantas linhas da trilha varreu.
 > alguém digitou `/audit` na barra de endereços. Não trate isto como controle de
 > acesso a dado sensível.
 
+#### A senha é guardada como hash, e o que isso alcança
+
+A senha **não fica em lugar nenhum em texto legível**. O que o disco guarda é um
+hash `scrypt` com sal, na receita `senha/v1`, no arquivo `.audit-password` da
+raiz — ignorado pelo git, ao lado do `.env`. No login, o sistema faz o hash do
+que você digitou e compara os dois; a senha em si não é recuperável a partir do
+arquivo.
+
+Uma linha, quatro campos separados por `$`:
+
+```
+senha/v1$n=16384,r=8,p=1$<sal-hex>$<hash-hex>
+```
+
+A receita, os parâmetros de custo, o sal e o hash. O sal **não é segredo** —
+existe para que duas máquinas com a mesma senha não tenham o mesmo hash. Os
+parâmetros ficam dentro do registro, e não só no código, para que endurecê-los
+um dia seja detectável em vez de silencioso.
+
+> [!IMPORTANT]
+> **O hash protege leitura. Não protege substituição.**
+>
+> **O que ele resolve:** quem lê o disco não lê a senha. Um backup, um
+> screenshot do editor, um `.env` colado num chamado de suporte, alguém olhando
+> a tela por cima do ombro — nenhum desses entrega a senha. Antes desta mudança,
+> todos entregavam.
+>
+> **O que ele não resolve:** quem tem acesso à máquina pode **trocar** o
+> `.audit-password` por um de senha que ele conhece, e entrar. Ler não dá;
+> escrever dá. Nada aqui resiste a quem controla o computador — e continua
+> valendo tudo que o aviso acima diz: essa pessoa lê `logs/audit.jsonl` direto,
+> sem passar pela tela.
+>
+> Ou seja: a senha continua sendo **separação de papéis, não segurança**. O que
+> mudou é que agora ela é separação de papéis *ilegível*, o que não é a mesma
+> coisa que segura.
+
+**Para trocar a senha, rode o instalador de novo** (`python wizard_gui.py`), que
+gera um hash novo, com sal novo. Não é mais possível — nem faz sentido — editar
+um arquivo à mão para trocá-la: não há texto ali para substituir. Se você
+precisa entrar *agora* com uma senha diferente, sem trocar a que está guardada,
+use `--audit-password-file ARQUIVO`.
+
+Depois de trocar, **reinicie o servidor**. Um `serve` que já está no ar resolveu
+a senha uma vez, no arranque, e não relê o arquivo — trocar a senha com ele
+rodando não tem efeito nenhum até o próximo arranque.
+
+Máquinas instaladas antes desta mudança tinham a senha em claro no `.env`, na
+chave `ETHICAL_AGENT_AUDIT_PASSWORD`. **A migração é automática:** na primeira
+subida, o sistema lê aquela senha uma última vez, grava o hash, remove a linha
+do `.env` e diz o que fez, numa linha no terminal:
+
+```
+[senha] migrada para hash em .audit-password (senha/v1); linha removida do .env
+```
+
+`OLLAMA_MODEL` e `OLLAMA_API_KEY` continuam no `.env`, intocados. O que saiu de
+lá foi uma chave só.
+
 A separação é estrutural, não visual: **sem senha configurada, a tela não
 existe**. `/audit`, os endpoints `/api/audit/*` e os arquivos estáticos da tela
 respondem o mesmo `404` de uma rota inexistente, para qualquer método —
@@ -998,17 +1057,17 @@ na lista de processos e no histórico do shell. Também não guarde a senha num
 arquivo dentro do repositório — o servidor avisa no `stderr` se você fizer isso,
 porque é um `git add -A` de distância de ser commitada.
 
-**A senha mora num lugar só.** Ou no `.env` da raiz — a chave
-`ETHICAL_AGENT_AUDIT_PASSWORD`, que é o que o instalador gráfico grava — ou num
-arquivo apontado por `--audit-password-file`, que tem precedência sobre ele.
-Não há terceira fonte.
+**A senha mora num lugar só.** Ou no `.audit-password` da raiz — o hash que o
+instalador gráfico grava — ou num arquivo apontado por `--audit-password-file`,
+que tem precedência sobre ele. Não há terceira fonte.
 
-**A variável de ambiente de mesmo nome não é lida.** Ela já foi, e ganhava do
-`.env`. Se ela ainda estiver exportada na sua máquina, `ethical-agent serve`
-compara com a senha em vigor e **não sobe** se elas divergirem, ou se não
-houver senha nenhuma configurada — dizendo onde a senha mora agora e pedindo
-que você apague a variável. Se o valor for o mesmo, sobe normalmente: não há o
-que desambiguar.
+**A variável de ambiente `ETHICAL_AGENT_AUDIT_PASSWORD` não é lida.** Ela já
+foi, e ganhava do `.env`. Se ela ainda estiver exportada na sua máquina,
+`ethical-agent serve` **verifica o valor dela contra o hash em vigor** e **não
+sobe** se ele não abrir a senha guardada, ou se não houver senha nenhuma
+configurada — dizendo onde a senha mora agora e pedindo que você apague a
+variável. Se o valor for a senha correta, sobe normalmente: não há o que
+desambiguar.
 
 O motivo de recusar em vez de simplesmente ignorar é desta seção. Uma variável
 ignorada em silêncio é alguém que acredita ter configurado uma senha e só

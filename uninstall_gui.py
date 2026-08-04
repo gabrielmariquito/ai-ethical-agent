@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Interface gráfica do desinstalador, carregada por `uninstall.py`, que é o
 ponto de entrada único e documentado; contraparte do `wizard_gui.py`, no mesmo
-Tkinter puro: versão longa em `997a6fe^`.
+Tkinter puro.
 """
 from __future__ import annotations
 
-# Antes de qualquer import do pacote -- ver a explicação em uninstall.py:
+# Antes de qualquer import do pacote, ver a explicação em uninstall.py:
 # ethical_agent/__init__.py importa avidamente uns 11 submódulos, e sem isto
 # o próprio ato de abrir esta janela recriaria ethical_agent/__pycache__,
 # um dos diretórios que ela lista como removível.
@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 try:
     from ethical_agent._stdio import ensure_utf8_stdio  # noqa: E402
     from ethical_agent.__main__ import DEFAULT_WEB_PORT  # noqa: E402
-except ImportError as _exc:  # pragma: no cover -- exercitado fora do repo
+except ImportError as _exc:  # pragma: no cover, exercitado fora do repo
     print(
         f"error: não encontrei o pacote ethical_agent ao lado de {__file__} "
         f"({_exc}).\nEste desinstalador precisa rodar de dentro do "
@@ -54,7 +54,7 @@ from ethical_agent.uninstall import (  # noqa: E402
 
 # Reaproveitados do instalador em vez de reescritos: são a mesma coisa, e
 # duas cópias divergiriam. A moldura de páginas/navegação abaixo é espelhada
-# e não importada porque no wizard ela vive dentro de WizardApp.__init__ --
+# e não importada porque no wizard ela vive dentro de WizardApp.__init__,
 # extraí-la exigiria refatorar um arquivo de 1085 linhas que está fixado por
 # testes de texto-fonte.
 from wizard_gui import _autowrap, _is_headless, _mono_font  # noqa: E402
@@ -71,9 +71,9 @@ WELCOME_TEXT = (
     "será apagado."
 )
 
-# A recusa vale nos dois sistemas -- ver running_inside_venv --, mas o
+# A recusa vale nos dois sistemas, ver running_inside_venv,, mas o
 # comando e o nome do terminal não, e mandar rodar `py -3` no macOS não
-# conserta nada. O motivo também difere: no Windows é o travamento do
+# conserta nada. No Windows é o travamento do
 # executável em uso; fora dele, o venv apagando a si mesmo.
 VENV_REFUSAL_WINDOWS = (
     "Não é possível continuar por aqui.\n\n"
@@ -88,16 +88,14 @@ VENV_REFUSAL_WINDOWS = (
 VENV_REFUSAL_POSIX = (
     "Não é possível continuar por aqui.\n\n"
     "Este desinstalador está rodando com o Python que fica dentro do "
-    "ambiente virtual -- que é justamente o que ele vai apagar.\n\n"
+    "ambiente virtual, que é justamente o que ele vai apagar.\n\n"
     "Feche esta janela e execute, num novo terminal:\n\n"
     "python3 uninstall.py\n\n"
     "O python3 usa o Python do sistema, e não o do ambiente virtual."
 )
 
 # Os avisos da tela de boas-vindas não são equivalentes, e pintar os três de
-# vermelho fazia o olho tratá-los como igualmente graves -- o custo disso não
-# é o exagero, é a pessoa passar os três por cima e perder o único que de
-# fato impede alguma coisa.
+# vermelho fazia o olho tratá-los como igualmente graves.
 NOTE = "note"    # nada trava; é informação para depois
 WARN = "warn"    # atrapalha algo, mas não a remoção do projeto
 BLOCK = "block"  # a remoção vai falhar em parte se ficar como está
@@ -106,9 +104,9 @@ SEVERITY_FG = {NOTE: "#4b5563", WARN: "#b45309", BLOCK: "#b91c1c"}
 
 
 class _AdviceCard(tk.Frame):
-    """Um aviso: barra na cor da severidade, prosa, e — quando há comandos — um
+    """Um aviso: barra na cor da severidade, prosa, e quando há comandos, um
     bloco monoespaçado com botão de copiar, porque comando espremido em frase
-    é impossível de copiar sem limpar à mão: versão longa em `997a6fe^`.
+    é impossível de copiar sem limpar à mão.
     """
 
     def __init__(
@@ -126,7 +124,7 @@ class _AdviceCard(tk.Frame):
         self._commands = tuple(commands)
         self._copy_btn: ttk.Button | None = None
 
-        # A cor nunca é o único portador do significado -- a prosa diz o que
+        # A cor nunca é o único portador do significado, a prosa diz o que
         # cada aviso implica, e a barra só ajuda a separar um cartão do outro.
         tk.Frame(self, bg=color, width=3).pack(side="left", fill="y", padx=(0, 10))
         column = tk.Frame(self)
@@ -201,7 +199,7 @@ class UninstallApp(tk.Tk):
         self.results: list = []
         # Snapshot tirado na thread principal logo antes de remover. Ler uma
         # tk.BooleanVar de dentro da thread de trabalho levanta "main thread
-        # is not in main loop" -- widgets Tk só podem ser tocados na thread
+        # is not in main loop", widgets Tk só podem ser tocados na thread
         # que roda o mainloop.
         self.executed_choices: Choices | None = None
         self.refusal = running_inside_venv(project_root)
@@ -216,6 +214,7 @@ class UninstallApp(tk.Tk):
         self.remove_ollama = tk.BooleanVar(value=False)
         self.remove_model = tk.BooleanVar(value=False)
         self.remove_env = tk.BooleanVar(value=False)
+        self.remove_audit_password = tk.BooleanVar(value=False)
 
         header = tk.Frame(self, bg="#1f2937", height=56)
         header.pack(fill="x")
@@ -263,6 +262,7 @@ class UninstallApp(tk.Tk):
             move_logs_to=Path(dest) if (dest and self.remove_logs.get()) else None,
             remove_model=self.remove_model.get(),
             remove_env=self.remove_env.get(),
+            remove_audit_password=self.remove_audit_password.get(),
             remove_ollama=self.remove_ollama.get(),
         )
 
@@ -405,7 +405,7 @@ class WelcomePage(_Page):
 
         if self.app.activated_warning:
             self._add_advice(
-                # Nada fica travado por um venv apenas ativado -- o preço é um
+                # Nada fica travado por um venv apenas ativado, o preço é um
                 # PATH velho depois. Nota, não aviso.
                 severity=NOTE,
                 text=self.app.activated_warning,
@@ -426,13 +426,13 @@ class WelcomePage(_Page):
             self._add_advice(
                 # Âmbar: não impede nada do que este desinstalador remove por
                 # conta própria. E cuidado com o conselho fácil de "pare o
-                # Ollama antes" -- parar quebra o `ollama rm` do modelo, que
+                # Ollama antes", parar quebra o `ollama rm` do modelo, que
                 # precisa do servidor no ar (ver remove_model()).
                 severity=WARN,
                 text="O servidor Ollama está rodando. Ele não segura o .venv, "
                 "então a remoção do projeto não é afetada; isto só importa se "
                 "você escolher remover o próprio servidor na tela seguinte. "
-                "Se for remover o modelo, deixe-o no ar -- o `ollama rm` fala "
+                "Se for remover o modelo, deixe-o no ar, o `ollama rm` fala "
                 "com o servidor e falha sem ele.",
                 note=stop_note("ollama"),
                 commands=stop_hint("ollama"),
@@ -476,8 +476,8 @@ class OptionsPage(_Page):
             text="Marque os arquivos que deseja deletar ou desinstalar",
             justify="left",
             # anchor="w" no widget, não só no pack(): com fill="x" o rótulo
-            # fica mais largo que o texto, e o texto se centraliza dentro dele
-            # -- o pack só posiciona a caixa, não o que está escrito nela.
+            # fica mais largo que o texto, e o texto se centraliza dentro dele,
+            #o pack só posiciona a caixa, não o que está escrito nela.
             anchor="w",
             fg="#111827",
             font=("Helvetica", 13, "bold"),
@@ -490,6 +490,7 @@ class OptionsPage(_Page):
             "ollama": self.app.remove_ollama,
             "model": self.app.remove_model,
             "env": self.app.remove_env,
+            "audit_password": self.app.remove_audit_password,
         }
         for cand in self.app.plan.optional:
             var = variables.get(cand.key)
@@ -515,7 +516,7 @@ class OptionsPage(_Page):
             # padding=96 e não o padrão 48: este rótulo está aninhado em
             # body (padx=24 dos dois lados) e ainda recua 24 à esquerda. Com
             # 48 o wraplength pedia mais largura do que a fatia tinha, e o Tk
-            # centrava-e-cortava o bloco -- o que comia a primeira letra da
+            # centrava-e-cortava o bloco, o que comia a primeira letra da
             # linha mais longa, que era a do "Período:".
             _autowrap(detail, self, padding=96)
             if cand.key == "logs":
@@ -560,7 +561,7 @@ class OptionsPage(_Page):
             if not self.app.logs_confirm.get():
                 self.error.config(
                     text="Para APAGAR a trilha de auditoria, marque "
-                    "\"Deseja deletar todos os arquivos?\" -- ou escolha um "
+                    "\"Deseja deletar todos os arquivos?\", ou escolha um "
                     "diretório de destino para movê-la, ou desmarque a opção."
                 )
                 return False
@@ -603,6 +604,7 @@ class SummaryPage(_Page):
             "ollama": choices.remove_ollama,
             "model": choices.remove_model,
             "env": choices.remove_env,
+            "audit_password": choices.remove_audit_password,
         }
         picked = [c for c in plan.optional if chosen.get(c.key)]
         kept = [c for c in plan.optional if not chosen.get(c.key)]
@@ -656,7 +658,7 @@ class ProgressPage(_Page):
         self.progress.start(12)
         self._append("Removendo...\n")
         # As escolhas são lidas AQUI, na thread principal, e passadas prontas
-        # para a thread de trabalho -- ver a nota em UninstallApp.
+        # para a thread de trabalho, ver a nota em UninstallApp.
         self.app.executed_choices = self.app.choices()
         threading.Thread(target=self._run, daemon=True).start()
         self.after(80, self._poll)
@@ -701,7 +703,7 @@ class ProgressPage(_Page):
         if failed:
             self.status_label.config(
                 text=f"{removed} removido(s), {failed} falha(s). Falhas não "
-                "abortaram o resto -- veja as linhas [failed] acima.",
+                "abortaram o resto, veja as linhas [failed] acima.",
                 fg="#b91c1c",
             )
         else:
@@ -743,7 +745,7 @@ class FinishPage(_Page):
         plan = self.app.plan
         if choices.remove_env and not choices.remove_model and plan and plan.model:
             lines.append(
-                "O .env foi removido e o modelo mantido -- o ponteiro para "
+                "O .env foi removido e o modelo mantido, o ponteiro para "
                 f"ele sumiu. Para removê-lo depois: ollama rm {plan.model}"
             )
             lines.append("")
@@ -775,7 +777,7 @@ def main(argv: list | None = None) -> int:
         # Rede de segurança: chamado por uninstall.py, este caso já foi
         # descartado antes de chegar aqui.
         print(
-            "Nenhuma sessão gráfica interativa detectada -- rode "
+            "Nenhuma sessão gráfica interativa detectada, rode "
             "`python uninstall.py --cli` (modo texto) ou "
             "`python uninstall.py --dry-run`."
         )

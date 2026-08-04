@@ -77,7 +77,7 @@ def test_windows_disclosure_is_written_for_someone_who_never_heard_of_ollama():
     assert "OllamaSetup.exe" not in section
     assert "source_url" not in section
     assert "janela" in section  # a permission window will appear
-    assert "não é baixado outra vez" in section
+    assert "não será" in section and "baixado novamente" in section
 
 
 def test_options_page_does_not_hedge_about_reusing_the_venv():
@@ -287,9 +287,13 @@ def test_only_the_options_page_reads_the_live_tk_variables():
         )
 
 
-def test_status_label_and_finish_page_report_what_actually_ran():
+def test_status_label_reports_what_actually_ran():
+    # Era um par: o rótulo de estado da tela de Progresso e a `FinishPage`
+    # tinham de contar a mesma coisa, cada um do seu instantâneo. A `FinishPage`
+    # saiu na leva do hash, e o rótulo ficou como o único relator -- por isso a
+    # asserção que sobrou é uma só, e não porque a outra foi afrouxada.
     assert "app.chosen_want_llm and not app.llm_ready" in SOURCE
-    assert "self.app.chosen_want_llm and not self.app.llm_ready" in SOURCE
+    assert "class FinishPage" not in SOURCE
 
 
 # -- audit password --------------------------------------------------------
@@ -307,32 +311,42 @@ def test_audit_password_field_is_masked_like_the_ollama_key():
 def test_audit_password_section_is_outside_the_llm_frame():
     # A trilha é escrita em toda execução, então aninhar isto em `llm_frame`
     # esconderia de quem recusou o passo do LLM: versão longa em `997a6fe^`.
-    section = SOURCE[SOURCE.index("# -- audit screen") :]
+    section = SOURCE[SOURCE.index("audit screen ---") :]
     section = section[: section.index("self.validation_label")]
     assert "audit_frame = tk.Frame(self)" in section
     assert "self.llm_frame" not in section
 
 
 def _options_audit_section() -> str:
-    section = SOURCE[SOURCE.index("# -- audit screen") :]
+    section = SOURCE[SOURCE.index("audit screen ---") :]
     return section[: section.index("self.validation_label")]
 
 
-def test_audit_field_is_marked_optional_and_says_what_the_password_unlocks():
+def test_audit_field_says_what_the_password_unlocks():
     # Ambas contra a seção; a primeira linha usava SOURCE enquanto a vizinha
     # usava a seção — a mistura exata que este arquivo alerta acima: versão longa em `997a6fe^`.
     section = _options_audit_section()
-    assert "Senha da tela de auditoria (Opcional):" in section
+    assert "Senha da tela de auditoria" in section
     assert "acessar a área de auditoria" in section
 
 
-def test_audit_note_says_what_the_password_is_not():
-    # Os mesmos termos do README e do AUDIT_GUIDE, e fatiado na FinishPage —
-    # que é a tela lida por quem configurou senha: versão longa em `997a6fe^`.
-    finish = SOURCE[SOURCE.index("class FinishPage") :]
-    assert "separa dois papéis" in finish
-    assert "não é segurança" in finish
-    assert "logs/audit.jsonl direto" in finish
+def test_a_ressalva_de_que_a_senha_nao_e_seguranca_vive_nos_documentos():
+    # Isto era fatiado na `FinishPage`, com os mesmos termos do README e do
+    # AUDIT_GUIDE. A tela saiu na leva do hash, e a ressalva **não pode sair com
+    # ela** -- é a frase que impede o projeto de prometer mais do que entrega.
+    # Então o teste seguiu a informação até onde ela mora agora, em vez de
+    # simplesmente desaparecer junto com a classe.
+    raiz = Path(__file__).resolve().parent.parent
+    for nome in ("README.md", "AUDIT_GUIDE.pt-BR.md"):
+        texto = (raiz / nome).read_text(encoding="utf-8")
+        assert "barreira, não segurança" in texto, nome
+        assert "papéis" in texto, nome
+        assert "logs/audit.jsonl" in texto, nome
+    # E o alcance novo, que só o hash introduziu: protege leitura, não
+    # substituição.
+    guia = (raiz / "AUDIT_GUIDE.pt-BR.md").read_text(encoding="utf-8")
+    assert "protege leitura" in guia.lower()
+    assert "substitui" in guia.lower()
 
 
 def test_widgets_that_on_show_configures_are_created_in_init():
@@ -355,16 +369,32 @@ def test_the_installer_has_no_way_to_erase_an_audit_password():
     assert "remove_audit_password" not in SOURCE
 
 
-def test_the_installer_defines_a_password_but_never_changes_one():
+def _audit_step_body() -> str:
     body = SOURCE[SOURCE.index("def _apply_audit_password") :]
-    body = body[: body.index("def _record_env_key")]
+    return body[: body.index("def _report_audit_screen")]
+
+
+def test_the_installer_defines_a_password_but_never_changes_one():
+    body = _audit_step_body()
     # A senha existente é lida primeiro e a escrita fica inalcançável, em vez
     # de depender só do widget desabilitado: versão longa em `997a6fe^`.
-    assert body.index("ja_gravada = read_env_var(") < body.index("write_env_audit_password(")
+    assert body.index("ja_gravada = senha_auditoria.ler(") < body.index(
+        "senha_auditoria.gravar("
+    )
     assert "if ja_gravada is not None:" in body
-    assert body.index("if ja_gravada is not None:") < body.index("write_env_audit_password(")
+    assert body.index("if ja_gravada is not None:") < body.index("senha_auditoria.gravar(")
     # And the field being disabled is a courtesy on top of that rule.
     assert 'self.audit_entry.config(state="disabled")' in SOURCE
+
+
+def test_a_migracao_roda_antes_de_perguntar_se_ja_existe_senha():
+    # Mesma ordem que o `serve`: perguntar antes de migrar deixaria a linha em
+    # claro sobreviver no `.env` de uma máquina que o instalador acabou de
+    # declarar "já configurada".
+    body = _audit_step_body()
+    assert body.index("migrar_senha_do_env(ROOT)") < body.index(
+        "ja_gravada = senha_auditoria.ler("
+    )
 
 
 def test_install_record_env_keys_are_unioned_not_replaced():
@@ -372,37 +402,65 @@ def test_install_record_env_keys_are_unioned_not_replaced():
     # — passar só uma chave apagaria a outra: versão longa em `997a6fe^`.
     assert 'InstallRecord(env_keys=("OLLAMA_API_KEY",))' not in SOURCE
     assert 'self._record_env_key("OLLAMA_API_KEY")' in SOURCE
-    assert "self._record_env_key(AUDIT_PASSWORD_ENV_VAR)" in SOURCE
     assert "keys + (key,)" in SOURCE
+    # A senha saiu desta lista porque saiu do `.env`: `env_keys` é o que o
+    # desinstalador usa para oferecer chaves do `.env`, e a senha não é mais
+    # uma delas. Quem oferece o `.audit-password` agora é `uninstall.py`, como
+    # item próprio.
+    assert "self._record_env_key(AUDIT_PASSWORD_ENV_VAR)" not in SOURCE
 
 
 def test_the_password_value_never_reaches_the_progress_log():
     # Every _queue.put in the audit step may name the file, never the value.
-    body = SOURCE[SOURCE.index("def _apply_audit_password") :]
-    body = body[: body.index("def _record_env_key")]
+    body = _audit_step_body()
     for match in re.finditer(r"self\._queue\.put\(([^)]*)\)", body, re.S):
         assert "password" not in match.group(1), match.group(1)
+    # O hash pode aparecer; a senha em claro nunca. A única variável que a
+    # carrega neste passo é `senha`, e o que se proíbe é **interpolá-la** --
+    # buscar a palavra "senha" pegaria o substantivo em português no texto de
+    # tela, que é outra coisa.
+    for match in re.finditer(r"self\._queue\.put\(([^)]*)\)", body, re.S):
+        assert not re.search(r"\{\s*senha\s*[!:}]", match.group(1)), match.group(1)
+        assert "chosen_audit_password" not in match.group(1), match.group(1)
 
 
-def test_finish_page_tells_the_person_the_audit_screen_exists():
-    # Fatiado no ramo *habilitado*, não na FinishPage nem no arquivo: duas
-    # colisões tornaram as versões mais frouxas inúteis: versão longa em `997a6fe^`.
-    finish = SOURCE[SOURCE.index("class FinishPage") :]
-    enabled = finish[finish.index("if self.app.audit_enabled:") : finish.index("        else:")]
+def test_o_log_de_progresso_diz_que_a_tela_de_auditoria_existe_e_onde():
+    # Isto era da `FinishPage`, e o motivo continua o mesmo: quem definiu uma
+    # senha tem de saber que existe uma tela e onde ela está -- não saber é o
+    # problema que o campo de senha foi criado para resolver. A tela saiu; a
+    # obrigação veio para o log de progresso.
+    body = SOURCE[SOURCE.index("def _report_audit_screen") :]
+    body = body[: body.index("def _record_env_key")]
+    enabled = body[body.index("if self.app.audit_enabled:") : body.index("        else:")]
     assert "Auditoria: HABILITADA" in enabled
-    assert "/audit e pede a senha" in enabled, "a tela habilitada tem de dizer ONDE ela fica"
+    assert "/audit" in enabled, "a tela habilitada tem de dizer ONDE ela fica"
     assert "DEFAULT_WEB_PORT" in enabled, "e a porta vem da constante, não de um literal"
+    # E o procedimento de troca pós-hash, que substituiu "edite o .env".
+    assert "rode este instalador de novo" in body
+    assert ".env" not in body
 
 
-def test_finish_page_reports_audit_from_the_snapshot_not_the_live_variable():
+def test_o_relato_da_auditoria_sai_do_instantaneo_e_nao_da_variavel_viva():
     # Same reasoning as the LLM status: Back stays enabled during the
     # install, so the live variable can describe a different run.
-    finish = SOURCE[SOURCE.index("class FinishPage") :]
-    assert "self.app.audit_password_var" not in finish
+    body = SOURCE[SOURCE.index("def _report_audit_screen") :]
+    body = body[: body.index("def _record_env_key")]
+    assert "self.app.audit_password_var" not in body
 
 
-def test_finish_page_points_to_the_uninstaller():
-    # O instalador diz onde fica a volta, nomeando exatamente um ponto de
-    # entrada: versão longa em `997a6fe^`.
-    assert "uninstall.py" in SOURCE
+def test_a_instrucao_de_desinstalacao_vive_no_readme():
+    # O instalador dizia onde fica a volta, nomeando exatamente um ponto de
+    # entrada: versão longa em `997a6fe^`. Isso saiu da tela com a `FinishPage`
+    # -- e `--dry-run` é a única pista que o usuário tem de como remover com
+    # segurança, então este teste segue a informação até o README em vez de
+    # sumir junto com a classe.
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(
+        encoding="utf-8"
+    )
+    desinstalacao = readme[readme.index("### Desinstalação") :]
+    desinstalacao = desinstalacao[: desinstalacao.index("\n## ")]
+    assert "uninstall.py --dry-run" in desinstalacao
+    # Um ponto de entrada só: a janela é detalhe de `uninstall.py`, e a seção
+    # que ensina a desinstalar não pode mandar ninguém rodar a outra.
+    assert "uninstall_gui.py" not in desinstalacao
     assert "uninstall_gui.py" not in SOURCE

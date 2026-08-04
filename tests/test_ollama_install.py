@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from ethical_agent import senha_auditoria
 from ethical_agent.ollama_install import (
     AUDIT_PASSWORD_ENV_VAR,
     DEFAULT_LOCAL_MODEL,
@@ -18,6 +19,7 @@ from ethical_agent.ollama_install import (
     find_ollama_exe,
     installer_plan_for_platform,
     iter_stream_chunks,
+    migrar_senha_do_env,
     model_already_pulled,
     start_ollama_server,
     read_env_var,
@@ -25,7 +27,6 @@ from ethical_agent.ollama_install import (
     verify_windows_signature,
     wait_for_server,
     write_env_api_key,
-    write_env_audit_password,
 )
 
 
@@ -167,14 +168,45 @@ def test_read_env_var_keeps_everything_after_the_first_equals(tmp_path):
     assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") == "a=b#c d"
 
 
-def test_write_env_audit_password_strips_so_write_and_read_agree(tmp_path):
-    # Stored with surrounding spaces, the reader would strip them and the
-    # login check would compare two different strings forever.
-    write_env_audit_password(tmp_path, "  senha  ")
-    assert (tmp_path / ".env").read_text(encoding="utf-8") == (
-        "ETHICAL_AGENT_AUDIT_PASSWORD=senha\n"
+def test_nao_existe_mais_escritor_de_senha_em_claro(tmp_path):
+    # `write_env_audit_password` saiu na leva do hash. O teste que ela tinha
+    # virou este: a garantia deixou de ser "escreve e lê a mesma string" e
+    # passou a ser "não há função nenhuma que grave a senha em claro".
+    import ethical_agent.ollama_install as oi
+
+    assert not hasattr(oi, "write_env_audit_password")
+    fonte = Path(oi.__file__).read_text(encoding="utf-8")
+    assert "_upsert_env_var(root, AUDIT_PASSWORD_ENV_VAR" not in fonte
+
+
+def test_migrar_senha_do_env_grava_o_hash_e_apaga_a_linha(tmp_path):
+    (tmp_path / ".env").write_text(
+        "OLLAMA_MODEL=llama3.2:3b\nETHICAL_AGENT_AUDIT_PASSWORD=  senha  \n",
+        encoding="utf-8",
     )
-    assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") == "senha"
+
+    caminho = migrar_senha_do_env(tmp_path)
+
+    assert caminho == senha_auditoria.caminho_do_registro(tmp_path)
+    assert senha_auditoria.verificar(senha_auditoria.ler(tmp_path), "senha")
+    conteudo = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "ETHICAL_AGENT_AUDIT_PASSWORD" not in conteudo
+    assert "OLLAMA_MODEL=llama3.2:3b" in conteudo
+
+
+def test_migrar_senha_do_env_e_idempotente_e_nao_inventa_senha(tmp_path):
+    # Sem `.env` e sem registro: não há o que migrar, e migrar não pode criar
+    # uma tela de auditoria que ninguém pediu.
+    assert migrar_senha_do_env(tmp_path) is None
+    assert senha_auditoria.ler(tmp_path) is None
+
+    # Com registro já em vigor, um `.env` reeditado à mão não ganha dele.
+    senha_auditoria.gravar(tmp_path, senha_auditoria.registrar_senha("a-que-vale"))
+    (tmp_path / ".env").write_text(
+        "ETHICAL_AGENT_AUDIT_PASSWORD=a-que-nao-vale\n", encoding="utf-8"
+    )
+    assert migrar_senha_do_env(tmp_path) is None
+    assert senha_auditoria.verificar(senha_auditoria.ler(tmp_path), "a-que-vale")
 
 
 def test_remove_env_var_drops_only_its_own_line(tmp_path):
@@ -211,39 +243,44 @@ def test_remove_env_var_on_the_only_line_leaves_a_valid_empty_file(tmp_path):
     assert read_env_var(tmp_path, "ETHICAL_AGENT_AUDIT_PASSWORD") is None
 
 
-# Uma fonte ambiente só, e o arame de tropeço na que morreu: `.env` é a única
-# fonte, e a variável é lida apenas para notar que alguém ainda a tem setada.
-# CLI e instalador têm de responder igual, e o instalador não pode importar
-# `webui/auth`, então o predicado e o texto moram aqui: versão longa em `997a6fe^`.
+# Uma fonte ambiente só, e o arame de tropeço na que morreu: `.audit-password` é
+# a única fonte, e a variável é lida apenas para notar que alguém ainda a tem
+# setada. CLI e instalador têm de responder igual, e o instalador não pode
+# importar `webui/auth`, então o predicado e o texto moram aqui: versão longa em
+# `997a6fe^`.
+#
+# O QUE MUDOU NA LEVA DO HASH, e é o que fecha `D-10`: o lado de cá do `==` não
+# existe mais. A variável não é comparada com outra string lida por um segundo
+# analisador -- ela é **verificada** contra o hash. Não há mais dois
+# analisadores que precisem concordar sem nada os prendendo.
 
 
-def _dotenv_with_password(root, value="do-dotenv"):
-    (root / ".env").write_text(
-        f"OLLAMA_MODEL=llama3.2:3b\n{AUDIT_PASSWORD_ENV_VAR}={value}\n", encoding="utf-8"
-    )
+def _com_senha(root, value="a-senha"):
+    root.mkdir(parents=True, exist_ok=True)
+    senha_auditoria.gravar(root, senha_auditoria.registrar_senha(value))
     return root
 
 
 def test_no_exported_variable_means_nothing_to_report(tmp_path):
     assert audit_password_conflict(tmp_path, {}) is None
-    assert audit_password_conflict(_dotenv_with_password(tmp_path), {}) is None
+    assert audit_password_conflict(_com_senha(tmp_path), {}) is None
 
 
-def test_a_variable_repeating_the_dotenv_password_is_not_a_problem(tmp_path):
-    # Nada é ambíguo quando os dois nomes têm a mesma string, e `load_dotenv()`
-    # copia o `.env` para o ambiente — é estado que o processo alcança sozinho: versão longa em `997a6fe^`.
-    _dotenv_with_password(tmp_path, "a-mesma")
+def test_uma_variavel_que_verifica_contra_o_hash_nao_e_problema(tmp_path):
+    # Nada é ambíguo quando a variável abre a senha em vigor -- e note que a
+    # decisão sai de `scrypt` + `compare_digest`, não de igualdade de strings.
+    _com_senha(tmp_path, "a-mesma")
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "a-mesma"}) is None
-    # Whitespace is stripped on both sides, as it is on write and on read.
+    # O strip da variável continua valendo: exportada-e-só-espaços é ausente.
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "  a-mesma  "}) is None
 
 
-def test_a_variable_that_disagrees_with_the_dotenv_password_is_refused(tmp_path):
-    _dotenv_with_password(tmp_path, "do-dotenv")
+def test_uma_variavel_que_nao_verifica_contra_o_hash_e_recusada(tmp_path):
+    _com_senha(tmp_path, "a-que-vale")
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "outra"}) is not None
 
 
-def test_a_variable_with_no_dotenv_password_is_refused_rather_than_ignored(tmp_path):
+def test_a_variable_with_no_password_configured_is_refused_rather_than_ignored(tmp_path):
     # O caso que funcionava: a variável sozinha era fonte. Agora nada estaria em
     # vigor, e quem a setou perderia a tela sem ser avisado: versão longa em `997a6fe^`.
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
@@ -252,15 +289,19 @@ def test_a_variable_with_no_dotenv_password_is_refused_rather_than_ignored(tmp_p
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
 
 
-def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
-    # "Defined" has to mean the same thing on both sides. read_env_var already
-    # treats `KEY=` as absent; the variable is measured the same way, so an
-    # exported-but-empty name is silence rather than a claim.
-    (tmp_path / ".env").write_text(f"{AUDIT_PASSWORD_ENV_VAR}=\n", encoding="utf-8")
-    # Empty .env key + a real variable: nothing in effect, so it is refused.
+def test_um_registro_corrompido_conta_como_sem_senha_em_vigor(tmp_path):
+    # A pergunta aqui é sobre a variável remanescente. Quem falha alto sobre um
+    # registro ilegível é `load_audit_password`, no arranque -- este predicado
+    # não pode levantar do meio de um banner.
+    senha_auditoria.caminho_do_registro(tmp_path).write_text("lixo\n", encoding="utf-8")
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "do-ambiente"}) is not None
+    assert audit_password_conflict(tmp_path, {}) is None
 
-    _dotenv_with_password(tmp_path)
+
+def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
+    # "Definida" tem de significar a mesma coisa dos dois lados: uma variável
+    # exportada-e-vazia é silêncio, não afirmação.
+    _com_senha(tmp_path)
     assert audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "   "}) is None
     assert env_audit_password_present({AUDIT_PASSWORD_ENV_VAR: "   "}) is False
     assert env_audit_password_present({AUDIT_PASSWORD_ENV_VAR: "x"}) is True
@@ -270,7 +311,7 @@ def test_a_source_that_is_defined_but_empty_is_not_a_source(tmp_path):
 def test_the_password_file_flag_silences_the_tripwire(tmp_path):
     # A exceção mora no predicado e não em cada chamador, senão os dois divergem
     # na *exceção* parecendo compartilhar a regra: versão longa em `997a6fe^`.
-    _dotenv_with_password(tmp_path)
+    _com_senha(tmp_path)
     env = {AUDIT_PASSWORD_ENV_VAR: "outra"}
 
     assert audit_password_conflict(tmp_path, env) is not None
@@ -280,10 +321,10 @@ def test_the_password_file_flag_silences_the_tripwire(tmp_path):
 def test_both_messages_name_the_variable_the_path_and_removing_it(tmp_path):
     # Dois estados, duas mensagens, e ambas nomeiam *a* correção em vez de
     # oferecer escolha: versão longa em `997a6fe^`.
-    _dotenv_with_password(tmp_path)
+    _com_senha(tmp_path)
     divergente = audit_password_conflict(tmp_path, {AUDIT_PASSWORD_ENV_VAR: "outra"})
 
-    vazio = tmp_path / "sem-dotenv"
+    vazio = tmp_path / "sem-senha"
     vazio.mkdir()
     sem_senha = audit_password_conflict(vazio, {AUDIT_PASSWORD_ENV_VAR: "outra"})
 
@@ -292,18 +333,21 @@ def test_both_messages_name_the_variable_the_path_and_removing_it(tmp_path):
         assert f"${AUDIT_PASSWORD_ENV_VAR}" in message
         assert "apague a variável" in message.lower()
         assert "--audit-password-file" in message
-    assert str((tmp_path / ".env").resolve()) in divergente
-    assert str((vazio / ".env").resolve()) in sem_senha
+    # As duas apontam o arquivo onde a senha mora agora, não mais o `.env`.
+    assert str(senha_auditoria.caminho_do_registro(tmp_path).resolve()) in divergente
+    assert str(senha_auditoria.caminho_do_registro(vazio).resolve()) in sem_senha
+    # E nenhuma das duas cita valor nenhum.
+    assert "outra" not in divergente.replace("apague a variável", "")
 
 
 def test_no_message_ever_reveals_or_compares_a_value(tmp_path):
     # The most likely place in the codebase to leak a password: the only text
     # that has to talk about two of them at once. It may say that they differ;
     # it may not say how, and it may not quote either one.
-    _dotenv_with_password(tmp_path, "SENHA-CANARIO-DOTENV")
+    _com_senha(tmp_path, "SENHA-CANARIO-EM-VIGOR")
     env = {AUDIT_PASSWORD_ENV_VAR: "SENHA-CANARIO-VARIAVEL"}
 
-    vazio = tmp_path / "sem-dotenv"
+    vazio = tmp_path / "sem-senha"
     vazio.mkdir()
     textos = [
         audit_password_conflict(tmp_path, env),
@@ -311,8 +355,11 @@ def test_no_message_ever_reveals_or_compares_a_value(tmp_path):
     ]
     for message in textos:
         assert message is not None
-        assert "SENHA-CANARIO-DOTENV" not in message
+        assert "SENHA-CANARIO-EM-VIGOR" not in message
         assert "SENHA-CANARIO-VARIAVEL" not in message
+    # E nem o hash da senha em vigor, que é público mas não tem por que estar
+    # numa mensagem de erro que a pessoa vai colar num chamado de suporte.
+    assert senha_auditoria.ler(tmp_path).hash.hex() not in textos[0]
 
 
 

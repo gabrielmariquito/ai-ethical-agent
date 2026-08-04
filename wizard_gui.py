@@ -43,6 +43,7 @@ from ethical_agent.install_progress import (  # noqa: E402
     format_bytes,
     plan_phases,
 )
+from ethical_agent import senha_auditoria  # noqa: E402
 from ethical_agent.ollama_install import (  # noqa: E402
     AUDIT_PASSWORD_ENV_VAR,
     DEFAULT_LOCAL_MODEL,
@@ -52,20 +53,18 @@ from ethical_agent.ollama_install import (  # noqa: E402
     find_ollama_exe,
     installer_plan_for_platform,
     iter_stream_chunks,
+    migrar_senha_do_env,
     model_already_pulled,
     read_env_var,
     start_ollama_server,
     verify_windows_signature,
     wait_for_server,
     write_env_api_key,
-    write_env_audit_password,
     write_env_model,
 )
 
-# `AUDIT_PASSWORD_ENV_VAR` vem de `ollama_install` porque este instalador roda
-# no Python do *sistema*, antes do pip install, e só pode importar o que um
-# checkout nu oferece — e ele é o único escritor da senha de auditoria em todo
-# o projeto: versão longa em `997a6fe^`.
+# `AUDIT_PASSWORD_ENV_VAR` vem de `ollama_install`.  Esse é o único escritor da senha de auditoria em todo
+# o projeto.
 OLLAMA_PROBE_TIMEOUT = 3.0
 OLLAMA_START_TIMEOUT = 30.0
 
@@ -85,7 +84,7 @@ _CI_ENV_VARS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL", "TF_BUILD", 
 
 WELCOME_TEXT = (
     "Este assistente instala o ai-ethical-agent: um guardrail ético "
-    "neurossimbólico para agentes baseados em LLM, com duas camadas -- "
+    "neurossimbólico para agentes baseados em LLM, com duas camadas, usando "
     "regras simbólicas (rule-based + constraint) e um knowledge-graph "
     "baseado na ontologia RelAIEO.\n\n"
     "O núcleo não tem dependências externas (só biblioteca padrão). As "
@@ -94,29 +93,11 @@ WELCOME_TEXT = (
     "Clique em Próximo para continuar."
 )
 
-FINISH_TEXT = (
-    "Instalação concluída.\n\n"
-    "Para usar a partir de um terminal:\n\n"
-    "    source .venv/bin/activate\n"
-    '    ethical-agent check "algum texto"\n'
-    '    ethical-agent process "..." --mock\n'
-    "    ethical-agent eval\n\n"
-    "Cada `check`/`process`/`demo` (CLI ou interface web) grava um "
-    "registro em logs/audit.jsonl -- conteúdo bloqueado nunca é incluído. "
-    "A gravação é obrigatória (não há como desativá-la); o caminho pode ser "
-    "trocado com --audit-log / campo equivalente na interface. Veja "
-    "AUDIT_GUIDE.pt-BR.md.\n\n"
-    "Ao clicar em Concluir, a interface web abre automaticamente no "
-    "navegador (a menos que este instalador tenha sido iniciado com "
-    "--no-launch). Veja o README.md para a documentação completa.\n\n"
-    "Para desinstalar depois: `python uninstall.py`. Ele abre uma janela e "
-    "mostra tudo o que seria removido antes de remover qualquer coisa; "
-    "`python uninstall.py --dry-run` faz a mesma listagem no terminal. Rode "
-    "com o Python do sistema, não com o do .venv."
-)
+# `FINISH_TEXT` saiu junto com a `FinishPage`. Onde cada parte dele foi parar
+# está escrito no lugar onde a classe estava, no fim deste arquivo.
 
 # Os mesmos casos mostrados na seção "Casos onde funciona bem / onde falha"
-# do README -- calculados ao vivo aqui, não texto colado. O quarto elemento
+# do README, calculados ao vivo aqui, não texto colado. O quarto elemento
 # de cada tupla é a decisão esperada; o rótulo ok/falha na tela é derivado da
 # comparação com o que a engine realmente retorna, não fixo no código.
 WORKS_CASES = [
@@ -196,7 +177,7 @@ def _read_serve_error(path: Path, limit: int = 4000) -> str:
 
 def _wait_for_web_ui(port: int, timeout: float = 5.0, poll: float = 0.2) -> bool:
     """Polls the web server's own /api/choices until it responds or
-    `timeout` elapses -- short, bounded polling instead of a blind sleep
+    `timeout` elapses, short, bounded polling instead of a blind sleep
     before deciding whether to open a browser at all."""
     url = f"http://127.0.0.1:{port}/api/choices"
     deadline = time.monotonic() + timeout
@@ -219,7 +200,7 @@ def _no_launch_env_requested() -> bool:
 def _is_headless() -> bool:
     """Detecção best-effort de ambiente sem humano no teclado, para o caso
     intermediário de um display tecnicamente presente onde abrir uma segunda
-    janela ainda não serve a ninguém: versão longa em `997a6fe^`.
+    janela ainda não serve a ninguém.
     """
     if any(os.environ.get(v) for v in _CI_ENV_VARS):
         return True
@@ -232,31 +213,29 @@ def _is_headless() -> bool:
 class WizardApp(tk.Tk):
     def __init__(self, auto_launch: bool = True) -> None:
         super().__init__()
-        self.title("ai-ethical-agent -- instalador")
+        self.title("ai-ethical-agent - Instalador")
         # Taller than before: OptionsPage now has room for the local/cloud
         # sub-frame (radios + model/key entries + disclosure text) without
         # clipping at the bottom.
         self.geometry("640x560")
         self.minsize(560, 480)
 
-        # Marcada por padrão: o caminho que ninguém toca tem de ser o que
-        # entrega um modelo de verdade. Desmarcar é o ato deliberado -- e o
-        # texto ao lado da caixa diz o que sobra quando se desmarca (só Mock).
+        # Marcada por padrão.
         self.want_llm = tk.BooleanVar(value=True)
         self.llm_mode = tk.StringVar(value="local")
         self.ollama_model_var = tk.StringVar(value=DEFAULT_LOCAL_MODEL)
         self.ollama_api_key_var = tk.StringVar(value="")
-        # Audit screen. Independent of the LLM choice above -- the audit trail
+        # Audit screen. Independent of the LLM choice above, the audit trail
         # is written on every run, with or without a real model.
         self.audit_password_var = tk.StringVar(value="")
         # Este instalador DEFINE uma senha de auditoria; nunca troca nem remove uma,
         # porque quem roda um instalador não é necessariamente quem decide quem lê
-        # a trilha: versão longa em `997a6fe^`.
+        # a trilha.
         self.install_ok = False
         self.llm_ready = False
         # Fotografia das escolhas com que a instalação REALMENTE rodou, tirada na
         # thread principal: variável Tk pertence à thread do mainloop, e o botão
-        # Voltar continua habilitado durante a instalação — versão longa em `997a6fe^`.
+        # Voltar continua habilitado durante a instalação.
         self.chosen_want_llm = False
         self.chosen_llm_mode = "local"
         self.chosen_model = DEFAULT_LOCAL_MODEL
@@ -302,7 +281,6 @@ class WizardApp(tk.Tk):
             OptionsPage(self.container, self),
             ProgressPage(self.container, self),
             DemoPage(self.container, self),
-            FinishPage(self.container, self),
         ]
         for page in self.pages:
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -337,7 +315,7 @@ class WizardApp(tk.Tk):
         """
         if _is_headless():
             print(
-                "Nenhuma sessão gráfica interativa detectada -- pulando a "
+                "Nenhuma sessão gráfica interativa detectada, pulando a "
                 "abertura automática da interface."
             )
             print(_manual_launch_instructions())
@@ -345,7 +323,7 @@ class WizardApp(tk.Tk):
         port = DEFAULT_WEB_PORT
         # O stderr do servidor vai para um arquivo, não `DEVNULL` nem `PIPE`: com
         # `DEVNULL` a recusa de subir parecia lentidão, e um `PIPE` que ninguém drena
-        # congelaria a interface quando o buffer enchesse — versão longa em `997a6fe^`.
+        # congelaria a interface quando o buffer enchesse.
         stderr_path = Path(tempfile.gettempdir()) / f"ethical-agent-serve-{os.getpid()}.log"
         try:
             stderr_file = open(stderr_path, "w", encoding="utf-8")
@@ -404,9 +382,7 @@ class WizardApp(tk.Tk):
                 f"Para encerrá-lo: rode `{stop_cmd}`.\n"
             )
         elif proc.poll() is not None:
-            # It did not fail to answer in time -- it is gone. A server that
-            # refuses to start says why, and that reason is worth more than
-            # the timeout wording that used to cover this case.
+            # It did not fail to answer in time, it is gone.
             print(
                 f"O servidor encerrou assim que subiu (código {proc.returncode}); "
                 "a interface não foi aberta."
@@ -416,7 +392,7 @@ class WizardApp(tk.Tk):
                 print(detalhe)
         else:
             print(
-                f"O servidor (PID {proc.pid}) não respondeu em {url} a tempo -- "
+                f"O servidor (PID {proc.pid}) não respondeu em {url} a tempo, "
                 "não abri o navegador automaticamente; ele pode ainda estar subindo."
             )
         print(_manual_launch_instructions())
@@ -445,7 +421,7 @@ def _autowrap(widget: tk.Widget, container: tk.Widget, padding: int = 48) -> Non
 def _mono_font(bold: bool = False) -> object:
     """A fonte fixa que o Tk garante existir no sistema, porque um family fixo
     é um palpite que falha calado — o widget deixa de ser monoespaçado sem
-    nada acusar: versão longa em `997a6fe^`.
+    nada acusar.
     """
     font = tkfont.nametofont("TkFixedFont").copy()
     font.configure(size=10, weight="bold" if bold else "normal")
@@ -487,19 +463,16 @@ def _local_install_disclosure_text() -> str:
     if plan is None:
         return (
             "Instalação automática do servidor Ollama não está disponível "
-            "nesta plataforma -- ao final, instruções manuais serão "
+            "nesta plataforma, ao final, instruções manuais serão "
             "mostradas (https://ollama.com/download)."
         )
     if plan.kind == "download_exe":
-        # Escrito para quem nunca ouviu falar de Ollama: o que vai aparecer na
-        # tela, quanto tempo leva, e o que NÃO se repete. Sem URL e sem a sigla
-        # UAC de propósito -- nenhuma das duas ajuda a decidir, e a janela de
-        # permissão do Windows não se apresenta com esse nome para quem a vê.
         return (
             "O Ollama será baixado e instalado para você. Durante a "
-            "instalação, o Windows vai pedir sua permissão numa janela -- "
-            "aceite para continuar. O download é grande e pode demorar. O que "
-            "já estiver no computador não é baixado outra vez."
+            "instalação, o Windows vai pedir sua permissão numa janela, "
+            "aceite para continuar. O download pode demorar. Caso haja "
+            "uma versão do Ollama instalada no computador, ele não será "
+            "baixado novamente."
         )
     return (
         f"Vai rodar o script de instalação oficial ({plan.source_url}, via "
@@ -524,7 +497,7 @@ class OptionsPage(_Page):
         _autowrap(venv_label, self)
 
         # `ttk` e não `tk`, com rótulo curto: o Checkbutton clássico sai cortado em
-        # escala fracionária e se lê como terceiro estado — versão longa em `997a6fe^`.
+        # escala fracionária e se lê como terceiro estado.
         llm_check = ttk.Checkbutton(
             self,
             text="Configurar `ethical-agent process` com um modelo real via Ollama",
@@ -532,8 +505,8 @@ class OptionsPage(_Page):
             command=lambda: self._sync_visibility(),
         )
         llm_check.pack(padx=24, pady=(8, 4), anchor="w")
-        # Um ttk.Checkbutton nasce em "alternate" -- o terceiro estado, um
-        # traço -- até alguém dizer o contrário. A variável já vale False, mas
+        # Um ttk.Checkbutton nasce em "alternate", o terceiro estado, um
+        # traço, até alguém dizer o contrário. A variável já vale False, mas
         # o widget não olha para ela sozinho.
         llm_check.state(["!alternate"])
 
@@ -608,16 +581,16 @@ class OptionsPage(_Page):
         cloud_note.pack(anchor="w", pady=(2, 0))
         _autowrap(cloud_note, self.cloud_detail, padding=8)
 
-        # -- audit screen ---------------------------------------------------
+        #--------------------------------------------------- audit screen ---------------------------------------------------
         #
         # Seção própria, fora de `llm_frame`, porque a trilha é escrita em toda
-        # execução: versão longa em `997a6fe^`.
+        # execução
         audit_frame = tk.Frame(self)
         audit_frame.pack(padx=24, pady=(16, 0), anchor="w", fill="x")
 
         audit_row = tk.Frame(audit_frame)
         audit_row.pack(anchor="w", fill="x")
-        tk.Label(audit_row, text="Senha da tela de auditoria (Opcional):").pack(side="left")
+        tk.Label(audit_row, text="Senha da tela de auditoria:").pack(side="left")
         # Kept as an attribute because on_show disables it: this field sets a
         # password once and never changes one. See on_show.
         self.audit_entry = tk.Entry(
@@ -626,14 +599,14 @@ class OptionsPage(_Page):
         self.audit_entry.pack(side="left", padx=(6, 0))
 
         # Uma frase, para caber na decisão que se toma aqui. A ressalva de que
-        # a senha separa papéis e não é segurança continua sendo dita -- em
+        # a senha separa papéis e não é segurança continua sendo dita, em
         # FinishPage, que é a tela lida por quem de fato configurou uma, e em
         # README.md / AUDIT_GUIDE.pt-BR.md.
         self.audit_note = tk.Label(
             audit_frame,
-            text="Insira a senha para acessar a área de auditoria e revisar "
-            "as decisões registradas. Ela só pode ser definida aqui uma vez -- "
-            "trocá-la depois exige editar o .env da raiz.",
+            text="Crie uma senha para acessar a área de auditoria e revisar "
+            "as decisões registradas. A senha só pode ser definida aqui uma "
+            "única vez.",
             fg="#6b7280",
             justify="left",
         )
@@ -642,7 +615,7 @@ class OptionsPage(_Page):
 
         # Só aparece quando JÁ existe uma senha, que é a única situação em que
         # há algo a dizer aqui: o campo em branco fazer o que sempre fez não é
-        # notícia. Não é packed no __init__ -- quem sabe qual é o caso é
+        # notícia. Não é packed no __init__, quem sabe qual é o caso é
         # on_show, e um rótulo vazio ocuparia uma linha para não dizer nada.
         self.audit_state_label = tk.Label(audit_frame, fg="#6b7280", justify="left")
         _autowrap(self.audit_state_label, audit_frame, padding=8)
@@ -655,23 +628,27 @@ class OptionsPage(_Page):
 
     def on_show(self) -> None:
         # Re-read on every visit: a página pode ser revisitada com Voltar, e
-        # esta tela não fala da variável de ambiente de propósito — quem
-        # recusa é o servidor: versão longa em `997a6fe^`.
-        self._existing_audit_password = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+        # esta tela não fala da variável de ambiente de propósito, quem
+        # recusa é o servidor.
+        # Duas formas contam como "já existe": o registro hasheado, e uma senha
+        # em claro no `.env` que ainda não foi migrada. Perguntar só pelo hash
+        # ofereceria definir uma senha nova numa máquina que já tem uma -- e a
+        # antiga sobreviveria em claro.
+        self._existing_audit_password = (
+            senha_auditoria.caminho_do_registro(ROOT).exists()
+            or read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None
+        )
 
         if self._existing_audit_password:
             # Senha já existente não pode ser trocada daqui, e o campo é desabilitado em
-            # vez de ignorado: versão longa em `997a6fe^`.
+            # vez de ignorado.
             self.audit_entry.config(state="disabled")
             self.app.audit_password_var.set("")
             self.audit_state_label.config(
-                text="Já existe uma senha de auditoria configurada, e ela não "
-                "pode ser trocada nem removida por aqui.\n"
-                f"Ela mora em {ROOT / '.env'}, na chave {AUDIT_PASSWORD_ENV_VAR}. "
-                "Para trocá-la, edite esse arquivo diretamente."
+                text="Já existe uma senha de auditoria configurada."
             )
             # after=: pack() depois de um pack_forget() re-anexa no FIM da
-            # ordem do master, não de volta ao lugar -- o mesmo motivo que
+            # ordem do master, não de volta ao lugar, o mesmo motivo que
             # _sync_visibility documenta para os frames local/cloud.
             self.audit_state_label.pack(anchor="w", pady=(2, 0), after=self.audit_note)
         else:
@@ -680,13 +657,13 @@ class OptionsPage(_Page):
 
     def _sync_visibility(self) -> None:
         # pack()ing a widget that was pack_forget()'d re-appends it at the
-        # end of the master's packing order, not back where it was -- so
+        # end of the master's packing order, not back where it was, so
         # local_detail/cloud_detail must be re-inserted right after their
         # own radio button each time, or they'd drift below both radios.
         if self.app.want_llm.get():
             # after=llm_explain pelo mesmo motivo dos detalhes abaixo: sem
             # isso o frame reaparecia no FIM da página, jogando os rádios de
-            # local/cloud para baixo do campo de senha -- longe da caixa que
+            # local/cloud para baixo do campo de senha, longe da caixa que
             # os liga.
             self.llm_frame.pack(
                 padx=40, pady=(4, 0), anchor="w", fill="x", after=self.llm_explain
@@ -720,7 +697,7 @@ class OptionsPage(_Page):
                 )
                 return False
         # Nada sobre a senha bloqueia esta tela: ela define uma onde não há, ou não
-        # faz nada — a variável remanescente é assunto do servidor: versão longa em `997a6fe^`.
+        # faz nada — a variável remanescente é assunto do servidor.
         self.validation_label.config(text="")
         return True
 
@@ -761,7 +738,7 @@ class ProgressPage(_Page):
         self.app.set_next_enabled(False)
         self._append(f"Criando/reaproveitando venv em {VENV_DIR} ...\n")
         # As variáveis Tk são lidas AQUI, na thread principal. Daqui em
-        # diante -- thread de trabalho, rótulo de status e tela final -- todo
+        # diante, thread de trabalho, rótulo de status e tela final, todo
         # mundo lê o snapshot, nunca a variável ao vivo.
         self.app.chosen_want_llm = self.app.want_llm.get()
         self.app.chosen_llm_mode = self.app.llm_mode.get()
@@ -798,8 +775,7 @@ class ProgressPage(_Page):
         self._queue.put(f"__PHASE__{key}")
 
     def _phase_done(self, key: str) -> None:
-        """Fecha uma fase -- inclusive quando ela foi pulada por já estar
-        pronta ("Ollama já está instalado"), que é progresso real."""
+        """Pula uma fase ("Ollama já está instalado")."""
         self._queue.put(f"__PHASEDONE__{key}")
 
     def _phase_fraction(self, fraction: float | None, detail: str | None = None) -> None:
@@ -845,13 +821,12 @@ class ProgressPage(_Page):
             self._phase_done(PHASE_PIP)
 
             # O registro existe a partir daqui mesmo que a fase de LLM
-            # adiante avise ou falhe -- é o desinstalador que o lê depois,
-            # e "instalei o projeto e mais nada" também é informação.
+            # adiante avise ou falhe
             write_record(ROOT, InstallRecord())
 
             # Sem LLM, gravar a senha da auditoria é a última fase e a única
             # coisa que "gravar configuração" quer dizer. Com LLM, a fase fica
-            # no fim de _run_llm_setup_*, depois do modelo -- marcá-la aqui
+            # no fim de _run_llm_setup_*, depois do modelo, marcá-la aqui
             # empurraria a barra para além das fases do Ollama, que ainda nem
             # começaram.
             audit_is_last_phase = not self.app.chosen_want_llm
@@ -866,40 +841,86 @@ class ProgressPage(_Page):
             if self.app.chosen_want_llm:
                 self._run_llm_setup()
 
+            self._report_audit_screen()
             self._queue.put("__DONE__")
         except Exception as exc:  # noqa: BLE001
             self._queue.put(f"\nErro inesperado: {exc}\n")
             self._queue.put("__FAILED__")
 
     def _apply_audit_password(self) -> bool:
-        """Define uma senha de auditoria ou deixa a existente em paz; nunca troca
-        nem remove, e a imutabilidade é imposta **aqui** e não só no widget:
-        versão longa em `997a6fe^`.
+        """Define uma senha de auditoria, se já não houver alguma.
+
+        A senha em claro **nunca toca o disco**: o que se grava é
+        `{receita, sal, hash}` da receita `senha/v1`. Nem aqui, nem no `.env`,
+        nem no log de progresso, nem em mensagem de erro.
         """
-        ja_gravada = read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR)
+        # Migração primeiro, pelo mesmo motivo que no `serve`: uma máquina com a
+        # senha em claro no `.env` tem de virar hash antes de qualquer pergunta
+        # sobre "já existe senha?", senão o instalador ofereceria definir uma
+        # nova por cima e a linha antiga sobreviveria em claro no `.env`.
+        migrado = migrar_senha_do_env(ROOT)
+        if migrado:
+            self._queue.put(
+                f"Senha da auditoria migrada para hash em {migrado.name}; "
+                "a linha em texto plano saiu do .env\n"
+            )
+
+        try:
+            ja_gravada = senha_auditoria.ler(ROOT)
+        except senha_auditoria.SenhaInvalida as exc:
+            # Nomeia o defeito e o arquivo, nunca o conteúdo.
+            self._queue.put(
+                f"O registro de senha em {senha_auditoria.NOME_ARQUIVO} existe e "
+                f"não é legível: {exc}\n"
+            )
+            return False
 
         if ja_gravada is not None:
-            # Already defined. This installer does not touch it -- not to
+            # Already defined. This installer does not touch it, not to
             # change it, not to erase it. Said out loud in the progress log
             # so that a typed-and-ignored field can never look like it took.
             self.app.audit_enabled = True
             self._queue.put(
-                "Senha da auditoria já configurada -- mantida como estava. Este "
-                f"instalador não a altera; para trocá-la, edite {ROOT / '.env'}.\n"
+                "Senha da auditoria já configurada."
             )
             return True
 
         senha = self.app.chosen_audit_password
         if senha:
-            env_path = write_env_audit_password(ROOT, senha)
-            self._queue.put(f"Senha da tela de auditoria gravada em {env_path}\n")
-            self._record_env_key(AUDIT_PASSWORD_ENV_VAR)
+            caminho = senha_auditoria.gravar(ROOT, senha_auditoria.registrar_senha(senha))
+            self._queue.put(
+                f"Senha da tela de auditoria gravada, como hash "
+                f"({senha_auditoria.RECEITA_SENHA}), em {caminho}\n"
+            )
             self.app.audit_enabled = True
             return True
 
         # Nothing there and nothing given: the audit screen stays off.
         self.app.audit_enabled = False
         return True
+
+    def _report_audit_screen(self) -> None:
+        """Diz se a tela de auditoria ficou de pé, e onde ela fica.
+
+        Isto morava na `FinishPage`, e o comentário de lá dizia por quê: quem
+        definiu uma senha tem de ser avisado de que existe uma tela e onde ela
+        está -- não saber que a tela existe é o problema que o campo de senha
+        foi criado para resolver. A tela saiu; a obrigação, não. Veio para o log
+        de progresso, que já é onde este instalador conta o que fez.
+        """
+        if self.app.audit_enabled:
+            self._queue.put(
+                f"\nAuditoria: HABILITADA em http://127.0.0.1:{DEFAULT_WEB_PORT}/audit, "
+                "com a senha que você definiu aqui.\n"
+                "Para trocá-la depois, rode este instalador de novo; o que fica "
+                "gravado é um hash, não a senha. Ver AUDIT_GUIDE.pt-BR.md, Passo 8.\n"
+            )
+        else:
+            self._queue.put(
+                "\nAuditoria: desativada -- a tela /audit só existe quando há "
+                "senha configurada.\nPara habilitar, rode este instalador de novo "
+                "e preencha o campo de senha na tela de Opções.\n"
+            )
 
     def _record_env_key(self, key: str) -> None:
         """Acrescenta `key` ao `env_keys` do registro sem derrubar as que já
@@ -924,7 +945,7 @@ class ProgressPage(_Page):
         self._phase(PHASE_CONFIG)
         env_path = write_env_api_key(ROOT, key)
         self._queue.put(f"Chave da Ollama Cloud gravada em {env_path}\n")
-        # Union, not replace -- the audit-password step ran before this one
+        # Union, not replace, the audit-password step ran before this one
         # and may have put its own key in the record.
         self._record_env_key("OLLAMA_API_KEY")
         self._phase_done(PHASE_CONFIG)
@@ -936,14 +957,14 @@ class ProgressPage(_Page):
         self._phase(PHASE_OLLAMA)
         ollama_exe = find_ollama_exe()
         # Este é o único instante em que "havia um Ollama aqui antes?" é observável, e
-        # é gravado já, não no fim: versão longa em `997a6fe^`.
+        # é gravado já, não no fim.
         write_record(ROOT, InstallRecord(ollama_was_present_before=ollama_exe is not None))
         if ollama_exe is None:
             ollama_exe = self._install_ollama_server()
             if ollama_exe is None:
                 return  # _install_ollama_server already logged the failure
         else:
-            self._queue.put(f"Ollama já está instalado em {ollama_exe} -- pulando instalação.\n")
+            self._queue.put(f"Ollama já está instalado em {ollama_exe}, pulando instalação.\n")
 
         self._queue.put("Aguardando o servidor Ollama responder...\n")
         if not wait_for_server(timeout=OLLAMA_PROBE_TIMEOUT):
@@ -954,7 +975,7 @@ class ProgressPage(_Page):
         self._phase(PHASE_MODEL)
         pulled_now = False
         if model_already_pulled(ollama_exe, model):
-            self._queue.put(f"Modelo {model} já baixado -- pulando.\n")
+            self._queue.put(f"Modelo {model} já baixado, pulando.\n")
         elif not self._pull_model(ollama_exe, model):
             return
         else:
@@ -965,7 +986,7 @@ class ProgressPage(_Page):
         self._phase(PHASE_CONFIG)
         env_path = write_env_model(ROOT, model)
         self._queue.put(f"Modelo padrão gravado em {env_path} (OLLAMA_MODEL={model}).\n")
-        # model_pulled só quando o pull rodou de fato -- um modelo que já
+        # model_pulled só quando o pull rodou de fato, um modelo que já
         # estava na máquina não é nosso para remover depois.
         write_record(
             ROOT,
@@ -980,10 +1001,10 @@ class ProgressPage(_Page):
 
     def _start_ollama_server(self, ollama_exe: Path) -> bool:
         """Último recurso antes de degradar: no Windows o Ollama só sobe como
-        item de login, e "instalado mas parado" é o estado usual: versão longa em `997a6fe^`.
+        item de login, e "instalado mas parado" é o estado usual:
         """
         self._queue.put(
-            "O servidor não respondeu -- tentando iniciar `ollama serve` em segundo plano...\n"
+            "O servidor não respondeu, tentando iniciar `ollama serve` em segundo plano...\n"
         )
         proc = start_ollama_server(ollama_exe)
         if proc is None:
@@ -992,11 +1013,11 @@ class ProgressPage(_Page):
 
         if not wait_for_server(timeout=OLLAMA_START_TIMEOUT):
             # `ollama serve` exits immediately when port 11434 is already
-            # taken by something else -- that exit code is the one thing that
+            # taken by something else, that exit code is the one thing that
             # tells the user what to look at.
             code = proc.poll()
             detail = (
-                f" (o processo `ollama serve` terminou com código {code} -- "
+                f" (o processo `ollama serve` terminou com código {code}, "
                 "a porta pode estar ocupada por outro processo)"
                 if code is not None
                 else ""
@@ -1064,17 +1085,17 @@ class ProgressPage(_Page):
         if not verify_windows_signature(dest):
             self._fail_llm(
                 "a assinatura digital do instalador baixado não pôde ser "
-                "confirmada -- por segurança, ele não foi executado."
+                "confirmada, por segurança, ele não foi executado."
             )
             return None
 
         self._queue.put(
-            "Assinatura válida. Executando o instalador -- aprove o prompt "
+            "Assinatura válida. Executando o instalador, aprove o prompt "
             "de permissão do Windows (UAC) se ele aparecer.\n"
         )
         # A barra fica parada durante o instalador do Ollama, e a razão mais
         # provável de ela ficar parada MUITO tempo é uma janela de permissão
-        # esperando resposta -- possivelmente atrás desta. O rótulo diz isso.
+        # esperando resposta, possivelmente atrás desta. O rótulo diz isso.
         self._phase_fraction(OLLAMA_RUN_MARK, "aguardando a janela de permissão do Windows")
         try:
             result = subprocess.run([str(dest)])
@@ -1087,7 +1108,7 @@ class ProgressPage(_Page):
         if result.returncode != 0:
             self._fail_llm(
                 f"o instalador do Ollama terminou com código "
-                f"{result.returncode} -- provavelmente a permissão de "
+                f"{result.returncode}, provavelmente a permissão de "
                 "administrador foi recusada."
             )
             return None
@@ -1138,7 +1159,7 @@ class ProgressPage(_Page):
     def _pull_model(self, ollama_exe: Path, model: str) -> bool:
         self._queue.put(f"Baixando o modelo {model} (ollama pull)...\n")
         # O único passo longo da instalação, e o único com tamanho conhecido de
-        # antemão -- é ele que justifica a barra ter progresso interno.
+        # antemão, é ele que justifica a barra ter progresso interno.
         pull = PullProgress(model)
         try:
             proc = subprocess.Popen(
@@ -1172,7 +1193,7 @@ class ProgressPage(_Page):
             "Ou, sem instalar nada localmente: crie um arquivo .env na raiz "
             "com OLLAMA_API_KEY=<sua chave> (gerada em "
             "https://ollama.com/settings/keys) e marque \"Ollama Cloud\" "
-            "numa próxima instalação -- ou simplesmente use `process --mock`.\n"
+            "numa próxima instalação, ou simplesmente use `process --mock`.\n"
         )
         self._queue.put(manual)
         self._queue.put("__LLM_WARN__")
@@ -1192,7 +1213,7 @@ class ProgressPage(_Page):
                     self._update_status_label()
                 elif item == "__FAILED__":
                     # A barra fica onde parou. Completá-la aqui diria que
-                    # terminou -- que é exatamente o que não aconteceu, e o
+                    # terminou, que é exatamente o que não aconteceu, e o
                     # tipo de mentira que a barra indeterminada já contava.
                     self.app.install_ok = False
                     self.app.set_next_enabled(True)
@@ -1209,7 +1230,7 @@ class ProgressPage(_Page):
         self.after(80, self._poll_queue)
 
     def _apply_progress_sentinel(self, item: str) -> bool:
-        """Consome uma sentinela de progresso ou reporta que não é uma — a fila
+        """Consome uma sentinela de progresso ou reporta que não é uma. A fila
         carrega a saída do pip no mesmo canal, então quase-sentinela cai no log.
         """
         tracker = self._tracker
@@ -1237,12 +1258,12 @@ class ProgressPage(_Page):
         app = self.app
         if not app.install_ok:
             self.status_label.config(
-                text="Instalação do projeto FALHOU -- veja o log acima.",
+                text="Instalação do projeto FALHOU, veja o log acima.",
                 fg="#b91c1c",
             )
         elif app.chosen_want_llm and not app.llm_ready:
             self.status_label.config(
-                text="Projeto instalado. Modelo real NÃO configurado -- veja "
+                text="Projeto instalado. Modelo real NÃO configurado, veja "
                 "o aviso e as instruções manuais no log acima. "
                 "`process --mock` continua funcionando.",
                 fg="#b91c1c",
@@ -1260,14 +1281,19 @@ class ProgressPage(_Page):
 
 
 class DemoPage(_Page):
-    subtitle = "Onde funciona bem / onde falha"
+    subtitle = "Onde funciona bem e onde falha"
+    # Última página do assistente desde que a `FinishPage` saiu. O rótulo é só
+    # o rótulo: quem encerra é o ramo terminal de `_go_next`, que roda para a
+    # última página da lista e já cuidava de abrir a interface e fechar a
+    # janela. Trocar a ordem das páginas move o `Concluir` junto.
+    next_label = "Concluir"
 
     def __init__(self, parent: tk.Frame, app: WizardApp) -> None:
         super().__init__(parent, app)
         self._shown = False
         heading = tk.Label(
             self,
-            text="Demonstração ao vivo (não texto colado), contra a engine "
+            text="Demonstração ao vivo contra a engine "
             "híbrida real:",
             font=("Helvetica", 11, "bold"),
             justify="left",
@@ -1311,7 +1337,6 @@ class DemoPage(_Page):
                 default_policy_path,
                 load_default_ontology,
             )
-            from ethical_agent.evaluate import evaluate_engine, load_dataset
         except Exception as exc:  # noqa: BLE001
             self._append(f"Não foi possível carregar a engine: {exc}\n", "fail")
             return
@@ -1347,82 +1372,45 @@ class DemoPage(_Page):
                 tag,
             )
 
-        eval_dir = ROOT / "eval"
-        dataset_files = sorted(eval_dir.glob("*.json"))
-        # "conjunto inteiro" dito por extenso: esta tela avalia cada dataset
-        # sem dividir, e um recall sem a metade nomeada ao lado é afirmação sem
-        # procedência -- a regra de reporte do README. Aqui a metade é `full`, e
-        # é isso que o rótulo declara.
-        self._append("\nRecall real (calculado agora, conjunto inteiro):\n", "header")
-        try:
-            for path in dataset_files:
-                cases = load_dataset(path)
-                recall = evaluate_engine(engine, cases)["binary"]["recall"]
-                self._append(
-                    f"  {path.name} [conjunto inteiro]: {recall:.3f} "
-                    f"({len(cases)} casos)\n"
-                )
-                self.update_idletasks()
-            if len(dataset_files) > 1:
-                self._append(
-                    "  (recall mais baixo nos datasets externos reflete "
-                    "divergência entre a definição de injeção/dano desses "
-                    "corpora e a da política, não uma regressão -- ver "
-                    "'Escopo e generalização dos dados' no README para os "
-                    "números completos)\n"
-                )
-        except Exception as exc:  # noqa: BLE001
-            self._append(f"\nNão foi possível calcular o recall: {exc}\n", "fail")
-
-
-class FinishPage(_Page):
-    subtitle = "Concluído"
-    next_label = "Concluir"
-
-    def __init__(self, parent: tk.Frame, app: WizardApp) -> None:
-        super().__init__(parent, app)
-        self.label = tk.Label(
-            self, text=FINISH_TEXT, justify="left", font=("Helvetica", 11)
+        # Havia aqui um bloco que avaliava cada dataset de `eval/` ao vivo e
+        # imprimia o recall. Ele saiu, por três motivos que se somam:
+        #
+        #   - media o **conjunto inteiro**, misturando `tune` e `holdout` --
+        #     exatamente o que a divisão `divisao/v1` existe para não reportar;
+        #   - rodava na thread do Tk, então congelava a janela pelo tempo dos
+        #     954 casos, com `update_idletasks` como única atenuação;
+        #   - recalculava a cada execução, então divergia do README em silêncio
+        #     assim que qualquer config mudasse.
+        #
+        # Os casos acima ficam: são **ilustração**, não medição. O que sai é o
+        # número.
+        self._append(
+            "\nResultados de avaliação, com metade nomeada e erro-padrão, "
+            "no README.\n",
+            "header",
         )
-        self.label.pack(padx=24, pady=24, anchor="w")
 
-    def on_show(self) -> None:
-        # Whoever set a password has to be told there is a screen and where
-        # it is -- not knowing the screen exists is the problem this field
-        # was added to solve, and it would survive a successful install.
-        if self.app.audit_enabled:
-            audit_text = (
-                "\n\nAuditoria: HABILITADA. A tela fica em "
-                f"http://127.0.0.1:{DEFAULT_WEB_PORT}/audit e pede a senha que "
-                "você definiu no instalador. Ela separa dois papéis (quem "
-                "conversa com o agente e quem audita) e não é segurança: quem "
-                "tem acesso a este computador lê logs/audit.jsonl direto.\n"
-                "Rodar o instalador de novo NÃO troca nem remove essa senha: "
-                f"para isso, edite {ROOT / '.env'} diretamente."
-            )
-        else:
-            audit_text = (
-                "\n\nAuditoria: desativada. Existe uma tela em /audit para "
-                "revisar as decisões registradas, mas ela só aparece quando há "
-                "uma senha configurada. Para habilitar, rode este instalador de "
-                "novo e preencha o campo de senha na tela de Opções -- ele "
-                "define uma senha quando não há nenhuma, e só nesse caso."
-            )
 
-        if not self.app.install_ok:
-            self.label.config(
-                text="A instalação não terminou com sucesso -- volte e "
-                "confira o log na tela de Progresso.\n\n" + FINISH_TEXT
-            )
-        elif self.app.chosen_want_llm and not self.app.llm_ready:
-            self.label.config(
-                text="Projeto instalado, mas o modelo real NÃO foi "
-                "configurado -- volte e confira o aviso e as instruções "
-                "manuais no log da tela de Progresso. `process --mock` "
-                "continua funcionando.\n\n" + FINISH_TEXT + audit_text
-            )
-        else:
-            self.label.config(text=FINISH_TEXT + audit_text)
+# Havia aqui uma `FinishPage`, última tela do assistente, com `FINISH_TEXT`.
+# Ela saiu, e o que ela carregava foi **movido, não apagado** -- conferido antes
+# da remoção:
+#
+#   - a nota da trilha ("conteúdo bloqueado nunca é retido", "a gravação é
+#     obrigatória")            -> README.md, seção da trilha de auditoria;
+#   - `python uninstall.py --dry-run` e o resto da desinstalação
+#                              -> README.md, seção "Desinstalação";
+#   - a ressalva de que a senha separa papéis e não é segurança
+#                              -> README.md e AUDIT_GUIDE.pt-BR.md, Passo 8;
+#   - os comandos de uso (`check`/`process`/`eval`)
+#                              -> README.md, "Início rápido";
+#   - o relato de que a auditoria ficou habilitada e onde a tela fica
+#                              -> log da tela de Progresso, que já é onde este
+#                                 instalador conta o que fez.
+#
+# O que a tela fazia além de mostrar texto -- disparar `_launch_interface()` --
+# não morava nela: mora no ramo terminal de `_go_next`, que roda para a última
+# página, qualquer que ela seja. Com a `DemoPage` no fim, ela herda isso sem
+# mudança estrutural.
 
 
 def main(argv: list[str] | None = None) -> int:

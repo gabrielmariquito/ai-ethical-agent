@@ -106,6 +106,15 @@ def test_every_choices_flag_is_filled_from_a_variable(field):
 
 
 def test_the_option_set_is_what_the_screen_and_the_plan_agree_on():
-    # Stated as one sentence for whoever reads the failure: the four
-    # removals the uninstaller offers today.
-    assert set(_gui_variables_map()) == {"logs", "ollama", "model", "env"}
+    # Stated as one sentence for whoever reads the failure: the five
+    # removals the uninstaller offers today. `audit_password` entrou na leva do
+    # hash, quando a senha saiu do `.env` -- os dois passaram a ter ciclos de
+    # vida diferentes, e apagar a chave da Ollama deixou de significar desligar
+    # a tela de auditoria.
+    assert set(_gui_variables_map()) == {
+        "logs",
+        "ollama",
+        "model",
+        "env",
+        "audit_password",
+    }

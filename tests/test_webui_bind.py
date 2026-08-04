@@ -3,6 +3,7 @@ import socket
 
 import pytest
 
+from ethical_agent import senha_auditoria
 from ethical_agent.__main__ import main
 from ethical_agent.webui.server import PortInUseError, make_server
 from webui_support import RunningServer, make_initial_config
@@ -209,32 +210,52 @@ def _run_serve(monkeypatch, tmp_path, argv_extra=(), env=None):
     return captured, main(["serve", "--port", "0", *argv_extra])
 
 
-def test_dotenv_password_enables_the_audit_screen_with_no_flag_at_all(
+def test_o_registro_hasheado_habilita_a_tela_sem_flag_nenhuma(
     monkeypatch, tmp_path, capsys
 ):
-    # O ponto inteiro de o wizard escrever no `.env`, e a guarda de regressão da
+    # O ponto inteiro de o wizard gravar o hash, e a guarda de regressão da
     # recusa acima: versão longa em `997a6fe^`.
-    (tmp_path / ".env").write_text(
-        f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
-    )
+    senha_auditoria.gravar(tmp_path, senha_auditoria.registrar_senha(CANARY))
     captured, code = _run_serve(monkeypatch, tmp_path)
 
     assert code == 0
-    assert captured["kwargs"]["audit_password"] == CANARY
+    assert senha_auditoria.verificar(captured["kwargs"]["audit_password"], CANARY)
     out = capsys.readouterr().out
     assert "Auditoria: habilitada" in out
-    assert ".env (ETHICAL_AGENT_AUDIT_PASSWORD)" in out
+    assert f"{senha_auditoria.NOME_ARQUIVO} ({senha_auditoria.RECEITA_SENHA})" in out
 
 
-def test_serve_refuses_when_a_leftover_variable_disagrees_with_dotenv(
+def test_a_senha_em_claro_do_dotenv_e_migrada_na_primeira_subida(
+    monkeypatch, tmp_path, capsys
+):
+    # A máquina de ontem sobe hoje, e o `.env` deixa de carregar a senha.
+    (tmp_path / ".env").write_text(
+        f"OLLAMA_MODEL=llama3.2:3b\nETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n",
+        encoding="utf-8",
+    )
+    captured, code = _run_serve(monkeypatch, tmp_path)
+    streams = capsys.readouterr()
+
+    assert code == 0
+    assert senha_auditoria.verificar(captured["kwargs"]["audit_password"], CANARY)
+    # A migração é dita em voz alta, e sem o valor.
+    assert "migrada para hash" in streams.err
+    assert CANARY not in streams.err and CANARY not in streams.out
+    # E a senha em claro não existe mais em arquivo nenhum.
+    assert CANARY not in (tmp_path / ".env").read_text(encoding="utf-8")
+    assert CANARY not in senha_auditoria.caminho_do_registro(tmp_path).read_text(
+        encoding="utf-8"
+    )
+    assert "OLLAMA_MODEL=llama3.2:3b" in (tmp_path / ".env").read_text(encoding="utf-8")
+
+
+def test_serve_refuses_when_a_leftover_variable_disagrees_with_the_hash(
     monkeypatch, tmp_path, capsys
 ):
     # The variable is not a source any more, but a stale one cannot simply be
     # ignored: whoever exported it believes they configured a password, and
     # would be rejected at the login prompt with nothing to go on.
-    (tmp_path / ".env").write_text(
-        f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
-    )
+    senha_auditoria.gravar(tmp_path, senha_auditoria.registrar_senha(CANARY))
     captured, code = _run_serve(
         monkeypatch, tmp_path, env={"ETHICAL_AGENT_AUDIT_PASSWORD": "do-ambiente"}
     )
@@ -246,7 +267,7 @@ def test_serve_refuses_when_a_leftover_variable_disagrees_with_dotenv(
 
     err = capsys.readouterr().err
     assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in err
-    assert str((tmp_path / ".env").resolve()) in err
+    assert str(senha_auditoria.caminho_do_registro(tmp_path).resolve()) in err
     # The fix is named, and it is one thing -- not a choice. The dead source
     # is dead, so "remove one of the two" would offer something gone.
     assert "apague a variável" in err.lower()
@@ -273,22 +294,20 @@ def test_serve_refuses_when_a_leftover_variable_is_all_there_is(
     assert CANARY not in err
 
 
-def test_a_leftover_variable_equal_to_the_dotenv_password_starts_silently(
+def test_uma_variavel_remanescente_que_abre_a_senha_em_vigor_sobe_calada(
     monkeypatch, tmp_path, capsys
 ):
-    # Nothing is ambiguous, so nothing is said. This is also the state
-    # load_dotenv() can create by itself, by copying .env into os.environ.
-    (tmp_path / ".env").write_text(
-        "ETHICAL_AGENT_AUDIT_PASSWORD=a-mesma\n", encoding="utf-8"
-    )
+    # Nada é ambíguo, então nada é dito. E a decisão sai de `verificar` contra o
+    # hash, não de `==` entre duas strings -- é o que fecha `D-10`.
+    senha_auditoria.gravar(tmp_path, senha_auditoria.registrar_senha("a-mesma"))
     captured, code = _run_serve(
         monkeypatch, tmp_path, env={"ETHICAL_AGENT_AUDIT_PASSWORD": "a-mesma"}
     )
 
     assert code == 0
-    assert captured["kwargs"]["audit_password"] == "a-mesma"
+    assert senha_auditoria.verificar(captured["kwargs"]["audit_password"], "a-mesma")
     streams = capsys.readouterr()
-    assert ".env (ETHICAL_AGENT_AUDIT_PASSWORD)" in streams.out
+    assert f"{senha_auditoria.NOME_ARQUIVO} ({senha_auditoria.RECEITA_SENHA})" in streams.out
     assert "$ETHICAL_AGENT_AUDIT_PASSWORD" not in streams.out
     assert streams.err == ""
 
@@ -301,9 +320,7 @@ def test_the_password_file_flag_starts_and_names_both_displaced_sources(
     # source under the flag is exactly the gap logged as D-9.
     password_file = tmp_path / "senha.txt"
     password_file.write_text("do-arquivo\n", encoding="utf-8")
-    (tmp_path / ".env").write_text(
-        f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
-    )
+    senha_auditoria.gravar(tmp_path, senha_auditoria.registrar_senha(CANARY))
     captured, code = _run_serve(
         monkeypatch,
         tmp_path,
@@ -314,19 +331,17 @@ def test_the_password_file_flag_starts_and_names_both_displaced_sources(
     assert code == 0
     assert captured["kwargs"]["audit_password"] == "do-arquivo"
     out = capsys.readouterr().out
-    assert "o .env também tem uma senha" in out
+    assert f"o {senha_auditoria.NOME_ARQUIVO} também tem uma senha" in out
     assert "precedência" in out
     assert "$ETHICAL_AGENT_AUDIT_PASSWORD" in out
     assert "não é lida como senha" in out
     assert CANARY not in out
 
 
-def test_banner_does_not_cry_override_when_dotenv_is_the_winner(
+def test_banner_does_not_cry_override_when_the_hashed_record_is_the_winner(
     monkeypatch, tmp_path, capsys
 ):
-    (tmp_path / ".env").write_text(
-        f"ETHICAL_AGENT_AUDIT_PASSWORD={CANARY}\n", encoding="utf-8"
-    )
+    senha_auditoria.gravar(tmp_path, senha_auditoria.registrar_senha(CANARY))
     _run_serve(monkeypatch, tmp_path)
     assert "também tem uma senha" not in capsys.readouterr().out
 
@@ -354,7 +369,7 @@ def test_the_disabled_banner_no_longer_tells_anyone_to_export_the_variable(
     _run_serve(monkeypatch, tmp_path)
     out = capsys.readouterr().out
     assert "defina ETHICAL_AGENT_AUDIT_PASSWORD" not in out
-    assert ".env" in out, "tem de dizer onde a senha mora agora"
+    assert senha_auditoria.NOME_ARQUIVO in out, "tem de dizer onde a senha mora agora"
 
 
 def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, capsys):
@@ -367,7 +382,7 @@ def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, 
     sem_senha = "OLLAMA_MODEL=llama3.2:3b\n"
 
     cases = (
-        ("dotenv", (), None, dotenv),
+        ("dotenv por migrar", (), None, dotenv),
         ("password file", ("--audit-password-file", str(password_file)), None, dotenv),
         ("dotenv + variável igual", (), {"ETHICAL_AGENT_AUDIT_PASSWORD": CANARY}, dotenv),
         ("variável divergente", (), {"ETHICAL_AGENT_AUDIT_PASSWORD": "outra"}, dotenv),
@@ -375,6 +390,11 @@ def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, 
     )
     recusados = {"variável divergente", "variável sozinha"}
     for label, argv_extra, env, env_file in cases:
+        # Cada caso parte de uma máquina limpa. Sem isto, o primeiro caso migra o
+        # `.env` e o registro hasheado sobrevive para os seguintes -- "variável
+        # sozinha" deixaria de estar sozinha, e o teste passaria a medir outra
+        # coisa. É a fixture que a migração invalidou, não a afirmação.
+        senha_auditoria.caminho_do_registro(tmp_path).unlink(missing_ok=True)
         (tmp_path / ".env").write_text(env_file, encoding="utf-8")
         captured, code = _run_serve(monkeypatch, tmp_path, argv_extra=argv_extra, env=env)
         streams = capsys.readouterr()
@@ -388,6 +408,18 @@ def test_no_source_of_the_password_ever_prints_its_value(monkeypatch, tmp_path, 
         else:
             assert code == 0, label
             assert CANARY not in repr(captured["initial_config"]), f"vazou via {label}"
+            # A credencial que vai ao `make_server` é um **registro**, não a
+            # senha -- exceto sob `--audit-password-file`, onde a senha em claro
+            # em memória é o que o operador declarou naquela invocação. Este
+            # teste vigia *impressão*; memória sob flag explícita é outro
+            # assunto, e continua sendo o de sempre.
+            if not argv_extra:
+                assert CANARY not in repr(captured["kwargs"]), f"vazou via kwargs em {label}"
+        registro = senha_auditoria.caminho_do_registro(tmp_path)
+        if registro.exists():
+            assert CANARY not in registro.read_text(encoding="utf-8"), (
+                f"a senha em claro foi parar no registro via {label}"
+            )
 
 
 def test_serve_exits_nonzero_on_an_empty_password_file(tmp_path, capsys):

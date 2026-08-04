@@ -1057,19 +1057,46 @@ porque uma decisão só é julgável em contexto.
 
 A tela **só existe quando há uma senha configurada para ela**. A forma mais
 simples é o instalador gráfico: `python wizard_gui.py` tem um campo de senha na
-tela de Opções, e o que for digitado ali vai para o `.env` da raiz (já ignorado
-pelo git) — depois disso, `ethical-agent serve` sem flag nenhuma já sobe com a
-auditoria habilitada. Deixar o campo em branco mantém a auditoria desativada.
+tela de Opções, e o que for digitado ali vira um **hash `scrypt` com sal** no
+`.audit-password` da raiz (já ignorado pelo git) — depois disso,
+`ethical-agent serve` sem flag nenhuma já sobe com a auditoria habilitada.
+Deixar o campo em branco mantém a auditoria desativada.
+
+> [!IMPORTANT]
+> **A senha é guardada como hash, não em texto.** O arquivo tem uma linha:
+> `senha/v1$n=16384,r=8,p=1$<sal-hex>$<hash-hex>` — receita, parâmetros de
+> custo, sal e hash. **A senha em si não está lá e não é recuperável dali.**
+>
+> **O que isso protege: leitura.** Um backup, um screenshot, um arquivo de
+> configuração colado num chamado de suporte — nenhum deles entrega mais a
+> senha. Antes desta mudança, todos entregavam.
+>
+> **O que isso não protege: substituição.** Quem tem acesso à máquina troca o
+> arquivo por um de senha conhecida e entra. Ler não dá; escrever dá. A senha
+> continua sendo separação de papéis, não segurança — só que agora é separação
+> de papéis **ilegível**, o que não é a mesma coisa que segura.
 
 > [!IMPORTANT]
 > **O instalador define a senha uma vez; ele não a troca nem a remove.** Com uma
-> senha já gravada, o campo aparece desabilitado e rodar o instalador de novo
-> não muda nada. **Para trocá-la, edite o `.env` da raiz diretamente.**
+> senha já gravada, o campo aparece desabilitado. **Para trocá-la, rode o
+> instalador de novo** — não há mais arquivo para editar à mão, porque não há
+> texto ali para substituir. Depois de trocar, **reinicie o servidor**: um
+> `serve` no ar resolveu a senha no arranque e não relê o arquivo.
 >
 > Não é limitação de implementação. Essa senha decide quem pode ler a trilha de
 > auditoria, e quem roda um instalador não é necessariamente quem tem essa
 > decisão — um campo de texto que sobrescreve em silêncio faz das duas pessoas
-> a mesma pessoa. Pelo mesmo motivo não há botão de remover.
+> a mesma pessoa. Pelo mesmo motivo não há botão de remover; para desligar a
+> tela, `python uninstall.py --remove-audit-password`, que pergunta antes.
+
+**Migração automática.** Máquinas instaladas antes desta mudança guardavam a
+senha em claro no `.env`, na chave `ETHICAL_AGENT_AUDIT_PASSWORD`. Na primeira
+vez que `serve` ou o instalador rodam, aquela senha é lida uma última vez,
+vira hash, e **a linha some do `.env`** — dito em uma linha no terminal:
+
+```
+[senha] migrada para hash em .audit-password (senha/v1); linha removida do .env
+```
 
 Pela linha de comando, há uma segunda fonte — um arquivo apontado por flag:
 
@@ -1077,19 +1104,21 @@ Pela linha de comando, há uma segunda fonte — um arquivo apontado por flag:
 ethical-agent serve --audit-password-file ~/.ethical-agent-audit-password
 ```
 
-**São só essas duas**, da mais forte para a mais fraca:
+**São só essas duas**, da mais forte para a mais fraca — e a terceira linha é a
+ausência das duas, não uma terceira fonte:
 
 1. `--audit-password-file ARQUIVO`
-2. `ETHICAL_AGENT_AUDIT_PASSWORD=` no `.env` da raiz (o que o instalador grava)
+2. `.audit-password` na raiz (o hash que o instalador grava)
 3. nenhuma — a tela não existe
 
 > [!IMPORTANT]
 > **A variável de ambiente `$ETHICAL_AGENT_AUDIT_PASSWORD` não é mais uma
 > fonte.** Ela já foi, e ganhava do `.env`. Se você ainda a tiver exportada,
-> `serve` **não a ignora**: compara com a senha que está valendo e, se
-> divergir — ou se não houver nenhuma —, **não sobe**, dizendo onde a senha
-> mora agora e pedindo que você apague a variável. Valores iguais sobem em
-> silêncio, porque aí não há nada de ambíguo.
+> `serve` **não a ignora**: **verifica o valor dela contra o hash em vigor** e,
+> se ele não abrir a senha guardada — ou se não houver senha nenhuma —, **não
+> sobe**, dizendo onde a senha mora agora e pedindo que você apague a variável.
+> Se o valor for a senha certa, sobe em silêncio, porque aí não há nada de
+> ambíguo.
 >
 > Ignorar em silêncio seria repetir o defeito que motivou a mudança, só que
 > apontado para o outro lado: quem exportou a variável acredita ter
@@ -1099,15 +1128,22 @@ Por que uma fonte só, e por que essa. Duas fontes ambientes se ordenavam, e a
 ordem era a forma errada para o problema: o banner de inicialização nomeava a
 perdedora, mas o banner fica num terminal que ninguém está necessariamente
 olhando, enquanto a consequência aparece no navegador, onde quem digita a senha
-em que acredita é recusado **sem explicação nenhuma na tela**. O `.env` é o que
+em que acredita é recusado **sem explicação nenhuma na tela**. O arquivo é o que
 sobrou porque é o que o instalador sabe gravar — nada neste projeto jamais
 escreveu uma variável de ambiente, e dar-lhe essa capacidade significaria mexer
 em registro do Windows ou em perfil de shell.
 
-A flag continua acima do `.env` e **silencia a recusa** — ela é uma declaração
+Por que a senha ganhou arquivo próprio em vez de continuar no `.env`: os dois
+segredos passaram a ter formas e ciclos de vida diferentes. `OLLAMA_API_KEY` é
+um valor que tem de ser lido de volta em claro, para ser enviado à Ollama;
+a senha de auditoria não — ela só precisa ser *verificada*. Guardar uma coisa
+que se lê ao lado de uma que não se lê, no mesmo arquivo e no mesmo formato,
+era o que fazia parecer natural gravar a senha em claro.
+
+A flag continua acima do arquivo e **silencia a recusa** — ela é uma declaração
 explícita, naquela invocação, de qual senha usar, e é a saída que a mensagem de
 erro oferece para quem precisa subir agora. Silenciar a recusa não é ficar
-calado: o banner nomeia tanto a senha do `.env` que a flag passou por cima
+calado: o banner nomeia tanto a senha guardada que a flag passou por cima
 quanto a variável que ficou para trás. Nem o banner nem qualquer log imprimem
 valor nenhum.
 
@@ -1116,7 +1152,7 @@ servidor, então é o servidor que explica, numa mensagem só. O instalador
 imprime essa recusa verbatim quando tenta abrir a interface.
 
 `OLLAMA_MODEL` e `OLLAMA_API_KEY` não mudaram: continuam no mesmo `.env`, com a
-variável de ambiente acima dele. O que mudou é uma chave só.
+variável de ambiente acima dele. O que saiu de lá foi uma chave só.
 
 Sem senha, `/audit`, os endpoints `/api/audit/*` e os próprios arquivos
 estáticos da tela respondem o mesmo `404` de uma rota inexistente, para

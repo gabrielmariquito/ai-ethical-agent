@@ -387,10 +387,38 @@ def test_env_question_says_which_keys_without_printing_the_value(tmp_path):
     assert "super-secret" not in env_cand.detail
 
 
-def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path, monkeypatch):
-    # A variável tem de ser limpa explicitamente: numa máquina que a exporta,
-    # remover o `.env` não desliga a tela: versão longa em `997a6fe^`.
-    monkeypatch.delenv("ETHICAL_AGENT_AUDIT_PASSWORD", raising=False)
+def test_a_senha_e_item_proprio_e_avisa_que_remove_la_desliga_a_tela(tmp_path):
+    # A senha saiu do `.env` na leva do hash, então saiu da pergunta do `.env`
+    # também: pergunta própria, porque quem quer apagar a chave da Ollama não
+    # necessariamente quer desligar a auditoria.
+    from ethical_agent import senha_auditoria
+
+    root = _make_root(tmp_path, env="OLLAMA_MODEL=llama3.2:3b\n")
+    senha_auditoria.gravar(root, senha_auditoria.registrar_senha("senha-secreta"))
+
+    plan = build_plan(root, port=8765, probe=False)
+    cand = [c for c in plan.optional if c.key == "audit_password"][0]
+
+    assert cand.label == senha_auditoria.NOME_ARQUIVO
+    assert cand.optin_flag == "--remove-audit-password"
+    # A consequência antes do detalhe: some a TELA, não só um arquivo.
+    assert "desativa a tela de auditoria" in cand.detail
+    assert "/audit" in cand.detail
+    # Mais branda que o aviso do OLLAMA_API_KEY de propósito: esta perda se
+    # recupera sem sair da máquina.
+    assert "recuperável" in cand.detail
+    # E o que está no arquivo é hash: quem remove não está perdendo um segredo
+    # legível, e a mensagem não pode sugerir que está.
+    assert senha_auditoria.RECEITA_SENHA in cand.detail
+    assert "senha-secreta" not in cand.detail
+
+
+def test_a_pergunta_do_env_nao_fala_mais_de_senha_a_nao_ser_para_dizer_que_ela_migra(
+    tmp_path,
+):
+    # Um `.env` que ainda carrega a chave é uma máquina que nunca subiu depois
+    # da mudança. Vale dizer isso -- e não descrever um arquivo que já não é o
+    # que ele foi.
     root = _make_root(
         tmp_path,
         env="OLLAMA_MODEL=llama3.2:3b\nETHICAL_AGENT_AUDIT_PASSWORD=senha-secreta\n",
@@ -398,36 +426,12 @@ def test_env_question_warns_that_removing_it_disables_the_audit_screen(tmp_path,
     assert "ETHICAL_AGENT_AUDIT_PASSWORD" in env_keys_present(root)
     plan = build_plan(root, port=8765, probe=False)
     env_cand = [c for c in plan.optional if c.key == "env"][0]
-    # The consequence, not the variable name: what someone deleting this file
-    # needs to know is that the /audit screen goes with it.
-    assert "tela de auditoria" in env_cand.detail
-    assert "/audit" in env_cand.detail
+
+    assert "migrada para hash" in env_cand.detail
     assert "senha-secreta" not in env_cand.detail
-    # Milder than the OLLAMA_API_KEY warning on purpose: this loss is
-    # recoverable without leaving the machine.
-    assert "recuperável" in env_cand.detail
-
-
-def test_env_question_says_the_exported_variable_is_not_a_spare_password(
-    tmp_path, monkeypatch
-):
-    # A variável não é fonte, então não assume quando o arquivo sai: remover um
-    # sem limpar o outro deixa a tela desligada E um servidor que recusa subir.
-    monkeypatch.setenv("ETHICAL_AGENT_AUDIT_PASSWORD", "do-ambiente")
-    root = _make_root(
-        tmp_path,
-        env="OLLAMA_MODEL=llama3.2:3b\nETHICAL_AGENT_AUDIT_PASSWORD=senha-secreta\n",
-    )
-    plan = build_plan(root, port=8765, probe=False)
-    env_cand = [c for c in plan.optional if c.key == "env"][0]
-
-    # The consequence of removal is unchanged and still stated...
-    assert "desativa a tela de auditoria" in env_cand.detail
-    # ...and the leftover variable is named as a leftover, never as a backup.
-    assert "não é fonte de senha" in env_cand.detail
-    assert "recusar de subir" in env_cand.detail
-    assert "senha-secreta" not in env_cand.detail
-    assert "do-ambiente" not in env_cand.detail
+    # E a promessa antiga -- "a senha mora aqui" -- não pode sobreviver, porque
+    # deixou de ser verdade.
+    assert "a senha dela mora aqui" not in env_cand.detail
 
 
 # -- running services ------------------------------------------------------

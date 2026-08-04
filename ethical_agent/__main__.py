@@ -317,8 +317,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
         # this invocation, so the surprise is bounded to one command line.
         if password_source.startswith("--audit-password-file") and dotenv_password_present():
             print(
-                f"           atenção: o .env também tem uma senha, e não é a "
-                f"que está valendo ({password_source} tem precedência)"
+                f"           atenção: o .audit-password também tem uma senha, e "
+                f"não é a que está valendo ({password_source} tem precedência)"
             )
         # And the flag also silences the stale-variable refusal, which would
         # leave a displaced source unmentioned -- the exact shape of the gap
@@ -343,7 +343,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         print(
             "Auditoria: desabilitada (/audit não existe). Para habilitar, rode "
             "o instalador (python wizard_gui.py) e preencha o campo de senha, "
-            "que grava a senha no .env da raiz, ou use "
+            "que grava o hash dela no .audit-password da raiz, ou use "
             "--audit-password-file ARQUIVO"
         )
     try:

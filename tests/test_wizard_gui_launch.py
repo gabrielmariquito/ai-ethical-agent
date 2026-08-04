@@ -161,8 +161,14 @@ def test_launch_never_pipes_the_servers_stderr(monkeypatch):
     assert captured["stderr"] is not wizard_gui.subprocess.PIPE
 
 
-def test_finish_text_does_not_mention_nonexistent_gui_readme():
-    assert "GUI_README" not in wizard_gui.FINISH_TEXT
+def test_o_instalador_nao_aponta_para_um_gui_readme_que_nao_existe():
+    # Era sobre o `FINISH_TEXT`, que saiu com a `FinishPage`. A afirmação
+    # sobrevive contra o arquivo inteiro: o ponteiro quebrado não pode voltar
+    # por nenhuma tela.
+    import pathlib
+
+    fonte = pathlib.Path(wizard_gui.__file__).read_text(encoding="utf-8")
+    assert "GUI_README" not in fonte
 
 
 def test_manual_launch_instructions_reference_serve_command():

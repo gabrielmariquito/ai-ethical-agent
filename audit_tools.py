@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Leitura e geração de dados de exemplo para a trilha de auditoria:
-`resumir` e `gerar`. versão longa em `997a6fe^`.
+`resumir` e `gerar`.
 """
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def cmd_gerar(args: argparse.Namespace) -> int:
                 "config_versions": {"synthetic": True},
                 "note": (
                     "Registro sintético gerado por `audit_tools.py gerar` "
-                    "para demonstração -- não é uso real do sistema."
+                    "para demonstração, não é uso real do sistema."
                 ),
             }
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     p_resumir.set_defaults(func=cmd_resumir)
 
     p_gerar = sub.add_parser(
-        "gerar", help="adiciona registros sintéticos de exemplo (dados de teste, não reais)"
+        "gerar", help="adiciona registros sintéticos de exemplo (dados de teste)"
     )
     p_gerar.add_argument("-n", type=int, default=5)
     p_gerar.set_defaults(func=cmd_gerar)

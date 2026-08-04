@@ -91,6 +91,10 @@ class Choices:
     remove_model: bool = False
     remove_env: bool = False
     remove_ollama: bool = False
+    # Separada de `remove_env` desde que a senha saiu do `.env` e virou hash em
+    # arquivo próprio: os dois têm ciclos de vida diferentes, e quem quer apagar
+    # a chave da Ollama não necessariamente quer desligar a tela de auditoria.
+    remove_audit_password: bool = False
 
 
 @dataclass(frozen=True)
@@ -718,36 +722,26 @@ def build_plan(
         # OLLAMA_MODEL" só significa alguma coisa para quem já sabe o que é
         # um .env, que é justamente quem não precisa da linha.
         detail = (
-            "Guarda o que o instalador configurou: o modelo escolhido, a "
-            "chave da Ollama Cloud e a senha da tela de auditoria."
+            "Guarda o que o instalador configurou: o modelo escolhido e a "
+            "chave da Ollama Cloud."
         )
         if "OLLAMA_API_KEY" in keys:
             detail += (
                 "\nOLLAMA_API_KEY é a chave da Ollama Cloud -- perdê-la por "
                 "engano significa gerar outra em ollama.com/settings/keys."
             )
-        # A consequência antes do detalhe: some a TELA, não só uma senha. Fica
-        # condicionado à chave existir porque, sem ela, a tela já está
-        # desligada e prometer que ela some seria falso.
+        # A senha da auditoria saiu deste arquivo na leva do hash, e por isso
+        # saiu daqui também: ela é item próprio, logo abaixo. Um `.env` que
+        # ainda tenha a chave é uma máquina que nunca subiu depois da mudança --
+        # a primeira subida migra e apaga a linha --, e vale dizer isso em vez
+        # de descrever um arquivo que já não é o que ele foi.
         if "ETHICAL_AGENT_AUDIT_PASSWORD" in keys:
             detail += (
-                "\nRemover este arquivo desativa a tela de auditoria "
-                "(/audit): a senha dela mora aqui. É recuperável -- rode o "
-                "instalador de novo, ou defina a senha à mão."
+                "\nEste .env ainda tem a senha da auditoria em texto plano, de "
+                "uma instalação anterior. Ela é migrada para hash (e a linha "
+                "some daqui) na primeira vez que `ethical-agent serve` ou o "
+                "instalador rodarem."
             )
-            # A variável de ambiente de mesmo nome NÃO é uma senha de reserva:
-            # ela não é lida. Quem a tiver exportada e remover este arquivo
-            # fica com a tela desligada E com um servidor que se recusa a
-            # subir, então isto tem de ser dito aqui e não descoberto depois.
-            from .ollama_install import env_audit_password_present
-
-            if env_audit_password_present():
-                detail += (
-                    "\nA variável de ambiente ETHICAL_AGENT_AUDIT_PASSWORD está "
-                    "definida, mas não é fonte de senha -- ela não assume o "
-                    "lugar deste arquivo. Removendo um sem apagar a outra, "
-                    "`ethical-agent serve` passa a recusar de subir."
-                )
         optional.append(
             Candidate(
                 key="env",
@@ -757,6 +751,36 @@ def build_plan(
                 label=".env",
                 detail=detail,
                 optin_flag="--remove-env",
+            )
+        )
+
+    # A senha da auditoria, desde a leva do hash, mora em arquivo próprio. Item
+    # próprio também: ela e as chaves da Ollama passaram a ter ciclos de vida
+    # diferentes, e quem quer apagar uma não necessariamente quer apagar a
+    # outra. Continua opcional e desmarcada por padrão, pelo mesmo princípio de
+    # sempre -- o desinstalador não pode ser mais confiante do que o instalador.
+    from . import senha_auditoria
+
+    senha_path = senha_auditoria.caminho_do_registro(root)
+    if senha_path.exists():
+        optional.append(
+            Candidate(
+                key="audit_password",
+                path=senha_path,
+                kind="file",
+                size_bytes=dir_size(senha_path),
+                label=senha_auditoria.NOME_ARQUIVO,
+                # A consequência antes do detalhe: some a TELA, não só um
+                # arquivo. E o que está aqui é hash, não a senha -- quem remover
+                # não está "vazando" nada, está desligando a auditoria.
+                detail=(
+                    "A senha da tela de auditoria, guardada como hash "
+                    f"({senha_auditoria.RECEITA_SENHA}) -- a senha em si não "
+                    "está aqui e não é recuperável deste arquivo.\n"
+                    "Remover desativa a tela de auditoria (/audit). É "
+                    "recuperável: rode o instalador de novo e defina uma senha."
+                ),
+                optin_flag="--remove-audit-password",
             )
         )
 
@@ -1083,11 +1107,13 @@ def execute(
                     RemovalResult("logs", str(logs_dir), SKIPPED, f"mantido: ainda contém {names}")
                 )
 
-    for key in ("env", "venv", "build"):
+    for key in ("audit_password", "env", "venv", "build"):
         for cand in plan.mandatory + plan.optional:
             if cand.key != key:
                 continue
             if key == "env" and not choices.remove_env:
+                continue
+            if key == "audit_password" and not choices.remove_audit_password:
                 continue
             _wipe(cand)
 

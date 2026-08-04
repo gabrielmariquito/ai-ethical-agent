@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 import os
 import secrets
 import threading
@@ -11,10 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Mapping, Optional, Tuple
 
+from .. import senha_auditoria
 from ..ollama_install import (
     AUDIT_PASSWORD_ENV_VAR,
     audit_password_conflict_against,
-    read_env_var,
+    migrar_senha_do_env,
 )
 
 # Separação de acesso da tela de auditoria: o que este módulo entrega é uma
@@ -67,15 +66,43 @@ def load_audit_password(
     password_file: Optional[str],
     env: Optional[Mapping[str, str]] = None,
     root: Optional[Path] = None,
-) -> Tuple[Optional[str], Optional[str], List[str]]:
-    """Devolve (senha, descrição da origem, avisos), com a descrição e os avisos
-    seguros de imprimir e a senha nunca — e são **duas** fontes,
-    `--audit-password-file` e o `.env`, com a variável de ambiente fora:
-    versão longa em `997a6fe^`.
+) -> Tuple[Optional[object], Optional[str], List[str]]:
+    """Devolve (credencial, descrição da origem, avisos), com a descrição e os
+    avisos seguros de imprimir e a senha nunca — e são **duas** fontes,
+    `--audit-password-file` e o `.audit-password`, com a variável de ambiente
+    fora: versão longa em `997a6fe^`.
+
+    A credencial é um `RegistroSenha` (hash + sal, do disco) ou, no caminho da
+    flag, a senha em claro que o operador declarou naquela invocação. Quem
+    recebe é `AuditAuth`, que trata as duas — é lá que "o que a fonte deu" vira
+    verificador, e o único lugar onde isso acontece.
     """
     env = os.environ if env is None else env
     root = REPO_ROOT if root is None else root
     warnings: List[str] = []
+
+    # MIGRAÇÃO, E ELA VEM ANTES DE TUDO -- inclusive do ramo da flag.
+    #
+    # Antes da checagem de conflito porque essa é a interação que quebraria
+    # calado: a leva anterior fez o `serve` recusar quando uma variável
+    # remanescente discorda da senha em vigor, e numa máquina não migrada o
+    # registro ainda não existe. A checagem rodando primeiro chamaria a variável
+    # de órfã e recusaria a subir uma máquina perfeitamente configurada.
+    #
+    # Antes do ramo da flag porque a promessa desta leva é que a senha em claro
+    # não exista mais em arquivo nenhum. Migrar só no caminho sem flag deixaria
+    # a linha do `.env` sobreviver indefinidamente em quem sempre usa a flag.
+    # Migrar aqui não muda qual senha vale nesta invocação -- a flag continua
+    # ganhando logo abaixo --, só tira do disco a que já não é fonte.
+    migrado = migrar_senha_do_env(root)
+    if migrado:
+        # Dito em voz alta: migração silenciosa que apaga linha de arquivo de
+        # configuração é o tipo de coisa que assusta quando descoberta depois.
+        # Nomeia o arquivo e a receita, nunca o valor.
+        warnings.append(
+            f"[senha] migrada para hash em {migrado.name} "
+            f"({senha_auditoria.RECEITA_SENHA}); linha removida do .env"
+        )
 
     if password_file:
         path = Path(password_file)
@@ -95,33 +122,48 @@ def load_audit_password(
         warnings.extend(_password_file_warnings(path))
         return password, f"--audit-password-file {path}", warnings
 
-    # An empty or absent key in .env means "not configured", not an error --
-    # unlike an empty --audit-password-file, which is a startup failure
-    # because the operator explicitly pointed at it. Nobody points at .env;
-    # it is just where the installer happens to keep things.
-    dotenv_password = read_env_var(root, ENV_PASSWORD_VAR)
+    # Um arquivo ausente é "não configurada", não erro -- ao contrário de um
+    # --audit-password-file vazio, que é falha de arranque porque o operador
+    # apontou explicitamente para ele. Um arquivo que existe e não é legível é
+    # erro: alguém quis configurar e o que está no disco não serve.
+    try:
+        registro = senha_auditoria.ler(root)
+    except senha_auditoria.SenhaInvalida as exc:
+        raise AuditPasswordError(
+            f"{senha_auditoria.caminho_do_registro(root)} existe e não é um "
+            f"registro de senha legível: {exc}\n"
+            "Apague o arquivo e defina a senha de novo rodando o instalador "
+            "(`python wizard_gui.py`)."
+        ) from exc
 
-    # Read once, above, and handed to the tripwire. Letting the check read
-    # .env for itself would be two reads of a file the installer rewrites,
-    # and they could disagree. There is no flag on this path -- the branch
-    # above already returned -- so the carve-out cannot fire here; it is
-    # passed anyway, because the rule and its exception belong in one place.
-    conflict = audit_password_conflict_against(root, dotenv_password, env, password_file)
+    # Lido uma vez, acima, e entregue ao arame de tropeço. Deixar a checagem ler
+    # o arquivo por conta própria seriam duas leituras de algo que o instalador
+    # reescreve, e elas poderiam discordar.
+    conflict = audit_password_conflict_against(root, registro, env, password_file)
     if conflict:
         raise AuditPasswordError(conflict)
 
-    if dotenv_password:
-        return dotenv_password, f".env ({ENV_PASSWORD_VAR})", warnings
+    if registro is not None:
+        return registro, f"{senha_auditoria.NOME_ARQUIVO} ({registro.receita})", warnings
 
     return None, None, warnings
 
 
 def dotenv_password_present(root: Optional[Path] = None) -> bool:
-    """Se o `.env` carrega senha, independentemente de quem venceu, usado só
-    para dizer ao operador que a flag o superou; devolve booleano e nunca o
+    """Se há senha configurada no disco, independentemente de quem venceu, usado
+    só para dizer ao operador que a flag o superou; devolve booleano e nunca o
     valor, porque quem chama imprime.
+
+    Lê o registro hasheado, não mais o `.env` — o nome sobreviveu à mudança de
+    lugar porque a pergunta é a mesma: "a fonte que a flag passou por cima tem
+    alguma coisa?".
     """
-    return read_env_var(REPO_ROOT if root is None else root, ENV_PASSWORD_VAR) is not None
+    raiz = REPO_ROOT if root is None else root
+    try:
+        return senha_auditoria.ler(raiz) is not None
+    except senha_auditoria.SenhaInvalida:
+        # Existe e está corrompido: para esta pergunta, existe.
+        return True
 
 
 def _password_file_warnings(path: Path) -> List[str]:
@@ -159,36 +201,56 @@ def _password_file_warnings(path: Path) -> List[str]:
     return warnings
 
 
-def _digest(value: str) -> bytes:
-    # hmac.compare_digest raises TypeError on non-ASCII str, and a pt-BR
-    # password with an accent in it is entirely likely -- so both sides are
-    # hashed to bytes first and compared as bytes. This is an equality check
-    # against a secret that is already sitting in memory in the clear; a
-    # salted KDF here would imply a storage threat model that does not exist.
-    return hashlib.sha256(value.encode("utf-8")).digest()
-
-
 class AuditAuth:
     """Verificação de senha mais a tabela de sessões em memória do realm de
     auditoria — reiniciar o servidor invalida todas, e isso é comportamento
     documentado: persistir token seria gravar credencial ao lado da trilha.
     """
 
-    def __init__(self, password: Optional[str] = None):
+    def __init__(self, password=None):
+        """`password` é a credencial que a fonte entregou, e são duas formas:
+
+        - um `RegistroSenha` lido do `.audit-password` — sal e hash, o caminho
+          normal desde a leva do hash;
+        - uma senha em claro, do `--audit-password-file`, que é declaração
+          explícita do operador para *aquela* invocação. Ela é hasheada com sal
+          fresco aqui, uma vez (≈197 ms), para que exista **um** caminho de
+          verificação e não dois.
+
+        Este é o único lugar do projeto onde "o que a fonte deu" vira
+        verificador, que é por que a união de tipos mora aqui e não espalhada
+        pelos chamadores.
+
+        Havia aqui um `_digest` com `sha256` cru, e um comentário sustentando
+        que "uma KDF com sal implicaria um modelo de ameaça de armazenamento que
+        não existe". **Passou a existir.** Antes desta leva a senha ficava em
+        claro no `.env` e o digest era só uma comparação em memória; agora a
+        senha é guardada, e o que se guarda tem de resistir a quem lê o disco. O
+        que continua não valendo é o outro lado: nada disto protege contra quem
+        **substitui** o arquivo, e o `AUDIT_GUIDE` diz isso com estas palavras.
+        """
         self._lock = threading.Lock()
-        self._password_digest = _digest(password) if password else None
+        if password is None or password == "":
+            self._registro = None
+        elif isinstance(password, senha_auditoria.RegistroSenha):
+            self._registro = password
+        else:
+            self._registro = senha_auditoria.registrar_senha(password)
         self._sessions: dict = {}
         self._failures: List[float] = []
         self._locked_until = 0.0
 
     @property
     def enabled(self) -> bool:
-        return self._password_digest is not None
+        return self._registro is not None
 
     def verify(self, candidate: str) -> bool:
-        if self._password_digest is None:
+        # `senha_auditoria.verificar` recomputa o scrypt com o sal e os
+        # parâmetros do próprio registro e compara com `hmac.compare_digest`,
+        # nunca `==` -- `==` sobre digest vaza por tempo de resposta.
+        if self._registro is None:
             return False
-        return hmac.compare_digest(self._password_digest, _digest(candidate or ""))
+        return senha_auditoria.verificar(self._registro, candidate or "")
 
     # -- lockout ---------------------------------------------------------
 

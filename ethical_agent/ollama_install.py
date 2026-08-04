@@ -15,6 +15,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator, Mapping, Optional, Tuple
 
+# Só biblioteca padrão do outro lado, então isto não quebra a regra que faz este
+# módulo ser importável por `wizard_gui.py` no Python do sistema, antes do pip.
+from . import senha_auditoria
+
 DEFAULT_LOCAL_MODEL = "llama3.2:3b"
 
 # (download size in GB, recommended RAM in GB). Extend as more models get a
@@ -289,11 +293,12 @@ def write_env_model(root: Path, model: str) -> Path:
     return _upsert_env_var(root, "OLLAMA_MODEL", model)
 
 
-def write_env_audit_password(root: Path, password: str) -> Path:
-    """Persiste a senha da tela de auditoria para o `serve` achá-la sem flag,
-    com strip na escrita porque o leitor também faz strip.
-    """
-    return _upsert_env_var(root, AUDIT_PASSWORD_ENV_VAR, password.strip())
+# Havia aqui `write_env_audit_password`, que gravava a senha em claro no `.env`.
+# Saiu na leva do hash: não existe mais escritor de senha em claro em lugar
+# nenhum do projeto, e manter a função seria manter carregada a arma que a leva
+# descarregou. Quem grava agora é `senha_auditoria.gravar`, e o que ele grava é
+# `{receita, sal, hash}`. A leitura da chave antiga sobrevive só em
+# `migrar_senha_do_env`, uma vez, para apagá-la.
 
 
 def read_env_var(root: Path, key: str) -> Optional[str]:
@@ -312,9 +317,14 @@ def read_env_var(root: Path, key: str) -> Optional[str]:
     return None
 
 
-# Uma fonte ambiente só, e um arame de tropeço na que morreu: o `.env` é a
-# única fonte ambiente da senha, e a variável de ambiente não é mais lida como
-# senha — só comparada — versão longa em `997a6fe^`.
+# Uma fonte ambiente só, e um arame de tropeço na que morreu: o `.audit-password`
+# é a única fonte ambiente da senha, e a variável de ambiente não é mais lida
+# como senha — só verificada contra o hash — versão longa em `997a6fe^`.
+#
+# A chave `ETHICAL_AGENT_AUDIT_PASSWORD` no `.env` deixou de ser fonte na leva do
+# hash: ela só sobrevive como origem de **migração**, lida uma última vez e
+# apagada (`webui/auth.migrar_senha_do_env`). O nome da variável continua aqui
+# porque é dele que o detector precisa.
 
 AUDIT_PASSWORD_ENV_VAR = "ETHICAL_AGENT_AUDIT_PASSWORD"
 
@@ -336,46 +346,98 @@ def env_audit_password_present(env: Optional[Mapping[str, str]] = None) -> bool:
     return exported_audit_password(env) is not None
 
 
+def migrar_senha_do_env(root: Path) -> Optional[Path]:
+    """A senha em claro que está no `.env` vira hash no arquivo próprio, e a
+    linha sai do `.env`. Devolve o caminho gravado, ou `None` se não havia o que
+    migrar.
+
+    **A ordem interna é a garantia:** grava o hash *primeiro* e só então remove
+    a linha. Um crash entre as duas deixa as duas formas coexistindo, que a
+    guarda de idempotência trata na subida seguinte; a ordem inversa perderia a
+    senha de vez.
+
+    **A guarda é `.audit-password` não existir**, não o `.env` ter a chave: é o
+    que torna a migração idempotente, e o que impede que um `.env` reeditado à
+    mão sobrescreva calado um hash em vigor.
+
+    O risco assumido, dito por extenso: a senha em claro é lida em memória uma
+    última vez. Não há como migrá-la sem isso, e a alternativa — exigir que todo
+    mundo rode o instalador de novo — deixaria a senha em claro no disco até
+    alguém se lembrar de apagá-la, que é o defeito que esta leva fecha.
+
+    Mora aqui, e não em `webui/auth.py`, porque o instalador também precisa
+    dela e não pode importar `webui` num checkout nu: é a mesma restrição que
+    faz `AUDIT_PASSWORD_ENV_VAR` morar neste módulo.
+    """
+    if senha_auditoria.caminho_do_registro(root).exists():
+        return None
+    senha = read_env_var(root, AUDIT_PASSWORD_ENV_VAR)
+    if not senha:
+        return None
+    caminho = senha_auditoria.gravar(root, senha_auditoria.registrar_senha(senha))
+    remove_env_var(root, AUDIT_PASSWORD_ENV_VAR)
+    return caminho
+
+
 def audit_password_conflict_against(
     root: Path,
-    effective: Optional[str],
+    registro: Optional["senha_auditoria.RegistroSenha"],
     env: Optional[Mapping[str, str]] = None,
     password_file: Optional[str] = None,
 ) -> Optional[str]:
-    """A mensagem quando uma variável remanescente discorda de `effective`, ou
-    `None` quando não há o que dizer — devolver o texto em vez de um booleano
+    """A mensagem quando uma variável remanescente discorda da senha em vigor,
+    ou `None` quando não há o que dizer — devolver o texto em vez de um booleano
     é o que mantém CLI e instalador dizendo a mesma coisa: versão longa em `997a6fe^`.
+
+    **Isto fecha `D-10`.** Até a leva do hash, os dois lados do `==` vinham de
+    analisadores diferentes: `read_env_var` levava a linha inteira depois do
+    `KEY=` (aspas e `#` inclusive, e isso é deliberado), enquanto a variável de
+    ambiente, quando populada por `load_dotenv()`, vinha do python-dotenv, que
+    tira aspas e corta comentário. Um `.env` com aspas produzia recusa espúria
+    sobre uma senha só. Agora **não há dois lados**: o valor exportado é
+    verificado contra um registro lido pelo parser de `senha/v1`, e o analisador
+    do `.env` saiu da comparação inteira.
+
+    Sobra um resíduo, e ele está escrito em `D-10` em vez de calado: a
+    **migração** ainda lê a senha do `.env` com `read_env_var` uma última vez,
+    então um `.env` editado à mão com aspas migra `"segredo"` com as aspas. Isso
+    não é mais recusa espúria — é uma senha migrada errada, que aparece no
+    primeiro login e se conserta rodando o instalador.
     """
     if password_file:
         return None
     exported = exported_audit_password(env)
     if exported is None:
         return None
-    if effective is not None and effective == exported:
+    # Verificação, não igualdade de strings: não há mais senha em claro do lado
+    # de cá para comparar. `verificar` recomputa o scrypt com o sal e os
+    # parâmetros do próprio registro.
+    if registro is not None and senha_auditoria.verificar(registro, exported):
         return None
 
-    env_path = (root / ".env").resolve()
+    caminho = senha_auditoria.caminho_do_registro(root).resolve()
     saida = (
         "\nPara subir agora sem mexer em configuração nenhuma: "
         "--audit-password-file ARQUIVO."
     )
-    if effective is not None:
+    if registro is not None:
         return (
             f"a variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} está definida com "
-            "um valor diferente da senha que está em vigor.\n"
-            f"A senha de auditoria mora em {env_path}, e é essa que vale. A "
-            "variável não é mais lida -- quem entrar com o valor dela vai ser "
-            "recusado no login sem explicação.\n"
+            "um valor que não é a senha que está em vigor.\n"
+            f"A senha de auditoria mora em {caminho}, guardada como hash "
+            f"({registro.receita}), e é essa que vale. A variável não é mais "
+            "lida -- quem entrar com o valor dela vai ser recusado no login sem "
+            "explicação.\n"
             "Apague a variável de ambiente." + saida
         )
     return (
         f"a variável de ambiente ${AUDIT_PASSWORD_ENV_VAR} está definida, mas "
         "ela não é mais uma fonte de senha de auditoria.\n"
-        f"A senha mora em {env_path}, que não tem nenhuma -- do jeito que está, "
-        "a tela de auditoria não existiria, e quem entrasse com o valor da "
-        "variável seria recusado sem explicação.\n"
-        "Grave a senha no .env (rode o instalador, `python wizard_gui.py`) e "
-        "apague a variável de ambiente." + saida
+        f"A senha mora em {caminho}, que não existe -- do jeito que está, a tela "
+        "de auditoria não existiria, e quem entrasse com o valor da variável "
+        "seria recusado sem explicação.\n"
+        "Defina a senha rodando o instalador (`python wizard_gui.py`), que grava "
+        "o hash nesse arquivo, e apague a variável de ambiente." + saida
     )
 
 
@@ -384,13 +446,18 @@ def audit_password_conflict(
     env: Optional[Mapping[str, str]] = None,
     password_file: Optional[str] = None,
 ) -> Optional[str]:
-    """Is this machine already in the refusing state? Reads .env for the
-    password in effect and compares. Same name and signature as when it
-    guarded two competing sources -- it is still asking whether something
-    contradicts the password that will be used."""
-    return audit_password_conflict_against(
-        root, read_env_var(root, AUDIT_PASSWORD_ENV_VAR), env, password_file
-    )
+    """Is this machine already in the refusing state? Reads the hashed record
+    for the password in effect and verifies against it. Same name and signature
+    as when it guarded two competing sources -- it is still asking whether
+    something contradicts the password that will be used."""
+    try:
+        registro = senha_auditoria.ler(root)
+    except senha_auditoria.SenhaInvalida:
+        # Registro corrompido é problema de quem for *carregar* a senha, e ele
+        # falha alto lá. Aqui a pergunta é sobre a variável remanescente, e um
+        # arquivo ilegível é tratado como "não há senha em vigor".
+        registro = None
+    return audit_password_conflict_against(root, registro, env, password_file)
 
 
 # Havia aqui uma terceira função para o instalador perguntar o mesmo sobre uma
