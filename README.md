@@ -967,6 +967,16 @@ tela de Opções, e o que for digitado ali vai para o `.env` da raiz (já ignora
 pelo git) — depois disso, `ethical-agent serve` sem flag nenhuma já sobe com a
 auditoria habilitada. Deixar o campo em branco mantém a auditoria desativada.
 
+> [!IMPORTANT]
+> **O instalador define a senha uma vez; ele não a troca nem a remove.** Com uma
+> senha já gravada, o campo aparece desabilitado e rodar o instalador de novo
+> não muda nada. **Para trocá-la, edite o `.env` da raiz diretamente.**
+>
+> Não é limitação de implementação. Essa senha decide quem pode ler a trilha de
+> auditoria, e quem roda um instalador não é necessariamente quem tem essa
+> decisão — um campo de texto que sobrescreve em silêncio faz das duas pessoas
+> a mesma pessoa. Pelo mesmo motivo não há botão de remover.
+
 Pela linha de comando, há uma segunda fonte — um arquivo apontado por flag:
 
 ```bash
@@ -1007,9 +1017,9 @@ calado: o banner nomeia tanto a senha do `.env` que a flag passou por cima
 quanto a variável que ficou para trás. Nem o banner nem qualquer log imprimem
 valor nenhum.
 
-Se o instalador gráfico encontrar a variável exportada, ele oferece **adotá-la**
-— grava o mesmo valor no `.env`, sem exibi-lo — para quem não quer ir editar
-perfil de shell.
+O instalador **não** fala sobre essa variável, de propósito: quem recusa é o
+servidor, então é o servidor que explica, numa mensagem só. O instalador
+imprime essa recusa verbatim quando tenta abrir a interface.
 
 `OLLAMA_MODEL` e `OLLAMA_API_KEY` não mudaram: continuam no mesmo `.env`, com a
 variável de ambiente acima dele. O que mudou é uma chave só.

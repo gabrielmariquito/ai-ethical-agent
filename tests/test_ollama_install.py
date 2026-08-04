@@ -12,7 +12,6 @@ from ethical_agent.ollama_install import (
     _WIN_NEW_GROUP,
     _WIN_NO_WINDOW,
     audit_password_conflict,
-    audit_password_would_conflict,
     download_file,
     env_audit_password_present,
     estimate_model_size_text,
@@ -324,44 +323,19 @@ def test_no_message_ever_reveals_or_compares_a_value(tmp_path):
     _dotenv_with_password(tmp_path, "SENHA-CANARIO-DOTENV")
     env = {AUDIT_PASSWORD_ENV_VAR: "SENHA-CANARIO-VARIAVEL"}
 
+    vazio = tmp_path / "sem-dotenv"
+    vazio.mkdir()
     textos = [
         audit_password_conflict(tmp_path, env),
-        audit_password_would_conflict(tmp_path, "SENHA-CANARIO-CANDIDATA", env),
-        audit_password_would_conflict(tmp_path, None, env),
+        audit_password_conflict(vazio, env),
     ]
     for message in textos:
         assert message is not None
         assert "SENHA-CANARIO-DOTENV" not in message
         assert "SENHA-CANARIO-VARIAVEL" not in message
-        assert "SENHA-CANARIO-CANDIDATA" not in message
 
 
-def test_would_conflict_needs_the_candidate_to_answer_at_all(tmp_path):
-    # Required and positional. Optional would let a caller that forgot it get
-    # the old presence-only answer, which is now wrong in the equal case --
-    # and wrong by refusing an install that is perfectly fine.
-    with pytest.raises(TypeError):
-        audit_password_would_conflict(tmp_path)  # noqa: E1120
 
-
-def test_would_conflict_accepts_a_candidate_equal_to_the_exported_one(tmp_path):
-    # The installer's only purely-graphical way out: type the password the
-    # variable already holds. Nothing is ambiguous afterwards.
-    env = {AUDIT_PASSWORD_ENV_VAR: "a-mesma"}
-    assert audit_password_would_conflict(tmp_path, "a-mesma", env) is None
-    assert audit_password_would_conflict(tmp_path, "  a-mesma  ", env) is None
-    assert audit_password_would_conflict(tmp_path, "outra", env) is not None
-    # Nothing exported: writing anything is fine, as it always was.
-    assert audit_password_would_conflict(tmp_path, "outra", {}) is None
-
-
-def test_would_conflict_on_removal_reports_the_state_that_would_be_left(tmp_path):
-    # candidate=None means "about to remove it". With a variable exported that
-    # leaves nothing in effect and a machine that refuses to start, so the
-    # installer must not present removal as a way out.
-    _dotenv_with_password(tmp_path)
-    assert audit_password_would_conflict(tmp_path, None, {AUDIT_PASSWORD_ENV_VAR: "outra"})
-    assert audit_password_would_conflict(tmp_path, None, {}) is None
 
 
 def test_verify_windows_signature_valid():

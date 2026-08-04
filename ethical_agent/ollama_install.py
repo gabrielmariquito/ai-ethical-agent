@@ -499,26 +499,12 @@ def audit_password_conflict(
     )
 
 
-def audit_password_would_conflict(
-    root: Path,
-    candidate: Optional[str],
-    env: Optional[Mapping[str, str]] = None,
-) -> Optional[str]:
-    """Would writing `candidate` into .env leave this machine refusing?
-
-    `candidate` is required and positional. Optional, a caller that forgot it
-    would silently get the presence-only answer, which is now wrong in the
-    equal case -- and wrong in the direction of blocking an install that is
-    perfectly fine. Required, it breaks the moment the file is compiled.
-
-    None means "about to remove the password", which is a real case: with a
-    variable exported, removal leaves nothing in effect and a machine that
-    refuses to start, so the installer must not offer it as a way out.
-
-    Asked before .env has the key, which is exactly when audit_password_conflict
-    would still answer None -- that is why the two exist separately.
-    """
-    return audit_password_conflict_against(root, (candidate or "").strip() or None, env)
+# There was a third function here, audit_password_would_conflict(root,
+# candidate, env), for the installer to ask the same question about a password
+# it was *about* to write. It went with the installer's second explanation of
+# the leftover variable: the wizard neither warns about one nor works around
+# one, so it has nothing to ask. One explainer, one message, one place --
+# cmd_serve, which is the only code that actually refuses.
 
 
 def read_env_model_optional(root: Path) -> Optional[str]:

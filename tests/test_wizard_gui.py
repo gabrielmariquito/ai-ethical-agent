@@ -394,7 +394,7 @@ def test_widgets_that_on_show_configures_are_created_in_init():
     # this at least pins the pairing.
     section = _options_audit_section()
     assert "self.audit_state_label = tk.Label(" in section
-    assert "self.audit_remove_check = tk.Checkbutton(" in section
+    assert "self.audit_entry = tk.Entry(" in section
 
     on_show = SOURCE[SOURCE.index("    def on_show(self) -> None:\n        # Re-read on every visit") :]
     on_show = on_show[: on_show.index("    def _sync_visibility")]
@@ -402,22 +402,26 @@ def test_widgets_that_on_show_configures_are_created_in_init():
         assert f"self.{attr} = " in section, f"on_show usa self.{attr}, que __init__ não cria"
 
 
-def test_removal_checkbox_starts_unchecked_and_names_the_consequence():
-    # This is the only way an existing password can disappear, so it has to
-    # be an act rather than a default -- and the label has to say that the
-    # screen goes away, not merely that a credential does.
-    assert "self.remove_audit_password = tk.BooleanVar(value=False)" in SOURCE
-    assert "Remover a senha e desativar a tela de auditoria" in SOURCE
+def test_the_installer_has_no_way_to_erase_an_audit_password():
+    # Removing a password is deciding who may read the audit trail, which is
+    # not a decision that belongs to whoever happens to run an installer.
+    # There is no checkbox for it and no call that could do it.
+    assert "remove_env_var" not in SOURCE
+    assert "remove_audit_password" not in SOURCE
 
 
-def test_blank_field_never_erases_an_existing_password():
+def test_the_installer_defines_a_password_but_never_changes_one():
     body = SOURCE[SOURCE.index("def _apply_audit_password") :]
     body = body[: body.index("def _record_env_key")]
-    # The only remove_env_var call sits under the explicit checkbox...
-    assert body.count("remove_env_var(") == 1
-    assert body.index("chosen_remove_audit_password") < body.index("remove_env_var(")
-    # ...and the blank branch reads the existing password rather than writing.
-    assert "read_env_var(ROOT, AUDIT_PASSWORD_ENV_VAR) is not None" in body
+    # The existing password is read first, and the write is unreachable once
+    # there is one -- enforced here rather than only by disabling the widget,
+    # because the widget is disabled before the snapshot and Back stays
+    # enabled during the install.
+    assert body.index("ja_gravada = read_env_var(") < body.index("write_env_audit_password(")
+    assert "if ja_gravada is not None:" in body
+    assert body.index("if ja_gravada is not None:") < body.index("write_env_audit_password(")
+    # And the field being disabled is a courtesy on top of that rule.
+    assert 'self.audit_entry.config(state="disabled")' in SOURCE
 
 
 def test_install_record_env_keys_are_unioned_not_replaced():
