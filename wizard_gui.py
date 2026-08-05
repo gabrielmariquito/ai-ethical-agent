@@ -881,7 +881,7 @@ class ProgressPage(_Page):
             # so that a typed-and-ignored field can never look like it took.
             self.app.audit_enabled = True
             self._queue.put(
-                "Senha da auditoria já configurada."
+                "Senha da auditoria já configurada.\n"
             )
             return True
 
