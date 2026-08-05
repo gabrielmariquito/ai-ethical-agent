@@ -6,7 +6,6 @@ são todos injetados: versão longa em `997a6fe^`.
 import json
 import os
 import stat
-from pathlib import Path
 
 import pytest
 
@@ -46,7 +45,6 @@ from ethical_agent.uninstall import (
     stop_note,
     summarize_logs,
     tail_lines,
-    venv_activated_warning,
     web_ui_running,
 )
 
@@ -164,92 +162,16 @@ def test_running_inside_venv_ignores_an_unrelated_interpreter(tmp_path):
     assert running_inside_venv(root, prefix="/usr", executable="/usr/bin/python3", env={}) is None
 
 
-def test_a_merely_activated_venv_only_warns_and_never_refuses(tmp_path):
+def test_a_merely_activated_venv_is_never_refused(tmp_path):
     # VIRTUAL_ENV set but the running interpreter is elsewhere: nothing is
-    # locked, the PATH is just stale. Refusing here would be wrong.
+    # locked, and refusing here would be wrong. Houve um aviso brando neste
+    # caso; ele saiu por avisar sobre um não-problema (ver o comentário que
+    # substituiu venv_activated_warning). O que continua importando é que
+    # `VIRTUAL_ENV` sozinho NÃO recusa: travar exige o interpretador em
+    # execução, e é isso que running_inside_venv mede.
     root = _make_root(tmp_path)
     env = {"VIRTUAL_ENV": str(root / ".venv")}
     assert running_inside_venv(root, prefix="/usr", executable="/usr/bin/python3", env=env) is None
-    assert "deactivate" in (venv_activated_warning(root, env=env) or "")
-
-
-# -- o aviso do venv ativado fala duas línguas -----------------------------
-#
-# O mesmo fato -- nada trava, mas o PATH fica velho -- dito a dois públicos.
-# A janela existe para quem não abre terminal, então `deactivate`, `venv` e
-# `PATH` não a servem: o que essa pessoa pode fazer é fechar o terminal. O
-# modo texto guarda a frase técnica, onde `deactivate` é a resposta certa.
-#
-# `uninstall_gui` é importado dentro de cada teste, como já se faz em
-# test_uninstall_stop.py: importá-lo no topo puxaria tkinter para um arquivo
-# que testa a biblioteca sem interface.
-
-
-def test_the_window_says_it_without_terminal_jargon(tmp_path):
-    import uninstall_gui
-
-    nota = uninstall_gui.VENV_ACTIVATED_NOTE
-    # O que não pode faltar: que nada trava, e o que fazer -- em ação, não em
-    # comando. Em .lower() para fixar o sentido e não a caixa da frase.
-    assert "nada trava" in nota.lower()
-    assert "feche" in nota.lower()
-    # E o que não pode aparecer, porque esse público não conhece nenhum dos três.
-    for jargao in ("deactivate", "venv", "path"):
-        assert jargao not in nota.lower(), f"{jargao!r} não é palavra de quem não abre terminal"
-
-
-def test_the_text_mode_keeps_the_technical_sentence(tmp_path):
-    root = _make_root(tmp_path)
-    env = {"VIRTUAL_ENV": str(root / ".venv")}
-    tecnico = venv_activated_warning(root, env=env) or ""
-    # O público do terminal merece a explicação inteira, e `deactivate` é a
-    # ação certa ali -- é a janela que não tinha como oferecê-la.
-    assert "deactivate" in tecnico
-    assert "venv" in tecnico
-    assert "PATH" in tecnico
-
-
-def test_neither_interface_says_anything_without_an_activated_venv(tmp_path):
-    import uninstall_gui
-
-    root = _make_root(tmp_path)
-    # Um gate só para as duas interfaces: sem isto, "não aparece na janela" e
-    # "não aparece no terminal" seriam duas condições copiadas, livres para
-    # divergir uma da outra em silêncio.
-    assert uninstall_gui.venv_is_activated(root, env={}) is False
-    assert venv_activated_warning(root, env={}) is None
-
-
-def test_the_same_condition_produces_a_different_text_per_interface(tmp_path):
-    import uninstall_gui
-
-    root = _make_root(tmp_path)
-    env = {"VIRTUAL_ENV": str(root / ".venv")}
-
-    # Uma condição, dois textos. Este teste existe para que reunificá-los
-    # quebre em vez de passar em silêncio: a frase técnica já esteve na
-    # janela, e de lá ela mandava rodar um comando a quem não tem terminal.
-    assert uninstall_gui.venv_is_activated(root, env=env) is True
-    janela = uninstall_gui.VENV_ACTIVATED_NOTE
-    terminal = venv_activated_warning(root, env=env)
-    assert janela != terminal
-    assert "deactivate" in terminal and "deactivate" not in janela.lower()
-
-
-def test_the_two_sibling_messages_name_each_other(tmp_path):
-    # Duas mensagens que existem em par precisam se citar, senão alguém edita
-    # uma sem descobrir que a outra existe. É o eixo de "dois literais que
-    # precisam ser iguais são um literal só", invertido: estes precisam ser
-    # DIFERENTES e ainda assim dizer o mesmo fato.
-    #
-    # Que as duas digam o mesmo fato nenhum assert alcança -- são frases
-    # diferentes de propósito. O que dá para garantir é que quem abrir uma
-    # seja mandado à outra.
-    raiz = Path(__file__).resolve().parent.parent
-    gui = (raiz / "uninstall_gui.py").read_text(encoding="utf-8")
-    lib = (raiz / "ethical_agent" / "uninstall.py").read_text(encoding="utf-8")
-    assert "venv_activated_warning" in gui, "a janela não cita a irmã técnica"
-    assert "VENV_ACTIVATED_NOTE" in lib, "a irmã técnica não cita a da janela"
 
 
 # -- discovery -------------------------------------------------------------

@@ -182,40 +182,27 @@ def running_inside_venv(
     return None
 
 
-def venv_is_activated(root: Path, env: Optional[Mapping[str, str]] = None) -> bool:
-    """A condição do aviso brando: ativado no ambiente, mas não em execução.
-
-    Separada da frase porque as duas interfaces avisam com palavras
-    diferentes e precisam avisar nas mesmas horas. Copiar a condição em cada
-    uma deixaria "não aparece na janela" e "não aparece no terminal" livres
-    para divergir em silêncio.
-    """
-    env = os.environ if env is None else env
-    virtual_env = env.get("VIRTUAL_ENV")
-    return bool(virtual_env and _is_inside(virtual_env, root / VENV_DIRNAME))
-
-
-def venv_activated_warning(
-    root: Path, env: Optional[Mapping[str, str]] = None
-) -> Optional[str]:
-    """The softer sibling of running_inside_venv: activated but not running.
-
-    Esta é a frase do modo texto, e tem uma irmã: `VENV_ACTIVATED_NOTE`, em
-    `uninstall_gui.py`, diz o MESMO fato à janela -- que nada trava, e o que
-    fazer depois. As duas nascem de `venv_is_activated` e têm de continuar
-    dizendo esse mesmo fato: mudou o fato aqui, mude lá.
-
-    Diferentes de propósito, e não por descuido: `deactivate` é a resposta
-    certa para quem já está num terminal, e é ação que a janela não tem como
-    oferecer a quem nunca abriu um.
-    """
-    if not venv_is_activated(root, env):
-        return None
-    return (
-        "o venv do projeto está ativado nesta sessão -- nada fica travado "
-        "por isso, mas rode `deactivate` depois, ou o PATH continuará "
-        "apontando para um diretório que deixou de existir."
-    )
+# Houve aqui um `venv_activated_warning`: com `VIRTUAL_ENV` apontando para o
+# .venv do projeto, as duas interfaces avisavam que o venv estava ativado e
+# mandavam rodar `deactivate` depois, "ou o PATH continuará apontando para um
+# diretório que deixou de existir". Saiu em `d07a097^..`, e o motivo foi
+# medido, não estimado:
+#
+#   - `deactivate` NÃO SOBREVIVE à remoção no cmd.exe. Lá ele é o arquivo
+#     `.venv\Scripts\deactivate.bat`, que este desinstalador apaga junto com
+#     o resto do .venv. Em PowerShell é `function global:deactivate` e em
+#     bash é uma função de shell, ambas na memória da sessão -- só o cmd.exe
+#     recebia uma instrução que a própria remoção tornava impossível.
+#   - A consequência que o aviso descrevia é inócua. Um diretório inexistente
+#     no PATH é ignorado em silêncio pelo Windows e pelo Unix: `python` cai no
+#     próximo do PATH, o do sistema, e o console do projeto some porque foi
+#     desinstalado mesmo. Não há erro, não há quebra, e fechar o terminal --
+#     que é o que a pessoa faz ao terminar -- resolve sem instrução nenhuma.
+#
+# Ou seja: o aviso alertava sobre um não-problema e, num dos três shells,
+# prescrevia um comando que ele mesmo apagava. `running_inside_venv` continua
+# logo acima e é outro caso -- lá o interpretador está EM EXECUÇÃO, o Windows
+# trava o executável, e a recusa é real.
 
 
 # -- sizes -----------------------------------------------------------------

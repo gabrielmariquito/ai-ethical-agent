@@ -60,7 +60,6 @@ from ethical_agent.uninstall import (  # noqa: E402
     stop_hint,
     stop_note,
     summarize_results,
-    venv_activated_warning,
 )
 
 EXIT_OK = 0
@@ -562,10 +561,6 @@ def main(
             print(f"error: {refusal}", file=sys.stderr)
             print(fix, file=sys.stderr)
             return EXIT_REFUSED
-
-    activated = venv_activated_warning(root)
-    if activated:
-        print(f"aviso: {activated}", file=sys.stderr)
 
     plan = build_plan(root, port=args.port, probe=not args.no_probe)
 

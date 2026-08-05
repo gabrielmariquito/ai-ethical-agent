@@ -48,7 +48,6 @@ from ethical_agent.uninstall import (  # noqa: E402
     ollama_manual_steps,
     running_inside_venv,
     summarize_results,
-    venv_is_activated,
 )
 
 # Reaproveitados do instalador em vez de reescritos: são a mesma coisa, e
@@ -123,78 +122,21 @@ VENV_REFUSAL_POSIX = (
     "O python3 usa o Python do sistema, e não o do ambiente virtual."
 )
 
-# A irmã técnica é `venv_activated_warning`, em ethical_agent/uninstall.py:
-# ela diz este mesmo fato ao modo texto, e lá manda rodar `deactivate`. As
-# duas nascem de `venv_is_activated` e têm de continuar dizendo o mesmo fato
-# -- que nada trava, e o que fazer depois. Mudou o fato aqui, mude lá.
+# Aqui viveram os cartões de aviso da tela de boas-vindas, com uma barra
+# colorida por severidade (nota / atrapalha / a remoção vai falhar em parte).
+# Os três saíram, um de cada vez, e por motivos diferentes:
 #
-# São diferentes de propósito. A frase de lá começa em minúscula porque é
-# colada depois de "aviso: " no terminal, e usa três coisas que o público
-# desta janela não conhece: venv, PATH, e um comando a digitar. Esta janela
-# existe justamente para quem não abre terminal (ver _AdviceCard), e para
-# essa pessoa a ação certa não é um comando: é fechar o terminal, que resolve
-# o mesmo PATH velho e é gesto que qualquer um executa.
+#   - os da interface web e do Ollama, quando a parada de serviços virou
+#     automática: o desinstalador sabe o que precisa parar, então ele para, e
+#     conta o que fez na tela de progresso (ver stop_web_ui/stop_ollama);
+#   - o do venv apenas ativado, por avisar sobre um não-problema -- a razão
+#     medida está no comentário que substituiu `venv_activated_warning`, em
+#     ethical_agent/uninstall.py.
 #
-# Automatizar não dá, e a ideia reaparece: `deactivate` é função de shell, e
-# este processo é filho -- não altera o ambiente de quem o lançou.
-VENV_ACTIVATED_NOTE = (
-    "Você abriu este desinstalador de um terminal que estava usando o "
-    "ambiente virtual do projeto. Nada trava por isso. Depois de terminar, "
-    "feche esse terminal: ao abrir um novo, tudo volta ao normal."
-)
-
-# Os avisos da tela de boas-vindas não são equivalentes, e pintar os três de
-# vermelho fazia o olho tratá-los como igualmente graves.
-NOTE = "note"    # nada trava; é informação para depois
-WARN = "warn"    # atrapalha algo, mas não a remoção do projeto
-BLOCK = "block"  # a remoção vai falhar em parte se ficar como está
-
-SEVERITY_FG = {NOTE: "#4b5563", WARN: "#b45309", BLOCK: "#b91c1c"}
-
-
-class _AdviceCard(tk.Frame):
-    """Um aviso: barra na cor da severidade e prosa.
-
-    O bloco de comandos copiável saiu junto com os dois cartões que o usavam:
-    esta janela não pede mais que ninguém rode comando de terminal, então não
-    sobrou comando nenhum para copiar. O modo texto ainda mostra comandos, mas
-    só quando a parada automática falha, e lá quem renderiza é a CLI.
-    """
-
-    def __init__(
-        self,
-        parent: tk.Widget,
-        page: tk.Widget,
-        *,
-        severity: str,
-        text: str,
-        note: str | None = None,
-    ) -> None:
-        super().__init__(parent)
-        color = SEVERITY_FG[severity]
-
-        # A cor nunca é o único portador do significado, a prosa diz o que
-        # cada aviso implica, e a barra só ajuda a separar um cartão do outro.
-        tk.Frame(self, bg=color, width=3).pack(side="left", fill="y", padx=(0, 10))
-        column = tk.Frame(self)
-        column.pack(side="left", fill="both", expand=True)
-
-        # anchor="w" pela mesma razão do corpo da tela de boas-vindas: sem ele
-        # um aviso curto flutua no meio do cartão, e a barra colorida à
-        # esquerda fica apontando para um espaço vazio.
-        body = tk.Label(
-            column, text=text, justify="left", anchor="w", fg=color, font=("Helvetica", 10)
-        )
-        body.pack(fill="x", anchor="w")
-        _autowrap(body, page, padding=72)
-
-        if note:
-            hint = tk.Label(
-                column, text=note, justify="left", anchor="w", fg="#6b7280",
-                font=("Helvetica", 9)
-            )
-            hint.pack(fill="x", anchor="w", pady=(4, 0))
-            _autowrap(hint, page, padding=72)
+# Sem cartão nenhum, a graduação de severidade, o _AdviceCard e o frame que
+# os hospedava ficaram sem chamador, e saíram junto. A lição que a graduação
+# carregava continua registrada: pintar avisos desiguais todos de vermelho
+# fazia o olho tratá-los como igualmente graves e pular os três.
 
 
 class UninstallApp(tk.Tk):
@@ -214,9 +156,6 @@ class UninstallApp(tk.Tk):
         # que roda o mainloop.
         self.executed_choices: Choices | None = None
         self.refusal = running_inside_venv(project_root)
-        self.activated_warning = (
-            VENV_ACTIVATED_NOTE if venv_is_activated(project_root) else None
-        )
 
         # Todas desmarcadas. Este é o requisito central da tela de Opções.
         self.remove_logs = tk.BooleanVar(value=False)
@@ -362,12 +301,10 @@ class WelcomePage(_Page):
         self.detail.pack(fill="x", padx=24, pady=(0, 12), anchor="w")
         _autowrap(self.detail, self)
 
-        # Os avisos do que está rodando: um cartão por aviso, com severidade
-        # própria. self.warning acima continua sendo o das paradas duras
-        # (diretório errado, venv, falha na análise), que são uma mensagem só,
-        # sem comandos, e depois das quais não há tela seguinte.
-        self.advice = tk.Frame(self)
-        self.advice.pack(fill="x", padx=24, pady=(0, 8), anchor="w")
+        # Havia aqui um frame para hospedar os cartões de aviso, um por aviso,
+        # com severidade própria. Saiu com o último cartão. self.warning acima
+        # segue sendo o das paradas duras (diretório errado, venv em execução,
+        # falha na análise), que são uma mensagem só e não têm tela seguinte.
 
     def on_show(self) -> None:
         if self._analyzed:
@@ -436,27 +373,8 @@ class WelcomePage(_Page):
             fg="#374151",
         )
 
-        if self.app.activated_warning:
-            self._add_advice(
-                # Nada fica travado por um venv apenas ativado, o preço é um
-                # PATH velho depois. Nota, não aviso.
-                #
-                # O texto é VENV_ACTIVATED_NOTE e não a frase que o modo texto
-                # imprime: até esta leva os dois liam a mesma string, e era a
-                # da CLI -- este cartão mandava rodar `deactivate` a quem abriu
-                # a janela por não usar terminal.
-                severity=NOTE,
-                text=self.app.activated_warning,
-            )
-        # Aqui havia dois cartões com comandos de terminal para a interface web
-        # e para o Ollama, um deles mandando ler um PID de uma saída e
-        # transcrevê-lo. Esta janela existe justamente para quem não abre
-        # terminal: o desinstalador sabe o que precisa parar, então ele para, e
-        # conta o que fez na tela de progresso (ver stop_web_ui/stop_ollama).
-
-    def _add_advice(self, *, severity: str, text: str, note: str | None = None) -> None:
-        card = _AdviceCard(self.advice, self, severity=severity, text=text, note=note)
-        card.pack(fill="x", anchor="w", pady=(0, 12))
+        # Esta tela já teve três cartões de aviso abaixo do status, e hoje não
+        # tem nenhum -- o porquê de cada um está onde eles moravam, acima.
 
 
 class OptionsPage(_Page):

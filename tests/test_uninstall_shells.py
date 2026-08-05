@@ -107,19 +107,21 @@ def test_dry_run_is_allowed_from_the_venv_because_it_touches_nothing(tmp_path, c
     assert (root / ".venv").exists()
 
 
-def test_the_technical_venv_sentence_reaches_the_terminal(tmp_path, capsys, monkeypatch):
-    # A frase do venv apenas ativado tem uma irmã na janela, escrita para quem
-    # não abre terminal (uninstall_gui.VENV_ACTIVATED_NOTE). Aqui é o outro
-    # público: a explicação inteira e `deactivate`, que é a ação certa para
-    # quem já está num terminal. Nada provava que ela chega ao stderr.
+def test_a_merely_activated_venv_says_nothing_at_all(tmp_path, capsys, monkeypatch):
+    # Com `VIRTUAL_ENV` apontando para o .venv do projeto, o modo texto
+    # imprimia um aviso mandando rodar `deactivate` depois. Saiu: no cmd.exe
+    # `deactivate` é `.venv\\Scripts\\deactivate.bat`, apagado pela própria
+    # remoção, e um diretório inexistente no PATH é ignorado em silêncio pelos
+    # dois sistemas. Sobrava um aviso sobre um não-problema, prescrevendo um
+    # comando que ele mesmo apagava.
     root = _make_root(tmp_path)
     monkeypatch.setenv("VIRTUAL_ENV", str(root / ".venv"))
 
     code = uninstall.main(["--dry-run"], root=root, ask=_answers(), isatty=_no_tty)
     assert code == uninstall.EXIT_OK
     err = capsys.readouterr().err
-    assert "deactivate" in err
-    assert "PATH" in err
+    assert "deactivate" not in err
+    assert err.strip() == "", f"nada deve ir ao stderr por venv apenas ativado: {err!r}"
 
 
 # -- dry run ---------------------------------------------------------------
@@ -1127,19 +1129,30 @@ def test_gui_never_asks_the_user_to_run_a_terminal_command():
     assert "clipboard_append" not in GUI_SOURCE
 
 
-def test_gui_grades_the_warnings_instead_of_painting_them_all_red():
-    # Os três não são equivalentes, e num vermelho uniforme o olho tratava
-    # todos como igualmente graves e pulava os três: versão longa em `997a6fe^`.
-    # Dos três, sobrou um: os cartões da interface web e do Ollama saíram
-    # quando a parada virou automática. A graduação continua fixada porque o
-    # cartão que sobrou depende dela, e porque voltar a pintar tudo de
-    # vermelho é o defeito que ela evita.
-    assert "SEVERITY_FG" in GUI_SOURCE
+def test_the_welcome_screen_has_no_advice_cards_left():
+    # Houve aqui uma graduação de severidade (nota / atrapalha / a remoção vai
+    # falhar em parte), porque um vermelho uniforme fazia o olho tratar os três
+    # avisos como igualmente graves e pular os três: versão longa em `997a6fe^`.
+    #
+    # Os três cartões saíram -- os da interface web e do Ollama quando a parada
+    # virou automática, o do venv apenas ativado por avisar sobre um
+    # não-problema --, e a graduação saiu com o último. O que este teste fixa
+    # agora é o estado que sobrou: nenhum cartão, e nenhuma estrutura órfã
+    # esperando por um. Reintroduzir aviso na tela de boas-vindas quebra aqui,
+    # que é onde se lê por que os anteriores não estão mais lá.
+    # Statements, não as palavras: os comentários que explicam a remoção citam
+    # `_AdviceCard` e a graduação em prosa, de propósito -- é lá que se lê por
+    # que eles não estão mais aqui. Mesma razão do teste do import de tkinter.
+    for morto in (r"^class _AdviceCard", r"^\s*def _add_advice", r"^SEVERITY_FG",
+                  r"severity=", r"self\.advice"):
+        assert not re.search(morto, GUI_SOURCE, re.MULTILINE), (
+            f"{morto!r} voltou sem passar por aqui"
+        )
     poll = GUI_SOURCE[
         GUI_SOURCE.index("def _poll", GUI_SOURCE.index("class WelcomePage")) :
         GUI_SOURCE.index("class OptionsPage")
     ]
-    assert "severity=NOTE" in poll, "venv apenas ativado não é aviso, é nota"
+    assert "activated_warning" not in poll
 
 
 def test_the_uninstaller_stops_the_services_instead_of_dictating_commands():
