@@ -118,7 +118,11 @@ def test_main_dry_run_exits_zero_prints_the_plan_and_deletes_nothing(tmp_path, c
     assert ".venv/" in out
     assert "[requer --remove-logs]" in out
     assert "[requer --remove-env]" in out
-    assert "NUNCA REMOVIDO" in out
+    # Era "NUNCA REMOVIDO", que soava como proteção e fazia quem lia terminar
+    # achando que a máquina ficaria limpa. Agora diz o que o programa não faz,
+    # e a prévia mostra a pasta pelo caminho, não pela palavra "repositório".
+    assert "NÃO APAGA A PASTA DO PROJETO" in out
+    assert str(root) in out
     assert sorted(p.relative_to(root).as_posix() for p in root.rglob("*")) == before
 
 
@@ -950,33 +954,53 @@ def test_gui_refuses_to_run_from_the_venv_it_would_delete():
     assert "set_next_enabled(False)" in body
 
 
-def test_gui_warns_about_running_services_before_removing():
-    assert "stop_hint" in GUI_SOURCE
-    assert "running.web_ui" in GUI_SOURCE
-    assert "running.ollama" in GUI_SOURCE
+def test_gui_never_asks_the_user_to_run_a_terminal_command():
+    # Este teste era o oposto: exigia `stop_hint` na janela. A janela existe
+    # para quem não abre terminal, e ela mandava rodar `netstat -ano | findstr
+    # :8765`, ler o PID na saída e transcrevê-lo num `taskkill`. Agora quem
+    # para os serviços é o desinstalador (stop_web_ui/stop_ollama), então
+    # pedir comando aqui é regressão, não funcionalidade.
+    assert "stop_hint" not in GUI_SOURCE
+    assert "stop_note" not in GUI_SOURCE
+    assert "netstat" not in GUI_SOURCE
+    assert "taskkill" not in GUI_SOURCE
+    # E sem bloco copiável, porque não sobrou comando para copiar.
+    assert "clipboard_append" not in GUI_SOURCE
 
 
 def test_gui_grades_the_warnings_instead_of_painting_them_all_red():
     # Os três não são equivalentes, e num vermelho uniforme o olho tratava
     # todos como igualmente graves e pulava os três: versão longa em `997a6fe^`.
+    # Dos três, sobrou um: os cartões da interface web e do Ollama saíram
+    # quando a parada virou automática. A graduação continua fixada porque o
+    # cartão que sobrou depende dela, e porque voltar a pintar tudo de
+    # vermelho é o defeito que ela evita.
     assert "SEVERITY_FG" in GUI_SOURCE
     poll = GUI_SOURCE[
         GUI_SOURCE.index("def _poll", GUI_SOURCE.index("class WelcomePage")) :
         GUI_SOURCE.index("class OptionsPage")
     ]
     assert "severity=NOTE" in poll, "venv apenas ativado não é aviso, é nota"
-    assert "severity=BLOCK" in poll, "a interface web é o único impedimento real"
-    assert "severity=WARN" in poll, "o Ollama no ar não impede a remoção do projeto"
 
 
-def test_gui_shows_the_stop_commands_as_a_block_it_can_copy():
-    # Squeezed into prose and separated by semicolons they were unreadable,
-    # uncopiable, and the separator collided with the shell's own syntax.
-    assert '"; ".join(stop_hint' not in GUI_SOURCE, "comandos de volta para dentro da prosa"
-    assert "stop_note" in GUI_SOURCE, "a prosa dos comandos tem função própria"
-    assert "clipboard_append" in GUI_SOURCE
+def test_the_uninstaller_stops_the_services_instead_of_dictating_commands():
+    UNINST_SOURCE = (Path(__file__).resolve().parent.parent / "ethical_agent" / "uninstall.py").read_text(
+        encoding="utf-8"
+    )
+    # A parada mora no módulo de helpers, testável sem tkinter, como o resto.
+    for nome in ("def stop_web_ui", "def stop_ollama", "def our_web_ui_pids"):
+        assert nome in UNINST_SOURCE
+    # O que `stop_ollama` de fato roda no POSIX é asserção de comportamento, em
+    # test_uninstall_stop.py: um teste de texto-fonte aqui tropeçaria no
+    # comentário que explica por que aquele comando ficou de fora.
+
+
+def test_the_stop_commands_are_still_monospaced_where_they_survive():
     # Família fixa é um palpite que falha em silêncio — o Tk cai para a
     # proporcional e o bloco deixa de ser monoespaçado sem avisar: versão longa em `997a6fe^`.
+    # A asserção sobre o wizard sobrevive à saída do bloco copiável do
+    # desinstalador: ela sempre foi sobre o INSTALADOR, que ainda mostra
+    # comandos e ainda precisa da fonte certa.
     assert "_mono_font()" in GUI_SOURCE
     assert '("Menlo"' not in GUI_SOURCE
     wizard = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(

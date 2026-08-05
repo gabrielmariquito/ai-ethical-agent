@@ -8,9 +8,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
+import time
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -55,6 +57,10 @@ WOULD_REMOVE = "would_remove"
 SKIPPED = "skipped"
 FAILED = "failed"
 MANUAL = "manual"
+# Parar um serviço não é remover nada, então STOPPED fica fora da contagem de
+# `summarize_results`: dizer "3 itens removidos" por ter fechado uma janela
+# inflaria o número que o relatório usa para prestar contas.
+STOPPED = "stopped"
 
 
 @dataclass(frozen=True)
@@ -587,6 +593,268 @@ def stop_note(service: str, platform: Optional[str] = None) -> Optional[str]:
     return "Qualquer uma das duas resolve."
 
 
+# -- stopping what is running ----------------------------------------------
+#
+# A janela existe para quem não abre terminal, então mandar a pessoa ler um PID
+# de uma saída de `netstat` e transcrevê-lo num `taskkill` é pedir exatamente o
+# que o instalador gráfico existe para não pedir. E não era só atrito: quem não
+# rodava os comandos via a remoção do .venv falhar com WinError 5, porque o
+# servidor web segura `.venv\Scripts\python.exe`.
+#
+# `stop_hint`/`stop_note` acima continuam vivos, mas mudaram de papel: eram a
+# instrução normal, agora são o caminho de exceção do modo texto, mostrados só
+# depois de a parada automática ter falhado.
+
+
+def _listening_pids(
+    port: int,
+    *,
+    platform: Optional[str] = None,
+    run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
+) -> List[int]:
+    """Quem escuta na porta, por PID. Nunca por nome de imagem: nesta máquina
+    havia cinco `python.exe` e nenhum era o servidor, então `taskkill /IM` seria
+    um tiro no escuro que acerta o resto.
+    """
+    platform = platform if platform is not None else sys.platform
+    pids: List[int] = []
+    try:
+        if platform == "win32":
+            proc = run(["netstat", "-ano"], capture_output=True, text=True, timeout=15)
+            for line in (proc.stdout or "").splitlines():
+                parts = line.split()
+                # proto, local, remoto, estado, pid -- só as de escuta, e o
+                # endereço local tem de terminar na porta, senão `:87650` e a
+                # porta de origem de uma conexão de saída entrariam junto.
+                if len(parts) < 5 or "LISTENING" not in parts:
+                    continue
+                if not parts[1].endswith(f":{port}"):
+                    continue
+                try:
+                    pids.append(int(parts[-1]))
+                except ValueError:
+                    continue
+        else:
+            proc = run(["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=15)
+            for line in (proc.stdout or "").split():
+                try:
+                    pids.append(int(line))
+                except ValueError:
+                    continue
+    except Exception:  # noqa: BLE001
+        # Não achar é "não sei quem é", e "não sei quem é" nunca vira "mate".
+        return []
+    # IPv4 e IPv6 na mesma porta são duas linhas do mesmo processo.
+    return sorted(set(pids))
+
+
+def _process_image(
+    pid: int,
+    *,
+    platform: Optional[str] = None,
+    run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
+) -> Tuple[Optional[str], str]:
+    """(executável, linha de comando) de um PID, ou (None, "") se não der para
+    saber. O PowerShell aqui segue o precedente de `verify_windows_signature`,
+    que já consulta o sistema por esse caminho, com o mesmo hook `run`.
+    """
+    platform = platform if platform is not None else sys.platform
+    try:
+        if platform == "win32":
+            # O '---' separa os dois campos: um ExecutablePath pode conter
+            # espaços, e a CommandLine quase sempre contém.
+            script = (
+                "$p = Get-CimInstance Win32_Process -Filter 'ProcessId=" + str(pid) + "'; "
+                "if ($p) { $p.ExecutablePath; '---'; $p.CommandLine }"
+            )
+            proc = run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            raw = (proc.stdout or "").split("---", 1)
+            exe = raw[0].strip() or None
+            cmdline = raw[1].strip() if len(raw) > 1 else ""
+            return exe, cmdline
+        try:
+            exe = os.readlink(f"/proc/{pid}/exe")
+        except OSError:
+            exe = None
+        proc = run(["ps", "-p", str(pid), "-o", "args="], capture_output=True, text=True, timeout=15)
+        return exe, (proc.stdout or "").strip()
+    except Exception:  # noqa: BLE001
+        return None, ""
+
+
+def our_web_ui_pids(
+    root: Path,
+    port: int,
+    *,
+    platform: Optional[str] = None,
+    run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
+) -> Tuple[List[int], List[int]]:
+    """(nossos, alheios) entre os PIDs que escutam na porta.
+
+    Duas provas, as duas obrigatórias, porque matar o processo errado é o erro
+    que não dá para desfazer: o processo aponta para o .venv DESTA raiz, e é o
+    comando que o instalador lança (`-m ethical_agent serve`). A terceira prova
+    é do chamador: `web_ui_running` já respondeu 200 na API da interface.
+
+    O apontar-para-o-.venv aceita duas evidências porque uma delas falha no
+    Windows. Medido: um processo iniciado com `.venv\\Scripts\\python.exe` tem
+    `ExecutablePath` = `...\\Python313\\python.exe`, o interpretador BASE -- o
+    venv do Windows redireciona, e o caminho do .venv sobrevive só na
+    `CommandLine`. Exigir o ExecutablePath dentro do .venv, como esta função
+    fazia, classificava o nosso próprio servidor como alheio e nunca o fechava.
+    No POSIX o ExecutablePath aponta para dentro do venv, e aí vale ele.
+
+    Que a linha de comando seja forjável não muda nada aqui: o risco de que
+    esta função existe para evitar é derrubar por engano um programa alheio que
+    calhou de estar na porta, não um adversário que queira ser morto.
+
+    Os PIDs deste processo e do pai saem da lista antes de qualquer teste. Isso
+    NÃO é redundante com a prova do .venv: a leva do relançamento fez o
+    desinstalador rodar como filho, e o pai é justamente o Python do .venv --
+    as provas abaixo o aprovariam.
+    """
+    venv = (root / VENV_DIRNAME).resolve()
+    forbidden = {os.getpid(), os.getppid()}
+    ours: List[int] = []
+    strangers: List[int] = []
+    for pid in _listening_pids(port, platform=platform, run=run):
+        if pid in forbidden:
+            continue
+        exe, cmdline = _process_image(pid, platform=platform, run=run)
+        if not exe and not cmdline:
+            strangers.append(pid)
+            continue
+        # Caminho do Windows não distingue maiúsculas, e a extensão vem como o
+        # disco a guardou (`ollama.EXE` numa medição).
+        alvo = str(venv).lower() if platform == "win32" else str(venv)
+        def _dentro(texto: Optional[str]) -> bool:
+            if not texto:
+                return False
+            candidato = texto.lower() if platform == "win32" else texto
+            return alvo in candidato
+
+        aponta_para_o_venv = _dentro(cmdline)
+        if not aponta_para_o_venv and exe:
+            try:
+                aponta_para_o_venv = Path(exe).resolve().is_relative_to(venv)
+            except (OSError, ValueError):
+                aponta_para_o_venv = _dentro(exe)
+        lowered = cmdline.lower()
+        if aponta_para_o_venv and "ethical_agent" in lowered and "serve" in lowered:
+            ours.append(pid)
+        else:
+            strangers.append(pid)
+    return ours, strangers
+
+
+def stop_web_ui(
+    root: Path,
+    port: int,
+    *,
+    platform: Optional[str] = None,
+    run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
+    urlopen: Callable[..., object] = urllib.request.urlopen,
+    settle: Callable[[float], None] = time.sleep,
+) -> Optional[RemovalResult]:
+    """Fecha a interface web para o .venv poder sair. `None` quando não havia
+    nada no ar -- silêncio é a resposta certa para o caso comum, e uma linha
+    "[skipped] interface web" em toda desinstalação seria ruído.
+
+    As duas falhas são resultados diferentes de propósito: "não confirmei que é
+    nosso" é uma decisão de não agir, "tentei e não consegui" é uma ação que
+    falhou. Quem lê precisa saber qual das duas aconteceu.
+    """
+    platform = platform if platform is not None else sys.platform
+    target = f"interface web (http://127.0.0.1:{port})"
+    if not web_ui_running(port, urlopen=urlopen):
+        return None
+
+    ours, strangers = our_web_ui_pids(root, port, platform=platform, run=run)
+    if not ours:
+        quantos = f"{len(strangers)} programa(s)" if strangers else "um programa"
+        return RemovalResult(
+            "web_ui",
+            target,
+            FAILED,
+            f"Encontrei {quantos} usando a porta {port}, mas não consegui "
+            "confirmar que é a interface deste projeto -- então NÃO FECHEI "
+            "NADA, para não derrubar outra coisa da sua máquina.\n"
+            "Feche a janela em que a interface web está rodando e abra o "
+            "desinstalador de novo.",
+        )
+
+    for pid in ours:
+        try:
+            if platform == "win32":
+                run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, text=True, timeout=30)
+            else:
+                os.kill(pid, signal.SIGTERM)
+        except Exception:  # noqa: BLE001
+            # Já morrer entre o netstat e o kill é sucesso, não erro. Quem
+            # decide se parou é a sondagem abaixo, não o código de saída.
+            pass
+
+    # Verificar que parou, e não confiar no taskkill: PID reciclado, permissão
+    # negada e processo já morto dão saídas diferentes e nenhuma delas responde
+    # "a porta está livre?". Quem responde isso é a porta.
+    for espera in (0.2, 0.5, 1.0):
+        if not web_ui_running(port, urlopen=urlopen):
+            return RemovalResult("web_ui", target, STOPPED, "estava aberta e foi fechada")
+        settle(espera)
+    if not web_ui_running(port, urlopen=urlopen):
+        return RemovalResult("web_ui", target, STOPPED, "estava aberta e foi fechada")
+
+    return RemovalResult(
+        "web_ui",
+        target,
+        FAILED,
+        "TENTEI FECHAR a interface web e não consegui. Por isso não removi o "
+        ".venv -- removê-lo com ela aberta deixaria a pasta pela metade.\n"
+        "Feche a janela em que a interface web está rodando e abra o "
+        "desinstalador de novo.",
+    )
+
+
+def stop_ollama(
+    *,
+    platform: Optional[str] = None,
+    run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
+) -> RemovalResult:
+    """Para o servidor Ollama. Só é chamada quando o usuário escolheu removê-lo,
+    e depois de o modelo já ter saído -- `ollama rm` fala com o servidor e falha
+    sem ele (ver remove_model).
+    """
+    platform = platform if platform is not None else sys.platform
+    if platform == "win32":
+        # Dois processos: o servidor e o app da bandeja.
+        cmds = [["taskkill", "/IM", "ollama.exe", "/F"], ["taskkill", "/IM", "ollama app.exe", "/F"]]
+    else:
+        # `sudo systemctl stop ollama` fica de fora de propósito: rodar sudo
+        # sozinho trava num prompt de senha que a janela não mostra.
+        cmds = [["pkill", "-f", "ollama serve"]]
+    parou = False
+    for cmd in cmds:
+        try:
+            proc = run(cmd, capture_output=True, text=True, timeout=30)
+            if getattr(proc, "returncode", 1) == 0:
+                parou = True
+        except Exception:  # noqa: BLE001
+            continue
+    if parou:
+        return RemovalResult("ollama_stop", "servidor Ollama", STOPPED, "estava rodando e foi parado")
+    return RemovalResult(
+        "ollama_stop",
+        "servidor Ollama",
+        SKIPPED,
+        "não estava rodando, ou já havia parado",
+    )
+
+
 # -- the plan --------------------------------------------------------------
 
 
@@ -809,6 +1077,50 @@ def build_plan(
         running=running,
         notes=tuple(notes),
     )
+
+
+def plan_totals(
+    plan: UninstallPlan, choices: Optional[Choices] = None
+) -> Tuple[int, int, int]:
+    """(quantidade, bytes, sem_tamanho) do plano, em dois recortes.
+
+    Um cálculo só para as duas telas, porque elas respondiam perguntas
+    diferentes sem dizer qual: a de boas-vindas contava só o obrigatório --
+    ela roda antes de existir escolha --, e o resumo listava o obrigatório mais
+    o que foi marcado. Quem lia via um número virar outro e concluía, com razão,
+    que um dos dois estava errado.
+
+    `choices=None` é o recorte automático (o que sai sem perguntar); com
+    `choices`, o total já escolhido. Quem chama diz qual quer, e a tela nomeia
+    o recorte que mostrou -- um total sem rótulo de escopo recria o problema.
+
+    `sem_tamanho` existe porque somar `size_bytes or 0` faz um tamanho
+    desconhecido virar zero calado, e o total sai menor do que a verdade sem
+    nada na tela denunciando isso. O modelo do Ollama é o caso real: ele vem
+    com `size_bytes=None` quando o `ollama list` não informa.
+    """
+    itens = list(plan.mandatory)
+    if choices is not None:
+        marcado = {
+            "logs": choices.remove_logs or choices.move_logs_to is not None,
+            "ollama": choices.remove_ollama,
+            "model": choices.remove_model,
+            "env": choices.remove_env,
+        }
+        itens += [c for c in plan.optional if marcado.get(c.key)]
+    total = sum(c.size_bytes or 0 for c in itens)
+    sem_tamanho = sum(1 for c in itens if c.size_bytes is None)
+    return len(itens), total, sem_tamanho
+
+
+def describe_totals(plan: UninstallPlan, choices: Optional[Choices] = None) -> str:
+    """A frase que as duas telas imprimem, para não divergirem na redação
+    depois de já concordarem no número."""
+    quantos, total, sem_tamanho = plan_totals(plan, choices)
+    frase = f"{quantos} {'item' if quantos == 1 else 'itens'}, {format_size(total)}"
+    if sem_tamanho:
+        frase += f" (+{sem_tamanho} de tamanho desconhecido)"
+    return frase
 
 
 def _ollama_ownership_text(record: Optional[InstallRecord]) -> str:
@@ -1056,6 +1368,10 @@ def execute(
     run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
     platform: Optional[str] = None,
     verify: Callable[[Path], bool] = verify_windows_signature,
+    # A sondagem "a interface ainda responde?" precisa ser injetável como todo
+    # o resto do módulo: sem isto, a parada da web só seria testável com um
+    # servidor de verdade no ar.
+    urlopen: Callable[..., object] = urllib.request.urlopen,
 ) -> List[RemovalResult]:
     """Roda o plano isolando cada item e nunca levanta; a ordem importa, e com
     `dry_run=True` nada é chamado — nem um hook de sistema de arquivos.
@@ -1082,6 +1398,13 @@ def execute(
                 RemovalResult("ollama", str(plan.ollama_exe), WOULD_REMOVE, "desinstalador oficial ou passos manuais")
             )
         else:
+            # AQUI, e não antes: parar o Ollama só porque ele estava no ar
+            # derrubaria um serviço que outro projeto pode estar usando, para
+            # uma remoção que talvez nem tenha sido pedida. E este ramo já vem
+            # DEPOIS do ramo do modelo, então a ordem que o `ollama rm` exige --
+            # servidor no ar enquanto o modelo sai -- se mantém sozinha.
+            if plan.running.ollama:
+                results.append(stop_ollama(platform=platform, run=run))
             results.append(
                 remove_ollama(plan.ollama_exe, platform=platform, verify=verify, run=run)
             )
@@ -1117,11 +1440,44 @@ def execute(
                     RemovalResult("logs", str(logs_dir), SKIPPED, f"mantido: ainda contém {names}")
                 )
 
+    # A interface web é fechada AQUI, e não no arranque do programa: assim
+    # cancelar em qualquer tela anterior não derruba nada, e o --dry-run fica
+    # seguro por construção. É também o único ponto em que o resultado da
+    # parada consegue impedir a remoção do .venv, que é o que ela precisa
+    # impedir quando falha.
+    venv_liberado = True
+    if not dry_run and plan.candidate("venv") is not None:
+        parada = stop_web_ui(
+            plan.root,
+            plan.running.web_port or 0,
+            platform=platform,
+            run=run,
+            urlopen=urlopen,
+        )
+        if parada is not None:
+            results.append(parada)
+            venv_liberado = parada.status != FAILED
+
     for key in ("audit_password", "env", "venv", "build"):
         for cand in plan.mandatory + plan.optional:
             if cand.key != key:
                 continue
             if key == "env" and not choices.remove_env:
+                continue
+            if key == "venv" and not venv_liberado:
+                # Tentar às cegas gastaria minutos apagando 3658 de 3661 itens
+                # para parar no python.exe que a interface segura -- foi
+                # exatamente esse o estado em que a falha de campo deixou a
+                # máquina. Não tentar deixa o .venv inteiro e recuperável.
+                results.append(
+                    RemovalResult(
+                        cand.key,
+                        str(cand.path),
+                        SKIPPED,
+                        "não foi removido porque a interface web continua aberta; "
+                        "feche-a e abra o desinstalador de novo",
+                    )
+                )
                 continue
             _wipe(cand)
 

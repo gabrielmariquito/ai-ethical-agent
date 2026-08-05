@@ -43,11 +43,10 @@ from ethical_agent.uninstall import (  # noqa: E402
     build_plan,
     execute,
     format_size,
+    describe_totals,
     looks_like_project_root,
     ollama_manual_steps,
     running_inside_venv,
-    stop_hint,
-    stop_note,
     summarize_results,
     venv_activated_warning,
 )
@@ -59,17 +58,32 @@ from ethical_agent.uninstall import (  # noqa: E402
 # testes de texto-fonte.
 from wizard_gui import _autowrap, _is_headless, _mono_font  # noqa: E402
 
-WELCOME_TEXT = (
-    "Este desinstalador remove o que a instalação criou. O código do "
-    "projeto, as políticas, as ontologias e os dados de avaliação "
-    "permanecem. Para apagar tudo, apague a pasta.\n\n"
-    "O ambiente virtual e os arquivos temporários de build saem "
-    "automaticamente. Nas próximas telas você escolhe se quer remover "
-    "também a trilha de auditoria, o servidor Ollama, o modelo baixado "
-    "e o arquivo de configuração.\n\n"
-    "Antes de remover qualquer coisa, você verá a lista completa do que "
-    "será apagado."
-)
+def welcome_text(root: Path) -> str:
+    """A boas-vindas precisa do caminho, então é função e não constante.
+
+    A versão anterior dizia que o código e os dados "permanecem" e fechava com
+    "para apagar tudo, apague a pasta". Ler isso como promessa de limpeza é a
+    leitura natural -- "permanece" soa como proteção, não como tarefa que
+    sobrou --, e quem lia terminava a desinstalação achando que a máquina
+    estava limpa, para depois encontrar a pasta inteira ainda ali.
+
+    Então a frase agora abre pelo que o programa NÃO faz, e nomeia a pasta pelo
+    caminho de verdade: "a pasta do projeto" ainda supõe que a pessoa sabe qual
+    é, e quem baixou um ZIP não sabe que aquilo se chama repositório.
+    """
+    return (
+        "Este desinstalador desfaz a instalação, mas NÃO APAGA A PASTA DO "
+        "PROJETO. Os arquivos que você baixou -- código, políticas, "
+        "ontologias, dados de avaliação -- continuam onde estão.\n\n"
+        "Para remover tudo do computador, apague esta pasta depois de "
+        f"terminar aqui:\n{root}\n\n"
+        "O ambiente virtual e os arquivos temporários de build saem "
+        "automaticamente. Nas próximas telas você escolhe se quer remover "
+        "também a trilha de auditoria, o servidor Ollama, o modelo baixado "
+        "e o arquivo de configuração.\n\n"
+        "Antes de remover qualquer coisa, você verá a lista completa do que "
+        "será apagado."
+    )
 
 # A recusa vale nos dois sistemas, ver running_inside_venv, mas o comando e o
 # nome do terminal não, e mandar rodar `py -3` no macOS não conserta nada. No
@@ -119,9 +133,12 @@ SEVERITY_FG = {NOTE: "#4b5563", WARN: "#b45309", BLOCK: "#b91c1c"}
 
 
 class _AdviceCard(tk.Frame):
-    """Um aviso: barra na cor da severidade, prosa, e quando há comandos, um
-    bloco monoespaçado com botão de copiar, porque comando espremido em frase
-    é impossível de copiar sem limpar à mão.
+    """Um aviso: barra na cor da severidade e prosa.
+
+    O bloco de comandos copiável saiu junto com os dois cartões que o usavam:
+    esta janela não pede mais que ninguém rode comando de terminal, então não
+    sobrou comando nenhum para copiar. O modo texto ainda mostra comandos, mas
+    só quando a parada automática falha, e lá quem renderiza é a CLI.
     """
 
     def __init__(
@@ -132,12 +149,9 @@ class _AdviceCard(tk.Frame):
         severity: str,
         text: str,
         note: str | None = None,
-        commands: tuple = (),
     ) -> None:
         super().__init__(parent)
         color = SEVERITY_FG[severity]
-        self._commands = tuple(commands)
-        self._copy_btn: ttk.Button | None = None
 
         # A cor nunca é o único portador do significado, a prosa diz o que
         # cada aviso implica, e a barra só ajuda a separar um cartão do outro.
@@ -155,50 +169,6 @@ class _AdviceCard(tk.Frame):
             )
             hint.pack(fill="x", anchor="w", pady=(4, 0))
             _autowrap(hint, page, padding=72)
-
-        if self._commands:
-            self._build_commands(column)
-
-    def _build_commands(self, column: tk.Frame) -> None:
-        block = tk.Frame(column)
-        block.pack(fill="x", anchor="w", pady=(5, 0))
-
-        # Text e não Label: dá para selecionar com o mouse e copiar uma linha
-        # só, para quem não quer o bloco inteiro.
-        view = tk.Text(
-            block,
-            height=len(self._commands),
-            font=_mono_font(),
-            bg="#f3f4f6",
-            fg="#111827",
-            relief="flat",
-            highlightthickness=0,
-            padx=8,
-            pady=6,
-            wrap="none",
-        )
-        view.insert("end", "\n".join(self._commands))
-        view.config(state="disabled")
-        view.pack(side="left", fill="x", expand=True)
-
-        self._copy_btn = ttk.Button(block, text="Copiar", width=9, command=self._copy)
-        self._copy_btn.pack(side="right", padx=(8, 0), anchor="n")
-
-    def _copy(self) -> None:
-        self.clipboard_clear()
-        self.clipboard_append("\n".join(self._commands))
-        # O Tk só entrega o conteúdo a quem pedir depois de processar a fila;
-        # sem isto, colar rápido demais pega o que estava antes.
-        self.update_idletasks()
-        if self._copy_btn is not None:
-            self._copy_btn.config(text="Copiado")
-            self.after(1500, self._reset_copy_label)
-
-    def _reset_copy_label(self) -> None:
-        # A janela pode ter sido fechada nesse meio tempo, e um config() em
-        # widget destruído vira TclError no meio do mainloop.
-        if self._copy_btn is not None and self._copy_btn.winfo_exists():
-            self._copy_btn.config(text="Copiar")
 
 
 class UninstallApp(tk.Tk):
@@ -326,7 +296,9 @@ class WelcomePage(_Page):
         self._analyzed = False
         self._queue: queue.Queue = queue.Queue()
 
-        body = tk.Label(self, text=WELCOME_TEXT, justify="left", font=("Helvetica", 11))
+        body = tk.Label(
+            self, text=welcome_text(app.project_root), justify="left", font=("Helvetica", 11)
+        )
         body.pack(fill="x", padx=24, pady=(20, 8), anchor="w")
         _autowrap(body, self)
 
@@ -406,10 +378,20 @@ class WelcomePage(_Page):
         self.app.plan = item
         self.app.set_next_enabled(True)
 
-        total = sum(c.size_bytes or 0 for c in item.mandatory)
+        # "Sairão automaticamente" e não "serão removidos": esta tela roda antes
+        # de existir qualquer escolha, então o número dela nunca é o total. Sem
+        # o rótulo de escopo, quem lê 473 KB aqui e um total maior no resumo
+        # conclui que um dos dois está errado -- e o cálculo é o mesmo
+        # (describe_totals), só que em recortes diferentes.
+        opcionais = len(item.optional)
+        restante = (
+            f"Mais {opcionais} {'item depende' if opcionais == 1 else 'itens dependem'} "
+            "da sua escolha nas próximas telas."
+            if opcionais
+            else "Não há nada opcional a decidir."
+        )
         self.status.config(
-            text=f"{len(item.mandatory)} item(ns) serão removidos "
-            f"({format_size(total)}); {len(item.optional)} exigem confirmação.",
+            text=f"Sairão automaticamente: {describe_totals(item)}.\n{restante}",
             fg="#374151",
         )
 
@@ -420,44 +402,14 @@ class WelcomePage(_Page):
                 severity=NOTE,
                 text=self.app.activated_warning,
             )
-        if item.running.web_ui:
-            self._add_advice(
-                # O único dos três que faz a remoção falhar de verdade.
-                severity=BLOCK,
-                text="A interface web está respondendo em "
-                f"http://127.0.0.1:{item.running.web_port}. Enquanto ela "
-                "estiver no ar, a remoção do ambiente virtual falha. "
-                "Para parar:",
-                note=stop_note("web_ui"),
-                commands=stop_hint("web_ui", port=item.running.web_port),
-            )
-        if item.running.ollama:
-            self._add_advice(
-                # Âmbar: não impede nada do que este desinstalador remove por
-                # conta própria. E cuidado com o conselho fácil de "pare o
-                # Ollama antes", parar quebra o `ollama rm` do modelo, que
-                # precisa do servidor no ar (ver remove_model()).
-                severity=WARN,
-                text="O servidor Ollama está rodando. Ele não segura o .venv, "
-                "então a remoção do projeto não é afetada; isto só importa se "
-                "você escolher remover o próprio servidor na tela seguinte. "
-                "Se for remover o modelo, deixe-o no ar, o `ollama rm` fala "
-                "com o servidor e falha sem ele.",
-                note=stop_note("ollama"),
-                commands=stop_hint("ollama"),
-            )
+        # Aqui havia dois cartões com comandos de terminal para a interface web
+        # e para o Ollama, um deles mandando ler um PID de uma saída e
+        # transcrevê-lo. Esta janela existe justamente para quem não abre
+        # terminal: o desinstalador sabe o que precisa parar, então ele para, e
+        # conta o que fez na tela de progresso (ver stop_web_ui/stop_ollama).
 
-    def _add_advice(
-        self, *, severity: str, text: str, note: str | None = None, commands: list | None = None
-    ) -> None:
-        card = _AdviceCard(
-            self.advice,
-            self,
-            severity=severity,
-            text=text,
-            note=note,
-            commands=tuple(commands or ()),
-        )
+    def _add_advice(self, *, severity: str, text: str, note: str | None = None) -> None:
+        card = _AdviceCard(self.advice, self, severity=severity, text=text, note=note)
         card.pack(fill="x", anchor="w", pady=(0, 12))
 
 
@@ -579,6 +531,12 @@ class SummaryPage(_Page):
         lines = ["SERÁ REMOVIDO SEM PERGUNTAR"]
         for cand in plan.mandatory:
             lines.append(f"  {cand.label:<34} {format_size(cand.size_bytes):>12}")
+        # O mesmo cálculo da tela de boas-vindas, e com o mesmo rótulo de
+        # escopo: "automático" é o que sai sem perguntar, "a remover" é o total
+        # já escolhido. Duas categorias nomeadas, e não dois números soltos que
+        # o leitor precisa supor que respondem à mesma pergunta.
+        lines.append(f"  {'-' * 47}")
+        lines.append(f"  Total automático: {describe_totals(plan)}")
         chosen = {
             "logs": choices.remove_logs,
             "ollama": choices.remove_ollama,
@@ -595,16 +553,22 @@ class SummaryPage(_Page):
                     lines.append(f"  {cand.label} -> MOVER para {choices.move_logs_to}")
                 else:
                     lines.append(f"  {cand.label}")
-        else:
-            lines.append("VOCÊ CONFIRMOU: nada além do básico")
+            lines.append(f"  {'-' * 47}")
+            lines.append(f"  Total a remover: {describe_totals(plan, choices)}")
+        # A linha "VOCÊ CONFIRMOU: nada além do básico" saiu daqui: ela era
+        # redundante com o bloco MANTIDO logo abaixo, que quando nada foi
+        # escolhido lista exatamente os mesmos itens -- e "o básico" não
+        # significa nada para quem chegou agora.
         if kept:
             lines.append("")
             lines.append("MANTIDO")
             for cand in kept:
                 lines.append(f"  {cand.label}")
         lines.append("")
-        lines.append("NUNCA REMOVIDO")
-        lines.append("  o repositório, o código, políticas, ontologias, datasets, docs")
+        lines.append("ESTE DESINSTALADOR NÃO APAGA A PASTA DO PROJETO")
+        lines.append("  O código, as políticas, as ontologias, os datasets e a documentação")
+        lines.append("  continuam onde estão. Para tirar tudo do computador, apague esta")
+        lines.append(f"  pasta depois de terminar aqui:  {plan.root}")
         if plan.notes:
             lines.append("")
             lines.append("NOTAS")

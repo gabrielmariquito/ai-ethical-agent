@@ -390,9 +390,21 @@ Detalhes que importam:
   instalação em modo Ollama Cloud o `.env` não tem `OLLAMA_MODEL` nenhum e o
   modelo padrão pertenceria a outra coisa.
 - Falha em remover um item **não aborta o resto**: cada item é isolado e o
-  relatório final diz o que falhou. Arquivo em uso é comum no Windows, então o
-  programa detecta antes se a interface web ou o Ollama estão rodando, avisa que
-  a remoção do `.venv` vai falhar parcialmente e diz como pará-los.
+  relatório final diz o que falhou.
+- **O desinstalador para os serviços sozinho.** A interface web roda com o
+  Python do `.venv` e segura esse executável, então ela é fechada
+  automaticamente logo antes da remoção — e não no arranque, para que cancelar
+  em qualquer tela não derrube nada. Antes de matar, confirma que o processo é
+  deste projeto: responde na API da própria interface, o executável está dentro
+  do `.venv` desta pasta, e a linha de comando é a que o instalador lança. Se
+  não der para confirmar, **não mata** — informa e não remove o `.venv`, em vez
+  de tentar às cegas e deixar a pasta pela metade. O **Ollama** só é parado se
+  você escolher removê-lo, e depois de o modelo sair (o `ollama rm` fala com o
+  servidor e falha sem ele).
+- O modo texto (`--cli`) faz a mesma parada automática. Os comandos de terminal
+  para parar à mão continuam existindo, mas só aparecem **depois** de a parada
+  automática ter falhado, precedidos da frase que diz que ela falhou.
+- `--dry-run` **não para serviço nenhum**: ele lista, não age.
 - Se você instalou com `pip install -e .` fora do `.venv`, o desinstalador não
   toca nessa instalação — ele avisa para rodar `pip uninstall ai-ethical-agent`
   no ambiente correspondente.

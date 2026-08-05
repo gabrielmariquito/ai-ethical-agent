@@ -47,9 +47,11 @@ except ImportError as _exc:  # pragma: no cover -- exercitado fora do repo
     raise SystemExit(3)
 
 from ethical_agent.uninstall import (  # noqa: E402
+    FAILED,
     Choices,
     UninstallPlan,
     build_plan,
+    describe_totals,
     execute,
     format_size,
     looks_like_project_root,
@@ -66,9 +68,20 @@ EXIT_FAILURES = 1
 # 2 é o do argparse (uso incorreto).
 EXIT_REFUSED = 3
 
+# Era "NUNCA REMOVIDO: o repositório em si, ethical_agent/, ...". Duas coisas
+# davam errado nessa frase. "Nunca removido" soa como proteção -- como se o
+# programa estivesse guardando aqueles arquivos --, quando o que ela diz é que
+# aquilo não é problema dele e sobrou para o usuário; quem lia terminava
+# achando que a máquina ficaria limpa e depois encontrava a pasta inteira ali.
+# E "o repositório" não é palavra de quem baixou um ZIP: essa pessoa sabe que
+# baixou uma pasta. Agora a frase diz o que o programa NÃO faz e qual é o passo
+# que falta, e quem chama acrescenta o caminho -- "a pasta do projeto" ainda
+# supõe que a pessoa sabe qual é.
 NEVER_REMOVED = (
-    "o repositório em si, ethical_agent/, policies/, ontologies/, eval/, "
-    "tests/, examples/ e a documentação"
+    "ESTE DESINSTALADOR NÃO APAGA A PASTA DO PROJETO\n"
+    "  O código, as políticas, as ontologias, os datasets e a documentação\n"
+    "  continuam onde estão. Para tirar tudo do computador, apague esta pasta\n"
+    "  depois de terminar aqui:"
 )
 
 # -- relançar fora do venv -------------------------------------------------
@@ -240,31 +253,28 @@ def _mid_sentence(label: str) -> str:
 
 
 def _running_warnings(plan: UninstallPlan, platform: Optional[str] = None) -> List[str]:
+    """O que está no ar, e o que o desinstalador vai fazer a respeito.
+
+    Estas linhas traziam os comandos de `stop_hint` para o usuário rodar antes
+    de continuar. Agora quem para os serviços é o próprio programa, então
+    mandar rodar o comando seria dizer "faça isto" logo antes de fazer sozinho.
+    Os comandos continuam existindo, mas só aparecem depois de a parada
+    automática ter falhado -- ver `render_report`.
+    """
     lines: List[str] = []
-
-    def _how_to_stop(service: str, port: int = 0) -> None:
-        # A prosa antes, os comandos depois e indentados: no terminal a
-        # indentação é o que separa "leia isto" de "cole isto".
-        note = stop_note(service, platform)
-        if note:
-            lines.append(note)
-        lines.extend(f"  {hint}" for hint in stop_hint(service, platform, port))
-
     if plan.running.web_ui:
         lines.append(
             f"A interface web está respondendo em http://127.0.0.1:{plan.running.web_port}. "
-            "Ela roda com o Python do .venv, então segura esse executável: a "
-            "remoção do .venv vai falhar parcialmente enquanto ela estiver no ar."
+            "Ela roda com o Python do .venv e segura esse executável, então "
+            "será fechada automaticamente logo antes da remoção do .venv."
         )
-        _how_to_stop("web_ui", plan.running.web_port)
     if plan.running.ollama:
         lines.append(
             "O servidor Ollama está rodando. Ele não segura o .venv, então a "
-            "remoção do projeto não é afetada; isto só importa se você for "
-            "remover o próprio servidor. Se for remover o modelo, deixe-o no "
-            "ar -- o `ollama rm` fala com o servidor e falha sem ele."
+            "remoção do projeto não é afetada. Ele só é parado se você escolher "
+            "remover o próprio servidor, e depois de o modelo sair -- o "
+            "`ollama rm` fala com o servidor e falha sem ele."
         )
-        _how_to_stop("ollama")
     return lines
 
 
@@ -290,6 +300,9 @@ def render_plan(plan: UninstallPlan, choices: Choices, mode: str) -> str:
         out.append("SERÁ REMOVIDO SEM PERGUNTAR")
         for cand in plan.mandatory:
             out.append(f"  {cand.label:<34} {format_size(cand.size_bytes):>12}  {cand.detail}")
+        # O mesmo cálculo e os mesmos rótulos de escopo da janela, para as duas
+        # cascas não darem números diferentes para o mesmo plano.
+        out.append(f"  Total automático: {describe_totals(plan)}")
     else:
         out.append("SERÁ REMOVIDO SEM PERGUNTAR: nada (já foi removido antes)")
 
@@ -310,9 +323,11 @@ def render_plan(plan: UninstallPlan, choices: Choices, mode: str) -> str:
                 out.append(f"      {line}")
             if cand.key == "logs" and choices.move_logs_to is not None:
                 out.append(f"      -> será MOVIDO para {choices.move_logs_to}")
+        out.append(f"  Total a remover: {describe_totals(plan, choices)}")
 
     out.append("")
-    out.append(f"NUNCA REMOVIDO: {NEVER_REMOVED}")
+    out.append(NEVER_REMOVED)
+    out.append(f"  {plan.root}")
 
     if plan.notes:
         out.append("")
@@ -330,6 +345,17 @@ def render_report(results, plan: UninstallPlan) -> str:
         for line in result.detail.splitlines():
             if line.strip():
                 out.append(f"      {line}")
+        # O caminho manual como EXCEÇÃO, e só aqui: os comandos aparecem
+        # depois de o programa ter tentado e falhado, precedidos da frase que
+        # diz isso. Vindo do nada, quem os visse não saberia se o programa
+        # tentou e não conseguiu ou se nunca tentou.
+        if result.key == "web_ui" and result.status == FAILED:
+            out.append("      Se preferir resolver pelo terminal:")
+            note = stop_note("web_ui")
+            if note:
+                out.append(f"      {note}")
+            for hint in stop_hint("web_ui", port=plan.running.web_port):
+                out.append(f"        {hint}")
     out.append("")
     out.append(f"{removed} item(ns) removido(s), {failed} falha(s), {manual} manual(is).")
     if failed:
@@ -353,7 +379,11 @@ def _build_parser() -> argparse.ArgumentParser:
             "apaga o .venv e artefatos de build; tudo mais exige confirmação."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=f"NUNCA é removido: {NEVER_REMOVED}.",
+        epilog=(
+            "Não apaga a pasta do projeto: o código, as políticas, as "
+            "ontologias, os datasets e a documentação continuam onde estão. "
+            "Para tirar tudo do computador, apague a pasta depois de terminar."
+        ),
     )
     exclusive = parser.add_mutually_exclusive_group()
     exclusive.add_argument(
@@ -570,17 +600,11 @@ def main(
     if interactive:
         print(render_plan(plan, choices, "final"))
         choices = _ask_optional(plan, choices, ask)
-        warnings = _running_warnings(plan)
-        if warnings:
-            print()
-            for line in warnings:
-                print(f"  ! {line}" if not line.startswith("  ") else f"  {line}")
-            if not ask_yes_no(
-                "Continuar mesmo assim? A remoção do .venv pode falhar parcialmente.",
-                ask=ask,
-            ):
-                print("Cancelado.")
-                return EXIT_OK
+        # A pergunta "Continuar mesmo assim? A remoção do .venv pode falhar
+        # parcialmente." saiu daqui: ela pedia que a pessoa assumisse um risco
+        # que o programa agora não corre mais -- ele fecha a interface antes de
+        # remover, e quando não consegue fechar, não remove. Os avisos seguem
+        # aparecendo na prévia logo acima, como informação.
         if not ask_yes_no("Confirmar a remoção acima?", ask=ask):
             print("Cancelado.")
             return EXIT_OK
