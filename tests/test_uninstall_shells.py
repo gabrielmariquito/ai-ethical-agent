@@ -150,10 +150,34 @@ def test_dry_run_lists_optional_items_even_when_their_flags_were_not_given(tmp_p
 
 def test_main_without_yes_and_without_a_tty_prints_the_plan_and_deletes_nothing(tmp_path, capsys):
     # A piped or CI invocation must never delete by accident.
+    #
+    # A asserção do código foi INVERTIDA de propósito: era EXIT_OK, é
+    # EXIT_REFUSED. Não é ajuste de conveniência para um teste que quebrou --
+    # foi a mudança deliberada desta leva. O que o teste protegia continua
+    # protegido e continua asseverado abaixo: nada é removido, o .venv fica.
+    # O que mudou é só como o programa RELATA que não fez nada, porque sair 0
+    # fazia `uninstall.py --cli && echo ok` anunciar sucesso de uma remoção que
+    # não houve. Ver `main()` e DECISOES.
     root = _make_root(tmp_path)
     code = uninstall.main([], root=root, ask=_answers(), isatty=_no_tty)
-    assert code == uninstall.EXIT_OK
+    assert code == uninstall.EXIT_REFUSED
     assert "nada foi removido" in capsys.readouterr().out
+    assert (root / ".venv").exists()
+
+
+def test_dry_run_without_a_tty_still_succeeds(tmp_path):
+    # O par do teste acima, e os dois se protegem: a remoção de verdade sem TTY
+    # é recusa (3), a simulação sem TTY é sucesso (0). `--dry-run` lista sem
+    # agir, então "nada foi removido" é o resultado esperado dele -- um script
+    # que confere o plano não pode receber não-zero de uma operação que deu
+    # certo.
+    #
+    # Hoje isso vale por ORDEM: o return do --dry-run vem antes do ramo do
+    # isatty em main(). Ordem não é garantia, e uma refatoração que trocasse os
+    # dois blocos de lugar quebraria isto em silêncio -- daí a asserção.
+    root = _make_root(tmp_path)
+    code = uninstall.main(["--dry-run", "--no-probe"], root=root, ask=_answers(), isatty=_no_tty)
+    assert code == uninstall.EXIT_OK
     assert (root / ".venv").exists()
 
 
@@ -691,6 +715,122 @@ def test_the_childs_exit_code_is_propagated(tmp_path, monkeypatch, returncode):
 
     assert code == returncode
     assert code is not None, "None significaria 'siga neste processo', não 'saiu 0'"
+
+
+def test_the_cli_terminates_without_a_tty_instead_of_waiting_forever(tmp_path):
+    """Processo de verdade, stdin fechado, e uma guarda de tempo.
+
+    Todo o resto da cobertura de "sem TTY" injeta `isatty=_no_tty`, o que prova
+    a LÓGICA e não que o processo termina. O medo que originou esta leva foram
+    dois processos de pé por horas -- e um `input()` alcançado por engano não
+    apareceria em nenhum teste com hook, porque o hook nunca chega a `input()`.
+
+    O `timeout=` é o ponto: um teste que verifica "não trava" travando é o pior
+    resultado possível, então ele falha por TimeoutExpired em vez de pendurar a
+    suíte inteira.
+
+    Chama `main(root=...)` em vez de rodar `uninstall.py` direto porque o script
+    deriva a raiz de `__file__`: invocá-lo apontaria para o repositório de
+    verdade. O que importa aqui é o processo e o stdin serem reais -- é o
+    `sys.stdin.isatty()` de verdade que está sob teste, não o hook.
+
+    **Pipe e não DEVNULL**, e isso foi medido: no Windows `subprocess.DEVNULL`
+    é o `NUL`, que é um dispositivo de CARACTERE, e `isatty()` devolve `True`
+    para ele. Um `uninstall.py < NUL` portanto NÃO exercita este caminho -- ele
+    entra no ramo interativo e só não pendura porque `ask_yes_no` captura
+    `EOFError`. Quem de fato não tem TTY é o pipe.
+    """
+    root = _make_root(tmp_path)
+    programa = (
+        "import sys; sys.path.insert(0, %r)\n"
+        "from pathlib import Path\n"
+        "import uninstall\n"
+        "assert not sys.stdin.isatty(), 'o teste precisa de stdin sem TTY'\n"
+        "sys.exit(uninstall.main([], root=Path(%r)))\n"
+    ) % (str(REPO_ROOT), str(root))
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", programa],
+            input="",
+            capture_output=True,
+            text=True,
+            # O filho chama ensure_utf8_stdio() e escreve UTF-8; sem declarar
+            # isto, o pai decodifica no cp1252 do console e o primeiro acento
+            # da mensagem derruba a leitura (política D-4).
+            encoding="utf-8",
+            errors="replace",
+            timeout=90,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail(
+            "o --cli pendurou sem TTY em vez de sair -- foi exatamente este o "
+            "estado que deixou dois processos de pé por horas"
+        )
+
+    assert proc.returncode == uninstall.EXIT_REFUSED, proc.stdout + proc.stderr
+    # Sem esta linha o teste passaria pela recusa ERRADA: a de rodar dentro do
+    # venv devolve o mesmo 3, e foi o que aconteceu na primeira versão dele.
+    assert "Sem terminal interativo" in proc.stdout, "recusou, mas por outro motivo"
+    # A mensagem tem de nomear a flag que dispensaria a pergunta; sem isso, a
+    # recusa diz "não posso" sem dizer o que fazer.
+    assert "--yes" in proc.stdout
+    assert (root / ".venv").exists(), "a recusa não pode ter removido nada"
+
+
+def test_stdin_from_the_null_device_also_terminates(tmp_path):
+    """O outro caminho de "sem humano", e ele NÃO passa pela guarda de TTY.
+
+    Medido: no Windows o `NUL` é um dispositivo de caractere e `isatty()`
+    devolve `True` para ele. Então `uninstall.py < NUL` -- que é como um script
+    .bat naturalmente invocaria isto -- entra no ramo INTERATIVO, e quem impede
+    o travamento ali é outra coisa: o `EOFError` capturado em `ask_yes_no`,
+    que responde "não" e cancela.
+
+    Duas defesas em camadas, e o teste existe para que nenhuma das duas saia
+    sem a outra ser notada.
+    """
+    root = _make_root(tmp_path)
+    programa = (
+        "import sys; sys.path.insert(0, %r)\n"
+        "from pathlib import Path\n"
+        "import uninstall\n"
+        "print('ISATTY=%%s' %% sys.stdin.isatty())\n"
+        "sys.exit(uninstall.main([], root=Path(%r)))\n"
+    ) % (str(REPO_ROOT), str(root))
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", programa],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=90,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail("stdin no dispositivo nulo pendurou o programa")
+
+    assert proc.returncode in (uninstall.EXIT_OK, uninstall.EXIT_REFUSED), (
+        proc.stdout + proc.stderr
+    )
+    assert (root / ".venv").exists(), "sem ninguém para confirmar, nada pode ser removido"
+
+
+def test_the_graphical_path_never_reaches_the_tty_check(tmp_path):
+    # A janela NUNCA tem TTY, então a recusa por falta de terminal não pode
+    # alcançá-la: se alcançasse, o desinstalador gráfico passaria a recusar
+    # sempre. A separação é `run()`, que só cai em main() quando alguma flag
+    # pede modo texto ou não há sessão gráfica.
+    chamou = {}
+
+    def open_gui(port):
+        chamou["port"] = port
+        return uninstall.EXIT_OK
+
+    code = uninstall.run([], open_gui=open_gui, graphical=True)
+
+    assert code == uninstall.EXIT_OK
+    assert chamou == {"port": 8765}, "a janela não foi aberta -- caiu no modo texto"
 
 
 def test_the_system_python_search_refuses_a_candidate_inside_the_venv(tmp_path, monkeypatch):

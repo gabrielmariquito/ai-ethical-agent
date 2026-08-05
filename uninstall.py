@@ -592,10 +592,21 @@ def main(
     if not args.yes and not interactive:
         # Sem TTY e sem --yes: mostra e sai. Uma invocação em pipe ou em CI
         # nunca apaga por acidente.
+        #
+        # EXIT_REFUSED e não EXIT_OK: a remoção pedida não aconteceu, e sair 0
+        # fazia `uninstall.py --cli && echo ok` imprimir "ok" sem nada ter sido
+        # removido. É recusa, e reusa o código das outras duas (raiz errada,
+        # venv) porque nenhum chamador ramifica sobre o valor 3 -- um quarto
+        # código seria contrato sem leitor.
+        #
+        # O `--dry-run` NÃO passa por aqui: ele retorna acima, e sair 0 é o
+        # resultado certo dele, porque listar sem agir é o sucesso dele. Isso
+        # hoje depende da ordem dos dois blocos, então há teste fixando os dois
+        # códigos lado a lado.
         print(render_plan(plan, choices, "final"))
         print()
         print("Sem terminal interativo: nada foi removido. Rode com --yes para confirmar.")
-        return EXIT_OK
+        return EXIT_REFUSED
 
     if interactive:
         print(render_plan(plan, choices, "final"))

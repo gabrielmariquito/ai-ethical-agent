@@ -340,6 +340,43 @@ qualquer das flags de remoção, ele roda no terminal. As duas formas são casca
 finas sobre [`ethical_agent/uninstall.py`](ethical_agent/uninstall.py) e
 mostram exatamente a mesma lista.
 
+### Uso não interativo (script, pipe, CI)
+
+O modo texto pergunta uma coisa por item, e **pergunta só quando há um terminal
+para responder**. Num pipe, num redirecionamento ou em CI ele não pergunta:
+imprime o plano, diz que nada foi removido, e **sai com código 3** — a remoção
+pedida não aconteceu, então anunciar sucesso seria mentira para o script que
+chamou.
+
+Para rodar sem ninguém no teclado, dispense as perguntas por flag:
+
+| pergunta | flag que a dispensa |
+|---|---|
+| "Confirmar a remoção acima?" | `--yes` |
+| "Apagar a trilha de auditoria?" | `--remove-logs` |
+| "Mover a trilha...?" + destino | `--move-logs-to DIR` |
+| "Remover o servidor Ollama?" | `--remove-ollama` |
+| "Remover o modelo?" | `--remove-model` |
+| "Remover o `.env`?" | `--remove-env` |
+
+Com `--yes` nada é perguntado e a remoção acontece; os itens opcionais que você
+não pediu por flag ficam. Ou seja:
+
+```bash
+python3 uninstall.py --yes                    # remove o básico, sem perguntar
+python3 uninstall.py --yes --remove-logs      # e também a trilha
+python3 uninstall.py --dry-run                # confere o plano; sai 0, não age
+```
+
+`--dry-run` **sai 0 mesmo sem terminal**: listar sem agir é o sucesso dele, e um
+script que confere o plano não pode receber erro de uma operação que deu certo.
+
+> No Windows, `< NUL` **não** é o mesmo que um pipe: o `NUL` é um dispositivo de
+> caractere e o Python o considera um terminal. Nesse caso o programa entra no
+> caminho interativo, lê fim-de-arquivo na primeira pergunta, responde "não" e
+> cancela — sai 0 sem remover nada. Se você quer a recusa explícita, use um pipe
+> ou passe as flags.
+
 **O desinstalador precisa do Python do sistema, e ele troca sozinho quando
 não está nele.** No Windows um executável em execução não pode ser apagado,
 então o `.venv` não consegue apagar a si mesmo; é também por isso que isto é
