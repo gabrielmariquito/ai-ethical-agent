@@ -338,9 +338,7 @@ Sem argumentos e havendo sessão gráfica, ele abre uma interface no mesmo
 estilo do wizard. Sem sessão gráfica (servidor, SSH, CI), com `--cli`, ou com
 qualquer das flags de remoção, ele roda no terminal. As duas formas são cascas
 finas sobre [`ethical_agent/uninstall.py`](ethical_agent/uninstall.py) e
-mostram exatamente a mesma lista — o que não quer dizer as mesmas palavras:
-alguns avisos são redigidos por público, porque a janela existe para quem não
-abre terminal e não pode responder com um comando a digitar.
+mostram exatamente a mesma lista.
 
 ### Uso não interativo (script, pipe, CI)
 
