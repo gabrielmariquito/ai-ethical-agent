@@ -147,8 +147,21 @@ def test_nenhuma_norma_de_dano_exige_design(ontologia):
     """O defeito diagnosticado, virado teste.
 
     Cinco das seis normas do RelAIEO exigem `design` -- intenção de construir um
-    sistema -- e resposta de assistente nunca a satisfaz. É a causa medida do
-    recall de 0.0615 no BeaverTails `tune`.
+    sistema. Estas normas valem sobre conteúdo, e por isso não o exigem.
+
+    **A redação anterior deste docstring dizia que resposta de assistente
+    "nunca" satisfaz `design`, e isso é falso.** Medido na metade `tune`
+    (`divisao/v1`) do BeaverTails, que é inteira `stage: output`: `design`
+    ancora direto em **22 dos 117** casos, e `N-REL-005` chega a disparar ali
+    (`HF-BT-0102`). O que explica o recall de 0.0615 é a **conjunção** -- o
+    conceito de dano e o `design` quase nunca acendem no mesmo texto --, não a
+    ausência de `design`. Ativações do conceito de dano contra coocorrência com
+    `design`, mesma metade: `threat_to_privacy` 8 e 0, `surveillance` 2 e 0,
+    `information_disorder` 2 e 0, `bias` 7 e 1.
+
+    A asserção abaixo não muda com isso: ela é sobre o `when` das normas de
+    dano, não sobre o corpus. Ver `ontologies/harm_norms.json`,
+    `por_que_nenhuma_exige_design`.
     """
     de_dano = [n for n in ontologia.norms if n.id.startswith("N-HARM")]
     assert de_dano

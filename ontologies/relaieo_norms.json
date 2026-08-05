@@ -1,10 +1,11 @@
 {
   "metadata": {
     "name": "RelAIEO verification norms",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "OUR verification layer (RQ3) expressed in RelAIEO's own vocabulary: each norm references RelAIEO concept IDs. An activated harm-risk combined with a build/deploy intent (the 'design' concept) is DENIED, and the RelAIEO rdfs:provocation of the triggering concept is still surfaced (in the refusal message) as a reflective prompt. Note this is a deliberate departure from RelAIEO's own reflective, non-punitive stance (see ontologies/PROVENANCE.md): the guardrail acts unilaterally instead of routing to human review. Hard blocks otherwise stay in the rule-based layer (policies/core_policy.json).",
     "created": "2026-07-01",
-    "references_concept_ids_from": "ontologies/relaieo.ttl"
+    "references_concept_ids_from": "ontologies/relaieo.ttl",
+    "sobre_o_que_alcanca_estas_normas_hoje": "NENHUMA destas seis foi editada quando a taxonomia de dano entrou, e QUATRO delas mudaram de comportamento assim mesmo. `ontologies/harm_taxonomy.ttl` declara `rdfs:subClassOf` de conceito nosso para conceito RelAIEO, `relaieo.load_relaieo` funde as duas fontes num espaco de ids so, e `Ontology.activate` propaga por `is_a`. O efeito: `targeted_surveillance` acende `surveillance` (N-REL-001), `personal_data_exposure` acende `threat_to_privacy` (N-REL-002), `instrumental_deception` acende `information_disorder` (N-REL-003) e `dehumanising_stereotype` acende `bias` (N-REL-005). O `design` continua exigido nas cinco que o exigem -- a propagacao move o OUTRO conceito do `when`, nunca esse. Medido na metade `tune` (divisao/v1) do BeaverTails, onde a diferenca e visivel: `threat_to_privacy` ativa 8 vezes e as 8 sao SO por propagacao (zero pelo lexico RelAIEO); `information_disorder` 2 de 2; `bias` 7, uma delas so por propagacao; `surveillance` 2, uma delas so por propagacao. QUEM AUDITAR UM VEREDITO destas normas e for conferir o casamento em `relaieo_grounding.json` pode nao achar nada: o termo que casou mora em `harm_grounding.json`. A evidencia do veredito diz a verdade -- ela imprime `concept 'personal_data_exposure' term '...' --is_a--> threat_to_privacy` --, e era este arquivo que ainda descrevia um mundo de uma fonte so. `demeaning_speech` tambem acende `hate_speech`, e os cinco conceitos de dano com pai RelAIEO acendem `identified_harm_risk`, mas nenhuma norma consome esses dois: ativacao ali NAO e cobertura."
   },
   "norms": [
     {
@@ -16,8 +17,8 @@
       "scopes": ["input", "output"],
       "when": ["surveillance", "design"],
       "description": "Designing/deploying a system that performs surveillance or tracking of people.",
-      "rationale": "RelAIEO frames surveillance as an identified harm risk of AI systems; building one warrants reflective human audit.",
-      "references": ["RelAIEO:surveillance", "RelAIEO:design"]
+      "rationale": "RelAIEO frames surveillance as an identified harm risk of AI systems; building one warrants reflective human audit. `surveillance` is now also reached from our own `targeted_surveillance` by `is_a` propagation, so this norm can fire on a text whose only match is in harm_grounding.json -- measured once in the BeaverTails `tune`.",
+      "references": ["RelAIEO:surveillance", "RelAIEO:design", "harm:targeted_surveillance (subClassOf, propaga)"]
     },
     {
       "id": "N-REL-002",
@@ -28,8 +29,8 @@
       "scopes": ["input", "output"],
       "when": ["threat_to_privacy", "design"],
       "description": "Designing/deploying a system that harvests or exposes personal data.",
-      "rationale": "RelAIEO frames threats to privacy as an identified harm risk; building a system around personal-data extraction warrants reflective audit.",
-      "references": ["RelAIEO:threat_to_privacy", "RelAIEO:design"]
+      "rationale": "RelAIEO frames threats to privacy as an identified harm risk; building a system around personal-data extraction warrants reflective audit. NOTE THE REACH IS WIDER THAN THIS SENTENCE: `threat_to_privacy` is now also reached from our `personal_data_exposure` by `is_a` propagation, so the trigger can be a single disclosed address rather than a system that collects data. On the BeaverTails `tune` this concept activates 8 times and ALL 8 are propagation -- the RelAIEO lexicon matched nothing.",
+      "references": ["RelAIEO:threat_to_privacy", "RelAIEO:design", "harm:personal_data_exposure (subClassOf, propaga)"]
     },
     {
       "id": "N-REL-003",
@@ -40,8 +41,8 @@
       "scopes": ["input", "output"],
       "when": ["information_disorder", "design"],
       "description": "Designing/deploying a system that produces or spreads information disorder (mis/disinformation, deepfakes, propaganda).",
-      "rationale": "RelAIEO frames information disorder as an identified harm risk; building such a system warrants reflective audit.",
-      "references": ["RelAIEO:information_disorder", "RelAIEO:design"]
+      "rationale": "RelAIEO frames information disorder as an identified harm risk; building such a system warrants reflective audit. `information_disorder` is now also reached from our `instrumental_deception` by `is_a` propagation -- deception of one person, not disinformation at scale. On the BeaverTails `tune` this concept activates twice and both are propagation.",
+      "references": ["RelAIEO:information_disorder", "RelAIEO:design", "harm:instrumental_deception (subClassOf, propaga)"]
     },
     {
       "id": "N-REL-004",
@@ -64,8 +65,8 @@
       "scopes": ["input", "output"],
       "when": ["bias", "design"],
       "description": "Designing/deploying a system that encodes or reproduces bias/discrimination.",
-      "rationale": "RelAIEO frames bias as an identified harm risk rooted in structural inequality; building such a system warrants reflective audit.",
-      "references": ["RelAIEO:bias", "RelAIEO:design"]
+      "rationale": "RelAIEO frames bias as an identified harm risk rooted in structural inequality; building such a system warrants reflective audit. `bias` is now also reached from our `dehumanising_stereotype` by `is_a` propagation. This is the one norm of the six measured firing at `stage: output` on an external corpus (BeaverTails `tune`, HF-BT-0102), which is why the claim that `design` is never satisfied in an assistant response is not the right way to describe this family -- see harm_norms.json, `por_que_nenhuma_exige_design`.",
+      "references": ["RelAIEO:bias", "RelAIEO:design", "harm:dehumanising_stereotype (subClassOf, propaga)"]
     },
     {
       "id": "N-REL-006",
@@ -76,7 +77,7 @@
       "scopes": ["input", "output"],
       "when": ["ethic_washing"],
       "description": "Signals of ethics washing (presenting a system as ethical for marketing/PR).",
-      "rationale": "RelAIEO models ethics washing as a form of ethics manipulation; flag for accountability review.",
+      "rationale": "RelAIEO models ethics washing as a form of ethics manipulation; flag for accountability review. SEM LASTRO DE CASO, E ISTO E DECLARACAO, NAO OMISSAO: medida na metade `tune` (divisao/v1) dos tres conjuntos -- curado, BeaverTails e injecoes, 478 casos --, `ethic_washing` nao ativa uma unica vez e esta norma nunca dispara. E a unica das 18 normas nessa situacao, e a unica sem caso ate no benchmark curado, escrito pela mesma mao que escreveu as normas: os seis casos `REL-00n` de eval/dataset.json cobrem cinco normas (REL-003 e REL-006 sao ambos information_disorder, en e pt-BR). Nao disparar nao e defeito -- os dois corpora externos nao amostram ethics washing, que e categoria de discurso institucional e nao de dano em resposta -- mas quem citar 'seis normas RelAIEO' como cobertura esta contando uma que nenhum caso exercitou. E a mesma disciplina de `base_pequena: true` em harm_grounding.json, aplicada a base ZERO. Note ainda que esta e a unica norma com `effect: FLAG`, e FLAG nao e interveniente em evaluate.INTERVENING: ela nao moveria precisao nem recall publicados nem se disparasse.",
       "references": ["RelAIEO:ethic_washing"]
     }
   ]

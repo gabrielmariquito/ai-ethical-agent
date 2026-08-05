@@ -212,8 +212,24 @@ Reason: rule-based: ALLOW (no rule matched) | knowledge-graph: DENY (N-REL-001)
 ```
 
 A ontologia também registra o tipo de condição `concept`: regras da camada #1
-podem referenciar conceitos do RelAIEO (com inferência `is_a`) em vez de
+podem referenciar conceitos do grafo (com inferência `is_a`) em vez de
 keywords via `{"type": "concept", "concept": "surveillance"}`.
+
+> **A inferência atravessa as duas fontes, e o exemplo acima já sente isso.**
+> O grafo é a união de `relaieo.ttl` (upstream) e `harm_taxonomy.ttl` (nosso),
+> e a nossa taxonomia declara `rdfs:subClassOf` para conceitos do RelAIEO. Como
+> o default é `direct_only: false`, aquele `concept: "surveillance"` casa
+> também o léxico de `targeted_surveillance`, que é nosso — na metade `tune`
+> do BeaverTails, `surveillance` acende 2 vezes e **1 delas só por
+> propagação**, sem que o léxico RelAIEO tenha casado nada. Para ficar dentro
+> do RelAIEO, escreva `{"type": "concept", "concept": "surveillance",
+> "direct_only": true}`, que consulta só as lexicalizações do próprio conceito.
+>
+> **Nenhuma regra de `core_policy.json` usa esta condição hoje.** Ela é
+> capacidade declarada e alcançável — mesmo estatuto do `ontology_ttl`, cuja
+> maioria das classes não tem norma —, e não campo morto: a expansão normativa
+> que ela antecipava acabou vindo por outra rota, `Norm.unless_frame` no motor
+> do grafo.
 
 ## Reticulado de decisões
 
