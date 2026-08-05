@@ -21,6 +21,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Ver o fixture no conftest: os testes daqui injetam o `urlopen` que precisam,
+# e este corte garante que os que NÃO injetam não caiam na porta de verdade.
+pytestmark = pytest.mark.usefixtures("sem_rede_de_verdade")
+
 from ethical_agent.uninstall import (  # noqa: E402
     FAILED,
     SKIPPED,
@@ -391,6 +395,10 @@ def test_the_screens_say_the_folder_is_not_deleted(tmp_path):
     texto = uninstall_gui.welcome_text(tmp_path)
     # "permanecem" soava como proteção; o que a pessoa precisa saber é que
     # sobrou uma tarefa para ela, e qual pasta é.
-    assert "NÃO APAGA A PASTA DO PROJETO" in texto
+    #
+    # Sem `.lower()` isto fixava a CAIXA da frase, e não a frase: a versão em
+    # maiúsculas era uma escolha de ênfase, não o que o teste existe para
+    # garantir. O que não pode sumir é a negação estar lá e ser sobre a pasta.
+    assert "não apaga a pasta do projeto" in texto.lower()
     assert str(tmp_path) in texto
     assert "repositório" not in texto.lower()

@@ -9,6 +9,11 @@ import stat
 
 import pytest
 
+# A regra do topo -- "rede injetada" -- não se sustentava sozinha: `execute()`
+# resolvia o `urlopen` no default, fora do alcance de qualquer injeção, e ia
+# sondar a porta 8765 da máquina de quem rodasse a suíte. Ver o fixture.
+pytestmark = pytest.mark.usefixtures("sem_rede_de_verdade")
+
 from ethical_agent.install_record import InstallRecord, write_record
 from ethical_agent.uninstall import (
     FAILED,
@@ -848,9 +853,13 @@ def test_ollama_question_says_it_was_already_installed_when_the_record_says_so(t
         run=_fake_run(), urlopen=_urlopen_answering(),
     )
     detail = [c for c in plan.optional if c.key == "ollama"][0].detail
-    # A resposta primeiro, o motivo depois: é o "não foi" que decide a caixa.
-    assert "Não foi este projeto que instalou o Ollama" in detail
+    # O fato que decide a caixa: o Ollama é anterior a esta instalação, logo
+    # removê-lo é mexer no que pertence a outra coisa. A frase já foi mais
+    # longa e abria por "Não foi este projeto que instalou o Ollama"; o teste
+    # fixava aquela redação inteira, então dizer o mesmo com menos palavras o
+    # quebrava. O que ele precisa garantir é a anterioridade, não as palavras.
     assert "já existia nesta máquina antes" in detail
+    assert "Ollama" in detail
 
 
 def test_ollama_question_credits_this_installer_when_nothing_was_there_before(tmp_path):

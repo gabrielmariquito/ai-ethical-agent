@@ -14,6 +14,10 @@ import pytest
 
 import uninstall
 
+# Estes testes dirigem `main()`, que chama `execute()` lá dentro -- não há por
+# onde injetar o hook da sondagem no call site. Ver o fixture no conftest.
+pytestmark = pytest.mark.usefixtures("sem_rede_de_verdade")
+
 PYPROJECT = '[project]\nname = "ai-ethical-agent"\nversion = "0.3.0"\n'
 
 

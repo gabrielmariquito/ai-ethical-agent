@@ -528,12 +528,15 @@ def ollama_manual_steps(
 def web_ui_running(
     port: int,
     timeout: float = 1.0,
-    urlopen: Callable[..., object] = urllib.request.urlopen,
+    # Ver a nota em `execute`: resolvido na chamada, não no import, senão o
+    # default não tem como ser substituído depois.
+    urlopen: Optional[Callable[..., object]] = None,
 ) -> bool:
     """Pergunta à API da própria interface, não a um socket: "algo escutando na
     8765" pode ser processo de terceiro, e mandar matá-lo é confiança que
     este desinstalador não tem.
     """
+    urlopen = urllib.request.urlopen if urlopen is None else urlopen
     url = f"http://127.0.0.1:{port}/api/choices"
     try:
         with urlopen(url, timeout=timeout) as resp:  # type: ignore[union-attr]
@@ -546,8 +549,9 @@ def detect_running(
     port: int,
     host: str = DEFAULT_OLLAMA_HOST,
     timeout: float = 1.0,
-    urlopen: Callable[..., object] = urllib.request.urlopen,
+    urlopen: Optional[Callable[..., object]] = None,
 ) -> RunningServices:
+    urlopen = urllib.request.urlopen if urlopen is None else urlopen
     return RunningServices(
         web_ui=web_ui_running(port, timeout=timeout, urlopen=urlopen),
         ollama=wait_for_server(host, timeout=0.0, poll=0.1, urlopen=urlopen),
@@ -758,7 +762,8 @@ def stop_web_ui(
     *,
     platform: Optional[str] = None,
     run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
-    urlopen: Callable[..., object] = urllib.request.urlopen,
+    # Ver a nota em `execute`: resolvido na chamada, não no import.
+    urlopen: Optional[Callable[..., object]] = None,
     settle: Callable[[float], None] = time.sleep,
 ) -> Optional[RemovalResult]:
     """Fecha a interface web para o .venv poder sair. `None` quando não havia
@@ -769,6 +774,7 @@ def stop_web_ui(
     nosso" é uma decisão de não agir, "tentei e não consegui" é uma ação que
     falhou. Quem lê precisa saber qual das duas aconteceu.
     """
+    urlopen = urllib.request.urlopen if urlopen is None else urlopen
     platform = platform if platform is not None else sys.platform
     target = f"interface web (http://127.0.0.1:{port})"
     if not web_ui_running(port, urlopen=urlopen):
@@ -864,12 +870,13 @@ def build_plan(
     port: int,
     which: Callable[[str], Optional[str]] = shutil.which,
     run: Callable[..., "subprocess.CompletedProcess"] = subprocess.run,
-    urlopen: Callable[..., object] = urllib.request.urlopen,
+    urlopen: Optional[Callable[..., object]] = None,
     platform: Optional[str] = None,
     probe: bool = True,
 ) -> UninstallPlan:
     """Everything the shells render. The single source of truth behind both
     the CLI's --dry-run and the GUI's summary page, so the two cannot drift."""
+    urlopen = urllib.request.urlopen if urlopen is None else urlopen
     platform = platform if platform is not None else sys.platform
     record = read_record(root)
     notes: List[str] = []
@@ -1017,9 +1024,9 @@ def build_plan(
         # arquivo que só tem OLLAMA_MODEL descreve outro arquivo, e a linha
         # existe justamente para quem não sabe o que tem dentro.
         detail = (
-            "Arquivo de configuração escrito pelo instalador: guarda as "
-            "escolhas da instalação -- qual modelo usar, como falar com o "
-            "Ollama -- para o projeto reencontrá-las a cada execução. "
+            "O .env é um arquivo de configuração escrito pelo instalador"
+            "que guarda as escolhas da instalação. Serve para que o "
+            "projeto reencontre-as a cada execução. "
             "Removê-lo não apaga nada além dessas escolhas; rodar o "
             "instalador de novo o recria."
         )
@@ -1139,9 +1146,7 @@ def _ollama_ownership_text(record: Optional[InstallRecord]) -> str:
         )
     if record.ollama_was_present_before:
         return (
-            "Não foi este projeto que instalou o Ollama: ele já existia nesta "
-            "máquina antes desta instalação, e quase certamente pertence a "
-            "outra coisa."
+            "O Ollama já existia nesta máquina antes desta instalação."
         )
     return (
         "Foi provavelmente este projeto que instalou o Ollama: não havia "
@@ -1371,11 +1376,19 @@ def execute(
     # A sondagem "a interface ainda responde?" precisa ser injetável como todo
     # o resto do módulo: sem isto, a parada da web só seria testável com um
     # servidor de verdade no ar.
-    urlopen: Callable[..., object] = urllib.request.urlopen,
+    #
+    # `None` em vez de `urllib.request.urlopen` direto no default, pelo mesmo
+    # motivo de `platform` logo acima: um default de função é resolvido no
+    # import, então quem substituísse `urllib.request.urlopen` depois disso não
+    # alcançaria este parâmetro. Não é preciosismo -- era o que fazia a suíte
+    # sondar a porta 8765 da máquina de quem a rodava, e o veredito mudava
+    # conforme a interface web estivesse aberta ou não naquele momento.
+    urlopen: Optional[Callable[..., object]] = None,
 ) -> List[RemovalResult]:
     """Roda o plano isolando cada item e nunca levanta; a ordem importa, e com
     `dry_run=True` nada é chamado — nem um hook de sistema de arquivos.
     """
+    urlopen = urllib.request.urlopen if urlopen is None else urlopen
     results: List[RemovalResult] = []
 
     def _wipe(cand: Candidate) -> None:

@@ -72,9 +72,9 @@ def welcome_text(root: Path) -> str:
     é, e quem baixou um ZIP não sabe que aquilo se chama repositório.
     """
     return (
-        "Este desinstalador desfaz a instalação, mas NÃO APAGA A PASTA DO "
-        "PROJETO. Os arquivos que você baixou -- código, políticas, "
-        "ontologias, dados de avaliação -- continuam onde estão.\n\n"
+        "Este desinstalador desfaz a instalação, mas não apaga a pasta "
+        "do projeto. Os arquivos baixados, incluindo código, políticas, "
+        "ontologias e dados de avaliação continuam onde estão.\n\n"
         "Para remover tudo do computador, apague esta pasta depois de "
         f"terminar aqui:\n{root}\n\n"
         "O ambiente virtual e os arquivos temporários de build saem "
@@ -159,13 +159,19 @@ class _AdviceCard(tk.Frame):
         column = tk.Frame(self)
         column.pack(side="left", fill="both", expand=True)
 
-        body = tk.Label(column, text=text, justify="left", fg=color, font=("Helvetica", 10))
+        # anchor="w" pela mesma razão do corpo da tela de boas-vindas: sem ele
+        # um aviso curto flutua no meio do cartão, e a barra colorida à
+        # esquerda fica apontando para um espaço vazio.
+        body = tk.Label(
+            column, text=text, justify="left", anchor="w", fg=color, font=("Helvetica", 10)
+        )
         body.pack(fill="x", anchor="w")
         _autowrap(body, page, padding=72)
 
         if note:
             hint = tk.Label(
-                column, text=note, justify="left", fg="#6b7280", font=("Helvetica", 9)
+                column, text=note, justify="left", anchor="w", fg="#6b7280",
+                font=("Helvetica", 9)
             )
             hint.pack(fill="x", anchor="w", pady=(4, 0))
             _autowrap(hint, page, padding=72)
@@ -296,18 +302,31 @@ class WelcomePage(_Page):
         self._analyzed = False
         self._queue: queue.Queue = queue.Queue()
 
+        # anchor="w" no widget, e não só no pack(): ver a nota longa no título
+        # do OptionsPage. Com fill="x" o label fica mais largo que o texto, e
+        # sem isto o Tk centra o bloco dentro dele -- justify="left" alinha as
+        # linhas ENTRE SI, não o bloco dentro do widget. O corpo escondia o
+        # defeito porque quebra em linhas quase tão largas quanto o wraplength;
+        # o status, com duas linhas curtas, aparecia deslocado uns 190px para a
+        # direita, fora da margem de todo o resto da tela.
         body = tk.Label(
-            self, text=welcome_text(app.project_root), justify="left", font=("Helvetica", 11)
+            self,
+            text=welcome_text(app.project_root),
+            justify="left",
+            anchor="w",
+            font=("Helvetica", 11),
         )
         body.pack(fill="x", padx=24, pady=(20, 8), anchor="w")
         _autowrap(body, self)
 
-        self.status = tk.Label(self, text="", justify="left", font=("Helvetica", 10))
+        self.status = tk.Label(
+            self, text="", justify="left", anchor="w", font=("Helvetica", 10)
+        )
         self.status.pack(fill="x", padx=24, pady=(4, 12), anchor="w")
         _autowrap(self.status, self)
 
         self.warning = tk.Label(
-            self, text="", justify="left", fg="#b91c1c", font=("Helvetica", 10)
+            self, text="", justify="left", anchor="w", fg="#b91c1c", font=("Helvetica", 10)
         )
         self.warning.pack(fill="x", padx=24, pady=(0, 6), anchor="w")
         _autowrap(self.warning, self)
@@ -316,7 +335,7 @@ class WelcomePage(_Page):
         # interpretador se beneficia de ver qual é, e quem não lê não precisa
         # passar por ele para chegar na instrução do que fazer.
         self.detail = tk.Label(
-            self, text="", justify="left", fg="#6b7280", font=("Helvetica", 9)
+            self, text="", justify="left", anchor="w", fg="#6b7280", font=("Helvetica", 9)
         )
         self.detail.pack(fill="x", padx=24, pady=(0, 12), anchor="w")
         _autowrap(self.detail, self)
@@ -502,7 +521,7 @@ class OptionsPage(_Page):
 
 
 class SummaryPage(_Page):
-    subtitle = "Resumo (simulação)"
+    subtitle = "Resumo"
     next_label = "Remover"
 
     def __init__(self, parent: tk.Frame, app: UninstallApp) -> None:
@@ -528,7 +547,7 @@ class SummaryPage(_Page):
         if plan is None:
             return "Nada analisado."
         choices = self.app.choices()
-        lines = ["SERÁ REMOVIDO SEM PERGUNTAR"]
+        lines = ["O QUE SERÁ REMOVIDO"]
         for cand in plan.mandatory:
             lines.append(f"  {cand.label:<34} {format_size(cand.size_bytes):>12}")
         # O mesmo cálculo da tela de boas-vindas, e com o mesmo rótulo de
@@ -589,7 +608,11 @@ class ProgressPage(_Page):
         self.progress.pack(fill="x", padx=24, pady=(20, 8))
         self.log = tk.Text(self, height=16, font=_mono_font(), state="disabled")
         self.log.pack(fill="both", expand=True, padx=24, pady=8)
-        self.status_label = tk.Label(self, justify="left")
+        # anchor="w" pelo mesmo motivo da tela de boas-vindas, e aqui o texto é
+        # sempre curto ("7 item(ns) removido(s).") -- ou seja, sem isto ele
+        # aparece centralizado em toda desinstalação, e não só num caso de
+        # borda, desalinhado da barra e do log logo acima.
+        self.status_label = tk.Label(self, justify="left", anchor="w")
         self.status_label.pack(fill="x", padx=24, pady=(0, 12), anchor="w")
         _autowrap(self.status_label, self)
 
