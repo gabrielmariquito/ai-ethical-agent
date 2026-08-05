@@ -19,9 +19,12 @@ GUI_SOURCE = (REPO / "uninstall_gui.py").read_text(encoding="utf-8")
 LIB_SOURCE = (REPO / "ethical_agent" / "uninstall.py").read_text(encoding="utf-8")
 
 
-def _optional_keys_build_plan_can_emit() -> set[str]:
-    """As chaves que `build_plan` emite, lidas do próprio fonte e não de uma
-    execução, que só veria o subconjunto que esta máquina tem.
+def _keys_appended_to(list_name: str) -> set[str]:
+    """As chaves que `build_plan` põe em `mandatory` ou em `optional`, lidas do
+    próprio fonte e não de uma execução, que só veria o subconjunto que esta
+    máquina tem. Pela lista de destino e não pela posição no arquivo: um
+    `mandatory.append` pode morar em qualquer ponto da função, e classificar
+    por posição já deixou passar um item obrigatório escrito lá embaixo.
     """
     tree = ast.parse(LIB_SOURCE)
     build_plan = next(
@@ -34,12 +37,27 @@ def _optional_keys_build_plan_can_emit() -> set[str]:
         if not isinstance(node, ast.Call):
             continue
         func = node.func
-        if not (isinstance(func, ast.Name) and func.id == "Candidate"):
+        if not (
+            isinstance(func, ast.Attribute)
+            and func.attr == "append"
+            and isinstance(func.value, ast.Name)
+            and func.value.id == list_name
+        ):
             continue
-        for kw in node.keywords:
-            if kw.arg == "key" and isinstance(kw.value, ast.Constant):
-                keys.add(kw.value.value)
-    assert keys, "nenhum Candidate(key=...) encontrado -- build_plan mudou de forma?"
+        for arg in node.args:
+            if not (isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name)):
+                continue
+            if arg.func.id != "Candidate":
+                continue
+            for kw in arg.keywords:
+                if kw.arg == "key" and isinstance(kw.value, ast.Constant):
+                    keys.add(kw.value.value)
+    return keys
+
+
+def _optional_keys_build_plan_can_emit() -> set[str]:
+    keys = _keys_appended_to("optional")
+    assert keys, "nenhum optional.append(Candidate(key=...)) -- build_plan mudou de forma?"
     return keys
 
 
@@ -54,15 +72,9 @@ def _mandatory_keys() -> set[str]:
     """Removed without asking, so they are deliberately absent from the
     screen's dict. Read from the source the same way, so this stays honest if
     something moves between mandatory and optional."""
-    tree = ast.parse(LIB_SOURCE)
-    build_plan = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == "build_plan"
-    )
-    src = ast.get_source_segment(LIB_SOURCE, build_plan) or ""
-    mandatory_block = src[: src.index("optional: List[Candidate] = []")]
-    return set(re.findall(r'key="(\w+)"', mandatory_block))
+    keys = _keys_appended_to("mandatory")
+    assert keys, "nenhum mandatory.append(Candidate(key=...)) -- build_plan mudou de forma?"
+    return keys
 
 
 def test_every_optional_candidate_has_a_checkbox():
@@ -106,15 +118,13 @@ def test_every_choices_flag_is_filled_from_a_variable(field):
 
 
 def test_the_option_set_is_what_the_screen_and_the_plan_agree_on():
-    # Stated as one sentence for whoever reads the failure: the five
-    # removals the uninstaller offers today. `audit_password` entrou na leva do
-    # hash, quando a senha saiu do `.env` -- os dois passaram a ter ciclos de
-    # vida diferentes, e apagar a chave da Ollama deixou de significar desligar
-    # a tela de auditoria.
+    # Stated as one sentence for whoever reads the failure: the four removals
+    # the uninstaller offers today. `audit_password` saiu desta lista quando o
+    # `.audit-password` virou remoção obrigatória -- ver
+    # test_a_senha_da_auditoria_sai_sem_perguntar_e_sem_flag.
     assert set(_gui_variables_map()) == {
         "logs",
         "ollama",
         "model",
         "env",
-        "audit_password",
     }

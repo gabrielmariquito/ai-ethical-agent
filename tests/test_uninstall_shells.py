@@ -622,7 +622,7 @@ def test_without_a_system_python_it_falls_back_to_todays_refusal(tmp_path, monke
         ["--dry-run"],
         ["--dry-run", "--no-probe"],
         ["--move-logs-to", "backup dir", "--port", "9000"],
-        ["--cli", "--remove-audit-password", "--yes"],
+        ["--cli", "--remove-env", "--yes"],
     ],
 )
 def test_every_argument_survives_the_relaunch(tmp_path, monkeypatch, argv):
@@ -927,14 +927,16 @@ def test_gui_has_a_summary_page_that_is_the_simulation():
     assert "build_plan" in GUI_SOURCE
 
 
-def test_gui_requires_a_separate_confirmation_before_deleting_the_audit_trail():
-    # Um checkbox aqui, uma segunda pergunta na CLI: os mesmos dois passos dos
-    # dois lados, porque mover a trilha é a resposta não-destrutiva.
-    assert "logs_confirm" in GUI_SOURCE
+def test_gui_offers_moving_the_trail_before_it_offers_deleting_it():
+    # A segunda caixa ("Deseja deletar todos os arquivos?") saiu da tela: ela
+    # repetia a decisão que a caixa de cima já tomou. O que não pode sair é a
+    # saída não-destrutiva -- apagar só é uma escolha de verdade se mover
+    # estiver ali ao lado --, e o atrito continua na tela de resumo, que lista
+    # o que será apagado antes do botão Remover.
+    assert "logs_confirm" not in GUI_SOURCE
     body = GUI_SOURCE[GUI_SOURCE.index("class OptionsPage") : GUI_SOURCE.index("class SummaryPage")]
-    assert "def can_advance" in body
-    assert "logs_confirm" in body
-    assert "move_logs_to" in body, "apagar só pode ter atrito extra se mover for a saída"
+    assert "move_logs_to" in body
+    assert "Mover para..." in body
 
 
 def test_gui_offers_moving_the_trail_instead_of_deleting_it():

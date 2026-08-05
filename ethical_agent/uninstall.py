@@ -91,10 +91,8 @@ class Choices:
     remove_model: bool = False
     remove_env: bool = False
     remove_ollama: bool = False
-    # Separada de `remove_env` desde que a senha saiu do `.env` e virou hash em
-    # arquivo próprio: os dois têm ciclos de vida diferentes, e quem quer apagar
-    # a chave da Ollama não necessariamente quer desligar a tela de auditoria.
-    remove_audit_password: bool = False
+    # Não há `remove_audit_password`: o `.audit-password` é artefato do
+    # instalador, como o `.venv`, e sai sempre. Ver a nota em build_plan.
 
 
 @dataclass(frozen=True)
@@ -648,6 +646,32 @@ def build_plan(
             )
         )
 
+    # Obrigatório, e não uma caixa a mais: o `.audit-password` é artefato do
+    # instalador, como o `.venv` -- ele o cria, e sem o resto da instalação o
+    # arquivo não protege tela nenhuma. O que se perde é recuperável sem sair
+    # da máquina (rodar o instalador de novo define outra senha), e o que está
+    # dentro é hash, não a senha: manter o arquivo não guardaria um segredo,
+    # guardaria um resto.
+    from . import senha_auditoria
+
+    senha_path = senha_auditoria.caminho_do_registro(root)
+    if senha_path.exists():
+        mandatory.append(
+            Candidate(
+                key="audit_password",
+                path=senha_path,
+                kind="file",
+                size_bytes=dir_size(senha_path),
+                label=senha_auditoria.NOME_ARQUIVO,
+                # Uma linha só: os obrigatórios são impressos em tabela, e o
+                # detalhe entra na mesma linha do rótulo.
+                detail=(
+                    "Hash da senha da tela de auditoria (/audit) -- desativa a "
+                    "tela; o instalador define outra"
+                ),
+            )
+        )
+
     running = (
         detect_running(port, urlopen=urlopen)
         if probe
@@ -721,9 +745,15 @@ def build_plan(
         # O que o arquivo É, e não mais a lista de chaves: "contém:
         # OLLAMA_MODEL" só significa alguma coisa para quem já sabe o que é
         # um .env, que é justamente quem não precisa da linha.
+        # E o que ele é para ESTE .env: prometer "a chave da Ollama Cloud" num
+        # arquivo que só tem OLLAMA_MODEL descreve outro arquivo, e a linha
+        # existe justamente para quem não sabe o que tem dentro.
         detail = (
-            "Guarda o que o instalador configurou: o modelo escolhido e a "
-            "chave da Ollama Cloud."
+            "Arquivo de configuração escrito pelo instalador: guarda as "
+            "escolhas da instalação -- qual modelo usar, como falar com o "
+            "Ollama -- para o projeto reencontrá-las a cada execução. "
+            "Removê-lo não apaga nada além dessas escolhas; rodar o "
+            "instalador de novo o recria."
         )
         if "OLLAMA_API_KEY" in keys:
             detail += (
@@ -748,39 +778,9 @@ def build_plan(
                 path=env_path,
                 kind="file",
                 size_bytes=dir_size(env_path),
-                label=".env",
+                label="Arquivo .env",
                 detail=detail,
                 optin_flag="--remove-env",
-            )
-        )
-
-    # A senha da auditoria, desde a leva do hash, mora em arquivo próprio. Item
-    # próprio também: ela e as chaves da Ollama passaram a ter ciclos de vida
-    # diferentes, e quem quer apagar uma não necessariamente quer apagar a
-    # outra. Continua opcional e desmarcada por padrão, pelo mesmo princípio de
-    # sempre -- o desinstalador não pode ser mais confiante do que o instalador.
-    from . import senha_auditoria
-
-    senha_path = senha_auditoria.caminho_do_registro(root)
-    if senha_path.exists():
-        optional.append(
-            Candidate(
-                key="audit_password",
-                path=senha_path,
-                kind="file",
-                size_bytes=dir_size(senha_path),
-                label=senha_auditoria.NOME_ARQUIVO,
-                # A consequência antes do detalhe: some a TELA, não só um
-                # arquivo. E o que está aqui é hash, não a senha -- quem remover
-                # não está "vazando" nada, está desligando a auditoria.
-                detail=(
-                    "A senha da tela de auditoria, guardada como hash "
-                    f"({senha_auditoria.RECEITA_SENHA}) -- a senha em si não "
-                    "está aqui e não é recuperável deste arquivo.\n"
-                    "Remover desativa a tela de auditoria (/audit). É "
-                    "recuperável: rode o instalador de novo e defina uma senha."
-                ),
-                optin_flag="--remove-audit-password",
             )
         )
 
@@ -814,17 +814,27 @@ def build_plan(
 def _ollama_ownership_text(record: Optional[InstallRecord]) -> str:
     """Who put Ollama there. The record can only make this more cautious or
     better informed -- in every branch the answer still defaults to "keep"."""
+    # A frase começa pela resposta -- "foi este projeto" / "não foi" --, porque
+    # é essa a única coisa que decide a caixa. O caso sem registro existe (o
+    # arquivo é removível, e uma remoção anterior pode tê-lo levado), e aí a
+    # resposta honesta é que não dá para saber: inventar um "não foi" seria
+    # mandar a pessoa desinstalar o Ollama de outro projeto.
     if record is None or record.ollama_was_present_before is None:
         return (
-            "Não há registro de quem instalou o Ollama. Pode estar em uso por "
+            "Não dá para dizer se foi este projeto que instalou o Ollama: o "
+            "registro da instalação não está mais aqui. Pode estar em uso por "
             "outro projeto."
         )
     if record.ollama_was_present_before:
-        return "O Ollama já existia nesta máquina antes desta instalação."
+        return (
+            "Não foi este projeto que instalou o Ollama: ele já existia nesta "
+            "máquina antes desta instalação, e quase certamente pertence a "
+            "outra coisa."
+        )
     return (
-        "Não havia Ollama localizável antes desta instalação, então "
-        "provavelmente foi ela que o instalou. Ainda assim, outro projeto pode "
-        "ter passado a usá-lo desde então."
+        "Foi provavelmente este projeto que instalou o Ollama: não havia "
+        "nenhum localizável antes desta instalação. Ainda assim, outro projeto "
+        "pode ter passado a usá-lo desde então."
     )
 
 
@@ -1112,8 +1122,6 @@ def execute(
             if cand.key != key:
                 continue
             if key == "env" and not choices.remove_env:
-                continue
-            if key == "audit_password" and not choices.remove_audit_password:
                 continue
             _wipe(cand)
 

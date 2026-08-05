@@ -33,7 +33,7 @@ except ImportError as _exc:  # pragma: no cover, exercitado fora do repo
     print(
         f"error: não encontrei o pacote ethical_agent ao lado de {__file__} "
         f"({_exc}).\nEste desinstalador precisa rodar de dentro do "
-        "repositório ai-ethical-agent. Nada foi tocado.",
+        "repositório ai-ethical-agent. Nenhuma alteração foi feita.",
         file=sys.stderr,
     )
     raise SystemExit(3)
@@ -71,10 +71,10 @@ WELCOME_TEXT = (
     "será apagado."
 )
 
-# A recusa vale nos dois sistemas, ver running_inside_venv,, mas o
-# comando e o nome do terminal não, e mandar rodar `py -3` no macOS não
-# conserta nada. No Windows é o travamento do
-# executável em uso; fora dele, o venv apagando a si mesmo.
+# A recusa vale nos dois sistemas, ver running_inside_venv, mas o comando e o
+# nome do terminal não, e mandar rodar `py -3` no macOS não conserta nada. No
+# Windows é o travamento do executável em uso; fora dele, o venv apagando a si
+# mesmo.
 #
 # Desde que `uninstall.py` troca de interpretador sozinho (ver
 # _maybe_relaunch_outside_venv), estas telas deixaram de ser o caminho comum e
@@ -85,7 +85,7 @@ WELCOME_TEXT = (
 # programa nunca tentou.
 _RELAUNCH_FAILED = (
     "Ele tenta trocar sozinho para o Python do sistema quando encontra um; "
-    "desta vez não deu.\n\n"
+    "isso não funcionou desta vez.\n\n"
 )
 
 VENV_REFUSAL_WINDOWS = (
@@ -204,7 +204,7 @@ class _AdviceCard(tk.Frame):
 class UninstallApp(tk.Tk):
     def __init__(self, project_root: Path, port: int = DEFAULT_WEB_PORT) -> None:
         super().__init__()
-        self.title("ai-ethical-agent -- desinstalador")
+        self.title("ai-ethical-agent - Desinstalador")
         self.geometry("660x580")
         self.minsize(580, 500)
 
@@ -223,13 +223,9 @@ class UninstallApp(tk.Tk):
         # Todas desmarcadas. Este é o requisito central da tela de Opções.
         self.remove_logs = tk.BooleanVar(value=False)
         self.move_logs_to = tk.StringVar(value="")
-        # A confirmação de apagar a trilha: uma caixa à parte de marcar o item,
-        # porque escolher não é confirmar. Como as outras, começa desmarcada.
-        self.logs_confirm = tk.BooleanVar(value=False)
         self.remove_ollama = tk.BooleanVar(value=False)
         self.remove_model = tk.BooleanVar(value=False)
         self.remove_env = tk.BooleanVar(value=False)
-        self.remove_audit_password = tk.BooleanVar(value=False)
 
         header = tk.Frame(self, bg="#1f2937", height=56)
         header.pack(fill="x")
@@ -277,7 +273,6 @@ class UninstallApp(tk.Tk):
             move_logs_to=Path(dest) if (dest and self.remove_logs.get()) else None,
             remove_model=self.remove_model.get(),
             remove_env=self.remove_env.get(),
-            remove_audit_password=self.remove_audit_password.get(),
             remove_ollama=self.remove_ollama.get(),
         )
 
@@ -369,7 +364,7 @@ class WelcomePage(_Page):
         if not looks_like_project_root(self.app.project_root):
             self.warning.config(
                 text=f"{self.app.project_root} não parece ser o repositório "
-                "ai-ethical-agent. Nada será tocado."
+                "ai-ethical-agent. Nada será feito."
             )
             self.app.set_next_enabled(False)
             return
@@ -413,7 +408,7 @@ class WelcomePage(_Page):
 
         total = sum(c.size_bytes or 0 for c in item.mandatory)
         self.status.config(
-            text=f"{len(item.mandatory)} item(ns) serão removidos sem perguntar "
+            text=f"{len(item.mandatory)} item(ns) serão removidos "
             f"({format_size(total)}); {len(item.optional)} exigem confirmação.",
             fg="#374151",
         )
@@ -430,9 +425,8 @@ class WelcomePage(_Page):
                 # O único dos três que faz a remoção falhar de verdade.
                 severity=BLOCK,
                 text="A interface web está respondendo em "
-                f"http://127.0.0.1:{item.running.web_port}. Ela roda com o "
-                "Python do .venv e segura esse executável, então a remoção do "
-                ".venv vai falhar parcialmente enquanto ela estiver no ar. "
+                f"http://127.0.0.1:{item.running.web_port}. Enquanto ela "
+                "estiver no ar, a remoção do ambiente virtual falha. "
                 "Para parar:",
                 note=stop_note("web_ui"),
                 commands=stop_hint("web_ui", port=item.running.web_port),
@@ -477,27 +471,27 @@ class OptionsPage(_Page):
         self._built = False
         self.body = tk.Frame(self)
         self.body.pack(fill="both", expand=True, padx=24, pady=(16, 4))
-        self.error = tk.Label(self, text="", fg="#b91c1c", justify="left", font=("Helvetica", 10))
-        self.error.pack(fill="x", padx=24, pady=(0, 10), anchor="w")
-        _autowrap(self.error, self)
 
     def on_show(self) -> None:
         if self._built or self.app.plan is None:
             return
         self._built = True
 
+        # Título da tela, e não uma linha de ajuda acima da lista: é a única
+        # instrução que a pessoa precisa ler aqui, e no corpo de texto que
+        # havia antes ela competia em peso com os rótulos das opções.
         title = tk.Label(
             self.body,
-            text="Marque os arquivos que deseja deletar ou desinstalar",
+            text="Marque o que você tem certeza que quer deletar",
             justify="left",
             # anchor="w" no widget, não só no pack(): com fill="x" o rótulo
             # fica mais largo que o texto, e o texto se centraliza dentro dele,
-            #o pack só posiciona a caixa, não o que está escrito nela.
+            # o pack só posiciona a caixa, não o que está escrito nela.
             anchor="w",
             fg="#111827",
-            font=("Helvetica", 13, "bold"),
+            font=("Helvetica", 15, "bold"),
         )
-        title.pack(fill="x", anchor="w", pady=(0, 12))
+        title.pack(fill="x", anchor="w", pady=(0, 18))
         _autowrap(title, self, padding=72)
 
         variables = {
@@ -505,7 +499,6 @@ class OptionsPage(_Page):
             "ollama": self.app.remove_ollama,
             "model": self.app.remove_model,
             "env": self.app.remove_env,
-            "audit_password": self.app.remove_audit_password,
         }
         for cand in self.app.plan.optional:
             var = variables.get(cand.key)
@@ -538,50 +531,22 @@ class OptionsPage(_Page):
                 self._build_logs_extras(frame)
 
     def _build_logs_extras(self, parent: tk.Frame) -> None:
+        # Só a saída não-destrutiva. A segunda caixa de confirmação saiu daqui:
+        # ela repetia, em outras palavras, a decisão que a caixa de cima já
+        # tomou, e o atrito de verdade continua depois -- a tela de resumo
+        # lista exatamente o que será apagado antes do botão Remover.
         row = tk.Frame(parent)
         row.pack(fill="x", anchor="w", padx=(24, 0), pady=(6, 0))
         ttk.Button(row, text="Mover para...", command=self._pick_destination).pack(side="left")
         tk.Entry(row, textvariable=self.app.move_logs_to, width=42).pack(
             side="left", padx=8, fill="x", expand=True
         )
-        confirm = ttk.Checkbutton(
-            parent,
-            text="Deseja deletar todos os arquivos?",
-            variable=self.app.logs_confirm,
-        )
-        confirm.pack(anchor="w", padx=(24, 0), pady=(8, 0))
-        # Ver a mesma nota em wizard_gui.py: um ttk.Checkbutton nasce no
-        # terceiro estado até alguém dizer o contrário.
-        confirm.state(["!alternate"])
-
-        irreversible = tk.Label(
-            parent,
-            text="Apagar é irreversível.",
-            justify="left",
-            anchor="w",
-            fg="#6b7280",
-            font=("Helvetica", 9),
-        )
-        irreversible.pack(fill="x", anchor="w", padx=(42, 0))
 
     def _pick_destination(self) -> None:
         chosen = filedialog.askdirectory(title="Mover a trilha de auditoria para...")
         if chosen:
             self.app.move_logs_to.set(chosen)
             self.app.remove_logs.set(True)
-
-    def can_advance(self) -> bool:
-        # Mover não é destrutivo, então não pede confirmação; apagar pede.
-        if self.app.remove_logs.get() and not self.app.move_logs_to.get().strip():
-            if not self.app.logs_confirm.get():
-                self.error.config(
-                    text="Para APAGAR a trilha de auditoria, marque "
-                    "\"Deseja deletar todos os arquivos?\", ou escolha um "
-                    "diretório de destino para movê-la, ou desmarque a opção."
-                )
-                return False
-        self.error.config(text="")
-        return True
 
 
 class SummaryPage(_Page):
@@ -619,7 +584,6 @@ class SummaryPage(_Page):
             "ollama": choices.remove_ollama,
             "model": choices.remove_model,
             "env": choices.remove_env,
-            "audit_password": choices.remove_audit_password,
         }
         picked = [c for c in plan.optional if chosen.get(c.key)]
         kept = [c for c in plan.optional if not chosen.get(c.key)]

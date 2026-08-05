@@ -387,30 +387,47 @@ def test_env_question_says_which_keys_without_printing_the_value(tmp_path):
     assert "super-secret" not in env_cand.detail
 
 
-def test_a_senha_e_item_proprio_e_avisa_que_remove_la_desliga_a_tela(tmp_path):
-    # A senha saiu do `.env` na leva do hash, então saiu da pergunta do `.env`
-    # também: pergunta própria, porque quem quer apagar a chave da Ollama não
-    # necessariamente quer desligar a auditoria.
+def test_a_senha_da_auditoria_sai_sem_perguntar_e_sem_flag(tmp_path):
+    # O `.audit-password` é artefato do instalador, como o `.venv`: sai junto,
+    # sem caixa e sem flag. Mantê-lo exigiria uma opção de "não remover", que
+    # só serviria para deixar um hash órfão de uma instalação que já não
+    # existe -- e a perda se desfaz rodando o instalador de novo.
     from ethical_agent import senha_auditoria
 
     root = _make_root(tmp_path, env="OLLAMA_MODEL=llama3.2:3b\n")
     senha_auditoria.gravar(root, senha_auditoria.registrar_senha("senha-secreta"))
 
     plan = build_plan(root, port=8765, probe=False)
-    cand = [c for c in plan.optional if c.key == "audit_password"][0]
+    assert not [c for c in plan.optional if c.key == "audit_password"], (
+        "a senha da auditoria não é mais uma escolha"
+    )
+    cand = [c for c in plan.mandatory if c.key == "audit_password"][0]
 
     assert cand.label == senha_auditoria.NOME_ARQUIVO
-    assert cand.optin_flag == "--remove-audit-password"
-    # A consequência antes do detalhe: some a TELA, não só um arquivo.
-    assert "desativa a tela de auditoria" in cand.detail
+    assert cand.optin_flag is None
+    # A consequência ainda tem de estar escrita: some a TELA, não só um arquivo.
+    assert "desativa a tela" in cand.detail
     assert "/audit" in cand.detail
-    # Mais branda que o aviso do OLLAMA_API_KEY de propósito: esta perda se
-    # recupera sem sair da máquina.
-    assert "recuperável" in cand.detail
-    # E o que está no arquivo é hash: quem remove não está perdendo um segredo
-    # legível, e a mensagem não pode sugerir que está.
-    assert senha_auditoria.RECEITA_SENHA in cand.detail
+    # Uma linha só: os obrigatórios são impressos em tabela.
+    assert "\n" not in cand.detail
+    # E a senha em si nunca aparece na tela -- o que está no arquivo é hash.
     assert "senha-secreta" not in cand.detail
+
+
+def test_a_senha_da_auditoria_e_removida_mesmo_sem_nenhuma_escolha(tmp_path):
+    from ethical_agent import senha_auditoria
+
+    root = _make_root(tmp_path, env="OLLAMA_MODEL=llama3.2:3b\n")
+    senha_auditoria.gravar(root, senha_auditoria.registrar_senha("senha-secreta"))
+    senha_path = senha_auditoria.caminho_do_registro(root)
+    assert senha_path.exists()
+
+    plan = build_plan(root, port=8765, probe=False)
+    execute(plan, Choices())
+
+    assert not senha_path.exists()
+    # E o `.env`, que continua opcional, fica onde estava.
+    assert (root / ".env").exists()
 
 
 def test_a_pergunta_do_env_nao_fala_mais_de_senha_a_nao_ser_para_dizer_que_ela_migra(
@@ -815,7 +832,10 @@ def test_ollama_question_warns_it_may_belong_to_something_else_without_a_record(
         run=_fake_run(), urlopen=_urlopen_answering(),
     )
     detail = [c for c in plan.optional if c.key == "ollama"][0].detail
-    assert "Não há registro" in detail
+    # Sem registro a resposta honesta é "não dá para saber", e ela tem de ser
+    # dita como resposta à pergunta que a caixa faz -- foi este projeto que
+    # instalou o Ollama? --, não como um fato sobre um arquivo ausente.
+    assert "Não dá para dizer se foi este projeto" in detail
     assert "outro projeto" in detail
 
 
@@ -828,6 +848,8 @@ def test_ollama_question_says_it_was_already_installed_when_the_record_says_so(t
         run=_fake_run(), urlopen=_urlopen_answering(),
     )
     detail = [c for c in plan.optional if c.key == "ollama"][0].detail
+    # A resposta primeiro, o motivo depois: é o "não foi" que decide a caixa.
+    assert "Não foi este projeto que instalou o Ollama" in detail
     assert "já existia nesta máquina antes" in detail
 
 
@@ -840,7 +862,7 @@ def test_ollama_question_credits_this_installer_when_nothing_was_there_before(tm
         run=_fake_run(), urlopen=_urlopen_answering(),
     )
     ollama = [c for c in plan.optional if c.key == "ollama"][0]
-    assert "provavelmente foi ela que o instalou" in ollama.detail
+    assert "Foi provavelmente este projeto que instalou o Ollama" in ollama.detail
     # Even then it stays opt-in: something else may have started using it.
     assert ollama.optin_flag == "--remove-ollama"
     assert "outro projeto pode ter passado a usá-lo" in ollama.detail
