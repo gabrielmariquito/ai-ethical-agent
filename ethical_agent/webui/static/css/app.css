@@ -4,15 +4,38 @@
   --ea-fg: #1a1d21;
   --ea-fg-muted: #5b6270;
   --ea-border: #dfe2e7;
-  /* Era #2f6feb. Medido em WCAG 2.1, aquele azul reprovava AA em dois lugares
-     reais do app -- 4.23 sobre `--ea-bg-alt` (o "limpar" da barra de filtros
-     da auditoria, o hover da lista lateral) e 4.14 sobre `--ea-info-bg` (o
-     `.ea-info-banner` inteiro, e o sumario da tira de sessao). #2a66de e o
-     menor escurecimento que passa nos dois (4.79 e 4.69) e sobe de quebra o
-     branco-sobre-acento de 4.57 para 5.18, que estava no fio.
-     Mesma matiz, so mais escura: nao e cor nova, e o mesmo azul legivel.
-     O tema escuro passava folgado e nao foi tocado. */
-  --ea-accent: #2a66de;
+  /* Este azul escureceu DUAS vezes, por motivos diferentes. A segunda continua
+     a primeira -- nao a substitui -- e as duas ficam registradas para que nao
+     se desfaca nenhuma achando que foi arbitraria.
+
+     1. #2f6feb -> #2a66de: corrigir AA. Medido em WCAG 2.1, #2f6feb reprovava
+        em dois lugares reais do app -- 4.23 sobre `--ea-bg-alt` (o "limpar" da
+        barra de filtros da auditoria, o hover da lista lateral) e 4.14 sobre
+        `--ea-info-bg` (o `.ea-info-banner` inteiro, e o sumario da tira de
+        sessao). #2a66de foi o menor escurecimento que passa nos dois (4.79 e
+        4.69). O branco-sobre-acento subiu de quebra, 4.57 -> 5.18, mas nao era
+        o alvo e ficou no fio.
+
+     2. #2a66de -> #1d51b9: a legibilidade daquele branco-sobre-acento, que a
+        primeira nao mirava. 5.18 passa AA e cansa num botao pequeno -- o
+        `.ea-nav__link--active` da topbar, que e como o usuario reportou.
+        #1d51b9 leva o par a 7.17, AAA para texto normal.
+
+     Como `--ea-bg` e `--ea-surface` sao os dois #ffffff, "branco sobre acento"
+     e "acento sobre fundo" sao o MESMO numero: escurecer melhora botao e link
+     juntos, e nao ha meio-termo a escolher entre os dois. Os demais pares
+     sobem junto -- `--ea-bg-alt` 4.79 -> 6.63, `--ea-info-bg` 4.69 -> 6.49.
+     Nenhum par cai.
+
+     Mesma matiz literal nas duas vezes: #2a66de e #1d51b9 sao ambos
+     H=220.0 S=73.2%, so o L baixa de 51.8% para 42.0%. Nao e cor nova, e o
+     mesmo azul legivel. (#1d4ed8 foi considerado e medido: da 6.70, nao
+     alcanca o AAA que o justificava, e desloca a matiz em +4,3 graus.)
+
+     O tema escuro NAO foi tocado em nenhuma das duas. La o acento aparece como
+     TEXTO -- links, `summary`, chips ativos -- e escurece-lo o faria sumir
+     sobre fundo escuro. */
+  --ea-accent: #1d51b9;
   --ea-accent-fg: #ffffff;
   --ea-user-bubble: #eef2ff;
   --ea-assistant-bubble: #f5f6f8;
@@ -22,10 +45,10 @@
   --ea-warning-bg: #fff6e8;
   --ea-rewrite: #92660a;
   --ea-rewrite-bg: #fff8e6;
-  /* Acompanha `--ea-accent` pelo mesmo motivo e pela mesma medida: os dois
-     sempre foram o mesmo azul, e deixa-los divergir agora criaria dois azuis
-     quase iguais, que e pior que um azul so. */
-  --ea-info: #2a66de;
+  /* Acompanha `--ea-accent` nas duas vezes, pelo mesmo motivo e pela mesma
+     medida: os dois sempre foram o mesmo azul, e deixa-los divergir criaria
+     dois azuis quase iguais, que e pior que um azul so. */
+  --ea-info: #1d51b9;
   --ea-info-bg: #eef4ff;
   --ea-radius: 10px;
   --ea-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
