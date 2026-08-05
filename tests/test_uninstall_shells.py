@@ -107,6 +107,21 @@ def test_dry_run_is_allowed_from_the_venv_because_it_touches_nothing(tmp_path, c
     assert (root / ".venv").exists()
 
 
+def test_the_technical_venv_sentence_reaches_the_terminal(tmp_path, capsys, monkeypatch):
+    # A frase do venv apenas ativado tem uma irmã na janela, escrita para quem
+    # não abre terminal (uninstall_gui.VENV_ACTIVATED_NOTE). Aqui é o outro
+    # público: a explicação inteira e `deactivate`, que é a ação certa para
+    # quem já está num terminal. Nada provava que ela chega ao stderr.
+    root = _make_root(tmp_path)
+    monkeypatch.setenv("VIRTUAL_ENV", str(root / ".venv"))
+
+    code = uninstall.main(["--dry-run"], root=root, ask=_answers(), isatty=_no_tty)
+    assert code == uninstall.EXIT_OK
+    err = capsys.readouterr().err
+    assert "deactivate" in err
+    assert "PATH" in err
+
+
 # -- dry run ---------------------------------------------------------------
 
 

@@ -182,19 +182,40 @@ def running_inside_venv(
     return None
 
 
+def venv_is_activated(root: Path, env: Optional[Mapping[str, str]] = None) -> bool:
+    """A condição do aviso brando: ativado no ambiente, mas não em execução.
+
+    Separada da frase porque as duas interfaces avisam com palavras
+    diferentes e precisam avisar nas mesmas horas. Copiar a condição em cada
+    uma deixaria "não aparece na janela" e "não aparece no terminal" livres
+    para divergir em silêncio.
+    """
+    env = os.environ if env is None else env
+    virtual_env = env.get("VIRTUAL_ENV")
+    return bool(virtual_env and _is_inside(virtual_env, root / VENV_DIRNAME))
+
+
 def venv_activated_warning(
     root: Path, env: Optional[Mapping[str, str]] = None
 ) -> Optional[str]:
-    """The softer sibling of running_inside_venv: activated but not running."""
-    env = os.environ if env is None else env
-    virtual_env = env.get("VIRTUAL_ENV")
-    if virtual_env and _is_inside(virtual_env, root / VENV_DIRNAME):
-        return (
-            "o venv do projeto está ativado nesta sessão -- nada fica travado "
-            "por isso, mas rode `deactivate` depois, ou o PATH continuará "
-            "apontando para um diretório que deixou de existir."
-        )
-    return None
+    """The softer sibling of running_inside_venv: activated but not running.
+
+    Esta é a frase do modo texto, e tem uma irmã: `VENV_ACTIVATED_NOTE`, em
+    `uninstall_gui.py`, diz o MESMO fato à janela -- que nada trava, e o que
+    fazer depois. As duas nascem de `venv_is_activated` e têm de continuar
+    dizendo esse mesmo fato: mudou o fato aqui, mude lá.
+
+    Diferentes de propósito, e não por descuido: `deactivate` é a resposta
+    certa para quem já está num terminal, e é ação que a janela não tem como
+    oferecer a quem nunca abriu um.
+    """
+    if not venv_is_activated(root, env):
+        return None
+    return (
+        "o venv do projeto está ativado nesta sessão -- nada fica travado "
+        "por isso, mas rode `deactivate` depois, ou o PATH continuará "
+        "apontando para um diretório que deixou de existir."
+    )
 
 
 # -- sizes -----------------------------------------------------------------

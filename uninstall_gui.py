@@ -48,7 +48,7 @@ from ethical_agent.uninstall import (  # noqa: E402
     ollama_manual_steps,
     running_inside_venv,
     summarize_results,
-    venv_activated_warning,
+    venv_is_activated,
 )
 
 # Reaproveitados do instalador em vez de reescritos: são a mesma coisa, e
@@ -123,6 +123,26 @@ VENV_REFUSAL_POSIX = (
     "O python3 usa o Python do sistema, e não o do ambiente virtual."
 )
 
+# A irmã técnica é `venv_activated_warning`, em ethical_agent/uninstall.py:
+# ela diz este mesmo fato ao modo texto, e lá manda rodar `deactivate`. As
+# duas nascem de `venv_is_activated` e têm de continuar dizendo o mesmo fato
+# -- que nada trava, e o que fazer depois. Mudou o fato aqui, mude lá.
+#
+# São diferentes de propósito. A frase de lá começa em minúscula porque é
+# colada depois de "aviso: " no terminal, e usa três coisas que o público
+# desta janela não conhece: venv, PATH, e um comando a digitar. Esta janela
+# existe justamente para quem não abre terminal (ver _AdviceCard), e para
+# essa pessoa a ação certa não é um comando: é fechar o terminal, que resolve
+# o mesmo PATH velho e é gesto que qualquer um executa.
+#
+# Automatizar não dá, e a ideia reaparece: `deactivate` é função de shell, e
+# este processo é filho -- não altera o ambiente de quem o lançou.
+VENV_ACTIVATED_NOTE = (
+    "Você abriu este desinstalador de um terminal que estava usando o "
+    "ambiente virtual do projeto. Nada trava por isso. Depois de terminar, "
+    "feche esse terminal: ao abrir um novo, tudo volta ao normal."
+)
+
 # Os avisos da tela de boas-vindas não são equivalentes, e pintar os três de
 # vermelho fazia o olho tratá-los como igualmente graves.
 NOTE = "note"    # nada trava; é informação para depois
@@ -194,7 +214,9 @@ class UninstallApp(tk.Tk):
         # que roda o mainloop.
         self.executed_choices: Choices | None = None
         self.refusal = running_inside_venv(project_root)
-        self.activated_warning = venv_activated_warning(project_root)
+        self.activated_warning = (
+            VENV_ACTIVATED_NOTE if venv_is_activated(project_root) else None
+        )
 
         # Todas desmarcadas. Este é o requisito central da tela de Opções.
         self.remove_logs = tk.BooleanVar(value=False)
@@ -418,6 +440,11 @@ class WelcomePage(_Page):
             self._add_advice(
                 # Nada fica travado por um venv apenas ativado, o preço é um
                 # PATH velho depois. Nota, não aviso.
+                #
+                # O texto é VENV_ACTIVATED_NOTE e não a frase que o modo texto
+                # imprime: até esta leva os dois liam a mesma string, e era a
+                # da CLI -- este cartão mandava rodar `deactivate` a quem abriu
+                # a janela por não usar terminal.
                 severity=NOTE,
                 text=self.app.activated_warning,
             )
