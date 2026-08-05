@@ -1176,8 +1176,12 @@ Deixar o campo em branco mantém a auditoria desativada.
 > Não é limitação de implementação. Essa senha decide quem pode ler a trilha de
 > auditoria, e quem roda um instalador não é necessariamente quem tem essa
 > decisão — um campo de texto que sobrescreve em silêncio faz das duas pessoas
-> a mesma pessoa. Pelo mesmo motivo não há botão de remover; para desligar a
-> tela, `python uninstall.py --remove-audit-password`, que pergunta antes.
+> a mesma pessoa. Pelo mesmo motivo não há botão de remover: para desligar a
+> tela, **apague o `.audit-password`** e reinicie o `serve` — sem registro, a
+> rota `/audit` responde `404` e o arranque diz `Auditoria: desabilitada`.
+> Qualquer desinstalação real também o remove, sem flag própria e sem
+> perguntar, junto com o `.venv` — está na lista que o `--dry-run` mostra
+> antes.
 
 **Migração automática.** Máquinas instaladas antes desta mudança guardavam a
 senha em claro no `.env`, na chave `ETHICAL_AGENT_AUDIT_PASSWORD`. Na primeira
