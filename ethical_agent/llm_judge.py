@@ -34,6 +34,30 @@ _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 
 
 class LLMJudgeEngine(PolicyEngine):
+    """Protótipo de LLM-como-juiz, e **ele enxerga só a política**.
+
+    `_rules_digest` itera `policy.constraints + policy.rules` e nada mais. As
+    normas da ontologia — as do RelAIEO e **a camada inteira de dano** — não
+    entram no prompt, e não é omissão de configuração: a ontologia sequer é
+    alcançável a partir daqui, porque `__init__` recebe `llm` e `policy` e mais
+    nada. Medido em `5daeaa8`, o digest mostrava 12 dos 30 enunciados
+    normativos em vigor; o número sai de contar os arquivos, não daqui, porque
+    contagem em prosa envelhece calada.
+
+    **Consequência para quem o ressuscitar numa comparação de motores, que é o
+    uso previsto:** medir esta engine contra o híbrido põe um juiz cego para a
+    camada de dano contra um sistema que a enxerga, e **atribui ao juiz uma
+    diferença que é, em boa parte, o prompt não conter as normas**. O que ela
+    avalia não é o que a CLI roda. Uma comparação feita com ela precisa dizer
+    isso, ou cobrir os dois níveis normativos antes de medir.
+
+    Isto **não** é a razão pela qual ela fica fora da composição padrão. Aquela
+    — sob resolução pela decisão mais restritiva, ela decidiria sozinha — está
+    no `README` e no `AUDIT_GUIDE` e continua valendo. Aquela é sobre **se ela
+    vota**; esta é sobre **o que ela vê quando vota**, e era a que não estava
+    escrita em lugar nenhum.
+    """
+
     name = "llm-judge"
 
     def __init__(self, llm: LLMClient, policy: Policy):

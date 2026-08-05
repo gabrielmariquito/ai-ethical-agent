@@ -326,8 +326,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
         if password_source.startswith("--audit-password-file") and env_audit_password_present():
             print(
                 f"           atenção: ${ENV_PASSWORD_VAR} está definida no "
-                "ambiente e não é lida como senha (só o .env e esta flag são "
-                "fontes); pode apagá-la"
+                "ambiente e não é lida como senha (só o .audit-password e esta "
+                "flag são fontes); pode apagá-la"
             )
         print(f"           sessões do auditor em {args.auditor_session_log}")
         print(

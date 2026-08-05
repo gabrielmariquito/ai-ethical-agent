@@ -992,6 +992,16 @@ O protótipo original de LLM-como-juiz permanece como LLMJudgeEngine
 restritiva, ela pode determinar sozinha o veredito — por isso fica fora da
 configuração padrão, e não como voto auxiliar
 
+**E há uma segunda coisa a saber sobre ela, que é sobre o que ela vê e não
+sobre se ela vota.** O prompt do `LLMJudgeEngine` é montado por
+`_rules_digest`, que percorre `policy.constraints + policy.rules` **e nada
+mais**: as normas da ontologia — as do RelAIEO e **a camada inteira de dano** —
+não entram nele. Medido em `5daeaa8`, eram 12 dos 30 enunciados normativos em
+vigor. **Quem a ressuscitar numa comparação de motores está medindo um sistema
+que não é o que a CLI roda**, e boa parte da diferença que aparecer será o
+prompt não conter as normas, não o juiz ser pior. Uma comparação feita com ela
+precisa dizer isso, ou cobrir os dois níveis normativos antes de medir.
+
 ## Estrutura do repositório
 
 ```
