@@ -1,3 +1,5 @@
+import socket
+
 import pytest
 
 from webui_support import RunningServer
@@ -14,6 +16,58 @@ def test_unknown_path_is_404(server):
     status, body, _ = server.get("/api/does-not-exist")
     assert status == 404
     assert body["error"] == "not_found"
+
+
+def test_a_refused_post_reads_the_body_it_is_refusing(server):
+    """Recusar uma rota não dispensa o servidor de consumir o corpo enviado.
+
+    O que acontecia sem isto: o corpo do POST recusado ficava parado no buffer
+    de recepção do socket, e fechar um socket nessa situação manda RST em vez
+    de FIN -- no Windows, medido. O RST descarta a resposta que o servidor já
+    havia escrito, e o cliente levanta ConnectionAbortedError (WinError 10053)
+    sem nunca ver o 404. Medido em 6 falhas por 3000 POSTs, ~0,2%: pouco por
+    requisição, o bastante para uma falha intermitente por suíte, e era a
+    instabilidade de `test_webui_tools_gate.py`.
+
+    Este teste NÃO reproduz aquela corrida -- corrida não é asserção. Ele
+    testa o mesmo defeito pelo lado determinístico: duas requisições na MESMA
+    conexão. Com o corpo da primeira sem ser lido, os bytes dele sobram no
+    fluxo e viram a linha de requisição da segunda, que sai 400 em vez de 404.
+    """
+    corpo = b'{"campo": "valor"}'
+
+    def pedido(fechar: bool) -> bytes:
+        return (
+            b"POST /api/nao-existe HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json; charset=utf-8\r\n"
+            b"Content-Length: " + str(len(corpo)).encode() + b"\r\n"
+            + (b"Connection: close\r\n" if fechar else b"")
+            + b"\r\n" + corpo
+        )
+
+    recebido = b""
+    with socket.create_connection(("127.0.0.1", server.port), timeout=5) as sock:
+        # A primeira SEM `Connection: close`: é o keep-alive que faz a sobra
+        # dela encostar na segunda, e é isso que o teste precisa exercer.
+        sock.sendall(pedido(fechar=False))
+        # A segunda COM, para o servidor fechar sozinho depois de responder.
+        # Sem isso, ele fica bloqueado esperando uma terceira requisição, o
+        # fim do `with` fecha o socket debaixo dele, e a suíte imprime um
+        # traceback de ConnectionAbortedError que não é defeito de ninguém.
+        sock.sendall(pedido(fechar=True))
+        while recebido.count(b"HTTP/1.1 ") < 2:
+            try:
+                pedaco = sock.recv(4096)
+            except socket.timeout:  # pragma: no cover -- só se o defeito voltar
+                break
+            if not pedaco:
+                break
+            recebido += pedaco
+
+    assert recebido.count(b"HTTP/1.1 404") == 2, recebido
+    # Explícito, porque é ESTE o código que o defeito produzia na segunda.
+    assert b"HTTP/1.1 400" not in recebido, recebido
 
 
 def test_known_path_wrong_method_is_405(server):

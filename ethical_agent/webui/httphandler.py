@@ -44,6 +44,15 @@ GATED_ASSET_PREFIXES = (
 # would be a forgeable identity.
 _RESERVED_PARAM_PREFIX = "_"
 
+# Teto do que se lê para descartar, em `_drain_request_body`. O corpo de uma
+# requisição recusada é, por definição, de alguém que já errou a rota ou não
+# tem sessão, então ler sem limite é aceitar trabalho de quem não passou por
+# nenhuma checagem. Acima do teto, a conexão é fechada com o corpo pela
+# metade -- o cliente pode perder a resposta, que é exatamente o defeito que a
+# drenagem existe para evitar, mas é a troca certa: quem manda mais de 1 MiB
+# para uma rota que não existe não está esperando ler o 404 com cuidado.
+_MAX_DRAIN_BYTES = 1 << 20
+
 _CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -59,6 +68,13 @@ def make_handler(state) -> type:
     class Handler(BaseHTTPRequestHandler):
         server_version = "EthicalAgentWebUI/1"
         protocol_version = "HTTP/1.1"
+
+        # Default de classe além do reset por requisição em `_dispatch`. Hoje
+        # todo caminho até `_send_bytes` passa por lá, então isto não cobre
+        # nenhum caso conhecido -- é para que um caminho novo que responda sem
+        # passar pelo dispatch falhe drenando à toa, e não com AttributeError
+        # no meio de uma resposta.
+        _body_consumed = False
 
         def log_message(self, fmt: str, *args) -> None:  # noqa: A003
             # Default BaseHTTPRequestHandler.log_message already writes to
@@ -82,6 +98,10 @@ def make_handler(state) -> type:
             # it.
             self._session_resolved = False
             self._session = None
+            # Por REQUISIÇÃO, pela mesma razão da sessão logo acima: com
+            # keep-alive um Handler serve várias, e o corpo de uma não pode
+            # contar como lido para a seguinte.
+            self._body_consumed = False
             parsed = urllib.parse.urlsplit(self.path)
             path = urllib.parse.unquote(parsed.path)
             # Query params entram no mesmo dict dos params de caminho, só primeiro valor,
@@ -209,6 +229,9 @@ def make_handler(state) -> type:
 
         def _read_json_body(self) -> dict:
             length = int(self.headers.get("Content-Length") or 0)
+            # Marcado mesmo com length 0: o que interessa a `_send_bytes` é se
+            # ainda sobrou byte no socket, e com corpo vazio não sobrou.
+            self._body_consumed = True
             if length == 0:
                 return {}
             raw = self.rfile.read(length)
@@ -226,9 +249,44 @@ def make_handler(state) -> type:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self._send_bytes(status, body, "application/json; charset=utf-8", extra_headers)
 
+        def _drain_request_body(self) -> None:
+            """Lê e descarta o corpo que handler nenhum leu, ANTES de responder.
+
+            Sem isto, responder 404/405/401 a um POST deixa o corpo parado no
+            buffer de recepção do socket. Fechar um socket nessa situação manda
+            RST no lugar de FIN -- é o comportamento do Windows, medido aqui --
+            e o RST descarta a resposta que o servidor JÁ tinha escrito, mas que
+            o cliente ainda não terminou de ler. O cliente levanta
+            `ConnectionAbortedError` (WinError 10053) e nunca vê o 404.
+
+            Não é problema de teste: `urllib` manda `Connection: close`, e um
+            `fetch()` de navegador numa rota gated tem o mesmo par de condições.
+            Medido antes do conserto: 6 falhas em 3000 POSTs, ~0,2%. É pouco por
+            requisição e muito por suíte -- era a instabilidade de
+            `test_webui_tools_gate.py`.
+
+            A ordem importa: drenar DEPOIS de escrever a resposta não adianta,
+            porque o fechamento vem logo em seguida e a corrida é a mesma.
+            """
+            if self._body_consumed:
+                return
+            self._body_consumed = True
+            try:
+                restante = min(int(self.headers.get("Content-Length") or 0), _MAX_DRAIN_BYTES)
+            except (TypeError, ValueError):
+                # Content-Length ilegível: não dá para saber onde o corpo
+                # termina, e ler às cegas travaria até o timeout.
+                return
+            while restante > 0:
+                pedaco = self.rfile.read(min(restante, 64 * 1024))
+                if not pedaco:  # cliente fechou antes de mandar tudo
+                    break
+                restante -= len(pedaco)
+
         def _send_bytes(
             self, status: int, body: bytes, content_type: str, extra_headers=None
         ) -> None:
+            self._drain_request_body()
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
