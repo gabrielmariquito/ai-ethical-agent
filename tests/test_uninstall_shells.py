@@ -754,13 +754,13 @@ def test_the_entry_point_checks_the_relaunch_before_dispatching():
 # -- e as mesmas coisas de verdade, em processo separado -------------------
 
 
-def _run_real(*argv, env_extra=None):
+def _run_real(*argv, env_extra=None, script="uninstall.py"):
     env = dict(os.environ)
     env.pop("VIRTUAL_ENV", None)
     env.pop(uninstall.RELAUNCH_MARKER, None)
     env.update(env_extra or {})
     return subprocess.run(
-        [str(VENV_PYTHON), "uninstall.py", *argv],
+        [str(VENV_PYTHON), script, *argv],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         cwd=REPO_ROOT, env=env, timeout=180,
     )
@@ -803,6 +803,92 @@ def test_end_to_end_a_nonzero_exit_code_crosses_the_relaunch():
     assert proc.returncode == 2, (
         f"o código do filho não atravessou: saiu {proc.returncode}"
     )
+
+
+# -- a janela não é uma segunda entrada ------------------------------------
+#
+# `uninstall_gui.py` tem `__main__` próprio, e por ele o relançamento não
+# acontecia: abrir o arquivo direto (clique, Run do IDE, `python
+# uninstall_gui.py`) levava de volta ao beco que a leva do relançamento
+# fechou. Ele não é um ponto de entrada legítimo -- a docstring do próprio
+# arquivo, o README e test_wizard_gui.py já dizem que a entrada é
+# `uninstall.py` --, então o `__main__` dele DELEGA em vez de duplicar a
+# política. Recusar imprimindo não serviria: dependendo de como o arquivo foi
+# aberto, a mensagem some junto com o console, e some justamente para quem
+# precisa lê-la.
+
+
+def test_the_window_module_delegates_instead_of_being_a_second_entry_point():
+    block = GUI_SOURCE[GUI_SOURCE.index('if __name__ == "__main__":') :]
+    statements = "\n".join(
+        line for line in block.splitlines() if not line.strip().startswith("#")
+    )
+    assert "_maybe_relaunch_outside_venv" in statements, (
+        "o __main__ da janela pula a trava do laço e o relançamento"
+    )
+    assert "uninstall.run" in statements, (
+        "tem de cair no mesmo dispatch de uninstall.py, não em main() daqui"
+    )
+    assert "sys.argv[1:]" in statements, "os argumentos originais têm de seguir junto"
+    assert statements.index("_maybe_relaunch_outside_venv") < statements.index("uninstall.run"), (
+        "o relançamento vem antes do dispatch, como em uninstall.py"
+    )
+
+
+def test_the_window_function_itself_never_relaunches():
+    # `_open_gui` chama `uninstall_gui.main()` DENTRO do processo já relançado.
+    # Se a trava morasse em main(), ela rodaria de novo ali e poderia gerar um
+    # neto -- a política fica no __main__, que só existe na execução direta.
+    body = GUI_SOURCE[GUI_SOURCE.index("def main(") : GUI_SOURCE.index('if __name__ == "__main__":')]
+    assert "_maybe_relaunch_outside_venv" not in body
+
+
+def test_the_single_entry_point_decision_is_still_guarded_elsewhere():
+    # Esta leva reafirma a decisão que test_wizard_gui.py já fixa; se alguém
+    # transformar a janela em entrada documentada, os dois têm de falhar.
+    wizard_tests = (REPO_ROOT / "tests" / "test_wizard_gui.py").read_text(encoding="utf-8")
+    assert 'assert "uninstall_gui.py" not in desinstalacao' in wizard_tests
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    secao = readme[readme.index("### Desinstalação") :]
+    secao = secao[: secao.index("\n## ")]
+    assert "uninstall_gui.py" not in secao, "a seção de desinstalação voltou a apontar para a janela"
+
+
+def test_the_readme_does_not_claim_what_opens_a_py_file():
+    # Medido: o verbo `open` de `.py` nesta máquina resolve para o PyCharm,
+    # apesar de `ftype` dizer `py.exe`. Qual programa abre um `.py` varia por
+    # instalação e não é o mecanismo -- o mecanismo é qual interpretador acaba
+    # rodando o script, que é o que a detecção olha.
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    secao = readme[readme.index("### Desinstalação") :]
+    secao = secao[: secao.index("\n## ")]
+    assert "a associação de `.py` usa" not in secao
+    assert "VIRTUAL_ENV" in secao, "o mecanismo real tem de estar dito"
+
+
+@needs_venv
+def test_end_to_end_opening_the_window_module_directly_relaunches_too():
+    # `--dry-run` não é sequer flag do parser de uninstall_gui.py: se ela
+    # funciona por aqui, a delegação aconteceu E o relançamento também.
+    proc = _run_real("--dry-run", "--no-probe", script="uninstall_gui.py")
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "relançando" in proc.stderr, "abrir a janela direto continuava no venv"
+    assert "SIMULAÇÃO" in proc.stdout, "não delegou: --dry-run não existe no parser da janela"
+    assert "Python do próprio venv" not in proc.stderr
+    assert (REPO_ROOT / ".venv").exists()
+
+
+@needs_venv
+def test_end_to_end_the_window_module_honours_the_loop_lock():
+    proc = _run_real(
+        "--dry-run", "--no-probe",
+        script="uninstall_gui.py",
+        env_extra={uninstall.RELAUNCH_MARKER: "1"},
+    )
+
+    assert "relançando" not in proc.stderr, "relançou com a marca -- é o laço, pela outra porta"
+    assert "Python do próprio venv" in proc.stderr
 
 
 # -- the Tk shell ----------------------------------------------------------

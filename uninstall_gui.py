@@ -802,4 +802,33 @@ def main(argv: list | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Esta janela é detalhe de `uninstall.py`, que é o ponto de entrada único:
+    # ver a docstring no topo, o README e test_wizard_gui.py, que proíbe a
+    # documentação de mandar rodar este arquivo. Mas ele é abrível -- por
+    # clique, pelo botão Run do IDE, por `python uninstall_gui.py` -- e por
+    # essa porta a escolha de modo e o relançamento fora do venv não
+    # aconteciam: abrir a janela daqui com o Python do .venv levava de volta
+    # ao beco sem saída, com a tela de erro.
+    #
+    # Delega em vez de recusar. Uma recusa impressa sumiria junto com o
+    # console em parte dos lançamentos, e sumiria justamente para quem precisa
+    # lê-la. Delegando, abrir este arquivo passa a se comportar como abrir
+    # `uninstall.py`, sem que a política do relançamento exista em dois
+    # lugares para divergir.
+    #
+    # Importar tkinter no topo deste arquivo não cria janela nenhuma -- a
+    # primeira nasce em UninstallApp() --, então relançar daqui continua dando
+    # uma janela só, a do filho. O custo é `uninstall.py` reimportar este
+    # módulo em `_open_gui`, que reexecuta o corpo dele: só imports, constantes
+    # e classes, sem estado nem efeito.
+    import uninstall
+
+    ensure_utf8_stdio()
+    print(
+        "aviso: o ponto de entrada do desinstalador é uninstall.py; seguindo por ele.",
+        file=sys.stderr,
+    )
+    _relaunched = uninstall._maybe_relaunch_outside_venv()
+    if _relaunched is not None:
+        sys.exit(_relaunched)
+    sys.exit(uninstall.run(sys.argv[1:]))

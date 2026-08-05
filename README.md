@@ -349,11 +349,13 @@ dentro do venv que ele apaga. Ao detectar que está rodando com o Python do
 os argumentos, e devolve o código de saída do processo filho. Você não precisa
 fazer nada.
 
-O que faz cair no venv **não é o clique** — é a variável `VIRTUAL_ENV` no
-ambiente, ou seja, o venv ativado no shell ou o interpretador do projeto
-selecionado no IDE. O `py` pelado (que é o que a associação de `.py` usa)
-prefere o virtualenv ativo desde o Python 3.11; **`py -3` ignora `VIRTUAL_ENV`
-e é sempre o do sistema**, e é por isso que o `-3` está nos exemplos acima.
+O que decide isso **não é como o arquivo foi aberto** — é qual interpretador
+acaba executando o script, que é exatamente o que o programa verifica
+(`sys.executable`, não a origem do processo). A forma comum de acabar no do
+`.venv` é ter `VIRTUAL_ENV` no ambiente: venv ativado no shell, ou o
+interpretador do projeto selecionado no IDE. No Windows, `py` sem versão
+prefere o virtualenv ativo desde o Python 3.11, enquanto **`py -3` o ignora e é
+sempre o do sistema** — daí o `-3` nos exemplos acima.
 
 Só resta uma tela de erro pedindo `py -3` à mão no caso em que **não há
 Python de sistema para relançar** — sem o launcher `py` e sem o Python que
