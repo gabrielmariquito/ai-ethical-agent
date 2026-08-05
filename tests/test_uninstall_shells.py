@@ -4,6 +4,7 @@ de tkinter — e nenhum teste aqui passa a raiz real do repositório: versão lo
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -470,6 +471,338 @@ def test_the_entry_point_has_no_module_level_tkinter_import():
 def test_running_the_script_dispatches_through_run_not_main():
     source = (Path(__file__).resolve().parent.parent / "uninstall.py").read_text(encoding="utf-8")
     assert source.rstrip().endswith("sys.exit(run())")
+
+
+# -- relançar fora do venv -------------------------------------------------
+#
+# Rodar com o Python de dentro do .venv é um beco sem saída: no Windows o
+# executável em uso não pode ser apagado. Em vez da tela de erro, o programa
+# troca de interpretador sozinho. O gatilho medido não é o clique: a
+# associação `.py` é o `py` PELADO, que desde o 3.11 prefere o virtualenv
+# ativo quando `VIRTUAL_ENV` está no ambiente -- `py -3` o ignora.
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+VENV_PYTHON = REPO_ROOT / ".venv" / (
+    "Scripts/python.exe" if sys.platform == "win32" else "bin/python3"
+)
+needs_venv = pytest.mark.skipif(
+    not VENV_PYTHON.exists(), reason="sem .venv no repo: o caso de borda não existe aqui"
+)
+
+
+def _venv_root(tmp_path):
+    """Uma raiz de projeto cujo Python corrente mora dentro do próprio .venv --
+    o estado que o relançamento existe para desfazer."""
+    root = _make_root(tmp_path)
+    fake_python = root / ".venv" / "Scripts" / "python.exe"
+    fake_python.parent.mkdir(parents=True, exist_ok=True)
+    fake_python.write_text("", encoding="utf-8")
+    return root, fake_python
+
+
+class _Spawn:
+    """Um `subprocess.call` de mentira que anota a chamada e devolve o código
+    combinado."""
+
+    def __init__(self, returncode=0):
+        self.calls = []
+        self.returncode = returncode
+
+    def __call__(self, command, env=None, cwd=None):
+        self.calls.append({"command": list(command), "env": env, "cwd": cwd})
+        return self.returncode
+
+
+def _found(*prefix):
+    return lambda root=None: list(prefix)
+
+
+def _not_found(root=None):
+    return None
+
+
+def test_running_from_the_venv_relaunches_with_the_system_python(tmp_path, monkeypatch, capsys):
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+    spawn = _Spawn()
+
+    code = uninstall._maybe_relaunch_outside_venv(
+        [], root=root, env={}, find_python=_found("py", "-3"), spawn=spawn
+    )
+
+    assert code == 0
+    assert len(spawn.calls) == 1, "relançou mais de uma vez"
+    command = spawn.calls[0]["command"]
+    assert command[:2] == ["py", "-3"]
+    # Caminho absoluto: o filho pode nascer com outro cwd que o do pai.
+    assert Path(command[2]) == (REPO_ROOT / "uninstall.py")
+    assert "relançando" in capsys.readouterr().err, "trocar de processo em silêncio confunde"
+
+
+def test_the_marker_stops_the_loop_even_when_the_detection_says_relaunch(tmp_path, monkeypatch):
+    # A TRAVA. Se a detecção estiver errada, o filho também se acha no venv e
+    # relançaria para sempre. Este é o teste mais importante desta leva.
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+    assert uninstall.running_inside_venv(root), "a detecção precisa estar dizendo 'relance'"
+    spawn = _Spawn()
+
+    code = uninstall._maybe_relaunch_outside_venv(
+        [],
+        root=root,
+        env={uninstall.RELAUNCH_MARKER: "1"},
+        find_python=_found("py", "-3"),
+        spawn=spawn,
+    )
+
+    assert code is None, "com a marca, tem de seguir neste processo e cair na recusa"
+    assert spawn.calls == [], "relançou com a marca presente -- é o laço infinito"
+
+
+def test_the_marker_is_read_before_the_detection_runs(tmp_path, monkeypatch):
+    # A ordem importa: a marca é a rede de segurança PARA a detecção, então
+    # não pode depender dela para ser consultada.
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+
+    def explode(*args, **kwargs):
+        raise AssertionError("a detecção foi consultada apesar da marca")
+
+    monkeypatch.setattr(uninstall, "running_inside_venv", explode)
+    assert (
+        uninstall._maybe_relaunch_outside_venv(
+            [], root=root, env={uninstall.RELAUNCH_MARKER: "1"}
+        )
+        is None
+    )
+
+
+def test_the_child_gets_the_marker_and_the_parents_environment_is_left_alone(
+    tmp_path, monkeypatch
+):
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+    parent_env = {"PATH": "/algum/lugar"}
+    spawn = _Spawn()
+
+    uninstall._maybe_relaunch_outside_venv(
+        [], root=root, env=parent_env, find_python=_found("py", "-3"), spawn=spawn
+    )
+
+    child_env = spawn.calls[0]["env"]
+    assert child_env[uninstall.RELAUNCH_MARKER] == "1"
+    assert child_env["PATH"] == "/algum/lugar", "o filho perdeu o resto do ambiente"
+    assert uninstall.RELAUNCH_MARKER not in parent_env, "o ambiente do pai foi mutado"
+
+
+def test_without_a_system_python_it_falls_back_to_todays_refusal(tmp_path, monkeypatch, capsys):
+    # `py` é o launcher do Windows e não vem com toda instalação. Sem ele e
+    # sem os outros candidatos, o caminho de volta é a tela de erro de hoje --
+    # e nunca o silêncio, que seria pior do que a tela.
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+    spawn = _Spawn()
+
+    code = uninstall._maybe_relaunch_outside_venv(
+        [], root=root, env={}, find_python=_not_found, spawn=spawn
+    )
+
+    assert code is None, "tem de seguir no processo corrente e chegar na recusa"
+    assert spawn.calls == []
+    # E a recusa de fato acontece, com a mensagem de sempre.
+    assert uninstall.main(
+        ["--remove-env", "--yes"], root=root, ask=_answers(), isatty=_no_tty
+    ) == uninstall.EXIT_REFUSED
+    assert "Python do próprio venv" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--dry-run"],
+        ["--dry-run", "--no-probe"],
+        ["--move-logs-to", "backup dir", "--port", "9000"],
+        ["--cli", "--remove-audit-password", "--yes"],
+    ],
+)
+def test_every_argument_survives_the_relaunch(tmp_path, monkeypatch, argv):
+    # --dry-run em especial: é a forma segura de conferir o que seria apagado,
+    # está no README, e perdê-la no relançamento transformaria uma simulação
+    # numa remoção.
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+    spawn = _Spawn()
+
+    uninstall._maybe_relaunch_outside_venv(
+        argv, root=root, env={}, find_python=_found("py", "-3"), spawn=spawn
+    )
+
+    assert spawn.calls[0]["command"][3:] == argv
+
+
+def test_the_child_inherits_the_working_directory(tmp_path, monkeypatch):
+    # `--move-logs-to backup` relativo tem de continuar significando o mesmo
+    # diretório depois da troca de processo.
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+    spawn = _Spawn()
+
+    uninstall._maybe_relaunch_outside_venv(
+        ["--move-logs-to", "backup"], root=root, env={}, find_python=_found("py"), spawn=spawn
+    )
+
+    assert Path(spawn.calls[0]["cwd"]).resolve() == Path.cwd().resolve()
+
+
+def test_the_system_python_path_does_not_relaunch(tmp_path, monkeypatch):
+    # Quem já chama certo (`py -3 uninstall.py`) segue direto, sem processo a
+    # mais e sem janela a mais.
+    root = _make_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(tmp_path / "sistema" / "python.exe"))
+    spawn = _Spawn()
+
+    code = uninstall._maybe_relaunch_outside_venv(
+        [], root=root, env={}, find_python=_found("py", "-3"), spawn=spawn
+    )
+
+    assert code is None
+    assert spawn.calls == []
+
+
+@pytest.mark.parametrize(
+    "returncode",
+    [uninstall.EXIT_FAILURES, 2, uninstall.EXIT_REFUSED, 42, uninstall.EXIT_OK],
+)
+def test_the_childs_exit_code_is_propagated(tmp_path, monkeypatch, returncode):
+    # Propagar 0 é fácil de acertar por acidente; o que prova que o contrato
+    # atravessa é o não-zero -- EXIT_FAILURES, o 2 do argparse e EXIT_REFUSED.
+    # O 0 fica por último, como caso de controle.
+    root, fake_python = _venv_root(tmp_path)
+    monkeypatch.setattr(uninstall.sys, "executable", str(fake_python))
+    spawn = _Spawn(returncode=returncode)
+
+    code = uninstall._maybe_relaunch_outside_venv(
+        [], root=root, env={}, find_python=_found("py", "-3"), spawn=spawn
+    )
+
+    assert code == returncode
+    assert code is not None, "None significaria 'siga neste processo', não 'saiu 0'"
+
+
+def test_the_system_python_search_refuses_a_candidate_inside_the_venv(tmp_path, monkeypatch):
+    # O alias da Microsoft Store e o `python` de um shell com o venv ativo são
+    # os dois jeitos de "achar" um interpretador que não serve. A peneira é o
+    # mesmo `running_inside_venv` que detectou o problema, e não uma segunda
+    # heurística que divergiria dele.
+    root, fake_python = _venv_root(tmp_path)
+
+    found = uninstall._system_python(
+        root,
+        which=lambda name: str(fake_python),
+        exists=lambda path: True,
+        base_executable=str(fake_python),
+        base_prefix=str(root / ".venv"),
+    )
+
+    assert found is None, "aceitou um Python de dentro do venv que vai apagar"
+
+
+def test_the_system_python_search_falls_back_when_the_launcher_is_missing(tmp_path):
+    # `py` ausente (instalação pela Microsoft Store, por exemplo) não pode ser
+    # o fim: o Python que criou o venv está registrado em sys._base_executable.
+    root, _fake_python = _venv_root(tmp_path)
+    base = tmp_path / "sistema" / "python.exe"
+    base.parent.mkdir(parents=True, exist_ok=True)
+    base.write_text("", encoding="utf-8")
+
+    found = uninstall._system_python(
+        root, which=lambda name: None, base_executable=str(base), base_prefix=str(tmp_path)
+    )
+
+    assert found == [str(base)]
+
+
+def test_the_system_python_search_gives_up_instead_of_guessing(tmp_path):
+    root, _fake_python = _venv_root(tmp_path)
+
+    found = uninstall._system_python(
+        root,
+        which=lambda name: None,
+        exists=lambda path: False,
+        base_executable=None,
+        base_prefix=str(tmp_path / "sumiu"),
+    )
+
+    assert found is None, "sem candidato real, devolver algo faria o relançamento falhar calado"
+
+
+def test_the_entry_point_checks_the_relaunch_before_dispatching():
+    # Instruções, não a palavra: o comentário do bloco explica a regra e diz
+    # "run()" em prosa, legitimamente -- a mesma armadilha do guarda de
+    # tkinter mais abaixo, e ela pegou este teste antes de pegar o código.
+    source = (REPO_ROOT / "uninstall.py").read_text(encoding="utf-8")
+    block = source[source.index('if __name__ == "__main__":') :]
+    statements = "\n".join(
+        line for line in block.splitlines() if not line.strip().startswith("#")
+    )
+    assert "_maybe_relaunch_outside_venv" in statements
+    assert statements.index("_maybe_relaunch_outside_venv") < statements.index("sys.exit(run())"), (
+        "a detecção tem de vir antes de run(), que é quem importa tkinter e abre a janela"
+    )
+
+
+# -- e as mesmas coisas de verdade, em processo separado -------------------
+
+
+def _run_real(*argv, env_extra=None):
+    env = dict(os.environ)
+    env.pop("VIRTUAL_ENV", None)
+    env.pop(uninstall.RELAUNCH_MARKER, None)
+    env.update(env_extra or {})
+    return subprocess.run(
+        [str(VENV_PYTHON), "uninstall.py", *argv],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=REPO_ROOT, env=env, timeout=180,
+    )
+
+
+@needs_venv
+def test_end_to_end_the_venv_python_relaunches_and_the_dry_run_survives():
+    # O caminho inteiro, sem nada injetado: o Python do .venv, o relançamento
+    # de verdade, e o filho fazendo a simulação. --dry-run é o que torna isto
+    # seguro de rodar numa suíte.
+    proc = _run_real("--dry-run", "--no-probe")
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "relançando" in proc.stderr
+    assert "SIMULAÇÃO" in proc.stdout, "o --dry-run não sobreviveu à troca de processo"
+    assert "Python do próprio venv" not in proc.stderr, (
+        "o filho ainda se acha no venv -- o relançamento não trocou de interpretador"
+    )
+    assert (REPO_ROOT / ".venv").exists(), "uma simulação não apaga nada"
+
+
+@needs_venv
+def test_end_to_end_the_marker_stops_the_relaunch_for_real():
+    # A trava do laço fora do laboratório: com a marca no ambiente, o processo
+    # segue sendo o do venv e cai na recusa de sempre.
+    proc = _run_real("--dry-run", "--no-probe", env_extra={uninstall.RELAUNCH_MARKER: "1"})
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "relançando" not in proc.stderr, "relançou com a marca -- é o laço"
+    assert "Python do próprio venv" in proc.stderr, "seguiu no venv, como tinha de seguir"
+
+
+@needs_venv
+def test_end_to_end_a_nonzero_exit_code_crosses_the_relaunch():
+    # `--port abc` é recusado pelo argparse do FILHO com código 2. Se o pai
+    # desanexasse ou engolisse o retorno, isto sairia 0 e ninguém notaria.
+    proc = _run_real("--port", "abc")
+
+    assert "relançando" in proc.stderr, "sem relançamento este teste não prova nada"
+    assert proc.returncode == 2, (
+        f"o código do filho não atravessou: saiu {proc.returncode}"
+    )
 
 
 # -- the Tk shell ----------------------------------------------------------

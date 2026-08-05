@@ -20,8 +20,11 @@ import sys
 sys.dont_write_bytecode = True
 
 import argparse  # noqa: E402
+import os  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
 from pathlib import Path  # noqa: E402
-from typing import Callable, List, Optional, Sequence  # noqa: E402
+from typing import Callable, List, Mapping, Optional, Sequence  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -67,6 +70,148 @@ NEVER_REMOVED = (
     "o repositório em si, ethical_agent/, policies/, ontologies/, eval/, "
     "tests/, examples/ e a documentação"
 )
+
+# -- relançar fora do venv -------------------------------------------------
+#
+# Rodar com o Python de dentro do .venv é um beco sem saída: no Windows o
+# executável em uso não pode ser apagado. Em vez de mostrar uma tela de erro
+# pedindo que a pessoa feche a janela e digite um comando no terminal -- que é
+# exatamente o que o instalador gráfico existe para não exigir --, o programa
+# troca de interpretador sozinho.
+#
+# O gatilho não é o clique, e isto foi medido: a associação `.py` é
+# `py.exe "%L" %*`, o launcher PELADO, que desde o 3.11 prefere o virtualenv
+# ativo quando VIRTUAL_ENV está no ambiente. Um duplo-clique do Explorer não
+# tem essa variável e já cai no Python do sistema; quem cai no venv é quem
+# lança o .py de um shell ou IDE com o venv ativado. `py -3` ignora
+# VIRTUAL_ENV, e é por isso que ele é o primeiro candidato aqui.
+RELAUNCH_MARKER = "EA_UNINSTALL_RELAUNCHED"
+
+
+def _outside_the_venv(executable: str, root: Path) -> bool:
+    """A peneira dos candidatos, feita com o MESMO guarda que detectou o
+    problema: uma segunda heurística acabaria divergindo desta. `prefix=""`
+    porque aqui só se pergunta pelo executável -- o `sys.prefix` deste
+    processo não diz nada sobre o candidato.
+    """
+    return running_inside_venv(root, prefix="", executable=executable) is None
+
+
+def _system_python(
+    root: Optional[Path] = None,
+    *,
+    which: Callable[[str], Optional[str]] = shutil.which,
+    exists: Callable[[str], bool] = os.path.exists,
+    base_executable: Optional[str] = None,
+    base_prefix: Optional[str] = None,
+) -> Optional[List[str]]:
+    """O prefixo de argv de um Python FORA do venv, ou None quando não há um.
+
+    Nunca chuta: devolver um caminho que não existe faria o relançamento
+    falhar em silêncio, e ficar sem nada é pior que a tela de erro.
+
+    `python` de propósito não está na lista. Medido nesta máquina, a primeira
+    ocorrência dele no PATH é o alias de execução da Microsoft Store, que não
+    é um interpretador -- abre a loja; e num shell com o venv ativado ele é o
+    próprio venv.
+    """
+    root = ROOT if root is None else root
+    if base_executable is None:
+        # Existe justamente quando este processo é um venv, e aponta para o
+        # Python que o criou.
+        base_executable = getattr(sys, "_base_executable", None)
+    base_prefix = sys.base_prefix if base_prefix is None else base_prefix
+
+    candidates: List[List[str]] = []
+
+    # 1. O launcher, e com `-3` explícito: o `py` PELADO prefere o virtualenv
+    #    ativo, que é exatamente o lugar de onde estamos saindo. `which` já
+    #    provou que ele existe, então este é o único candidato que não precisa
+    #    passar por `exists`.
+    launcher = which("py")
+    if launcher:
+        candidates.append([launcher, "-3"])
+
+    # 2. e 3. Caminhos montados à mão, e por isso conferidos: o Python que
+    #    criou este venv. `_base_executable` é o registro direto disso;
+    #    `base_prefix` é o mesmo fato pelo diretório, para quando o primeiro
+    #    não estiver definido.
+    if sys.platform == "win32":
+        from_prefix = os.path.join(base_prefix, "python.exe") if base_prefix else None
+    else:
+        from_prefix = os.path.join(base_prefix, "bin", "python3") if base_prefix else None
+    for path in (base_executable, from_prefix):
+        if path and exists(path):
+            candidates.append([path])
+
+    for candidate in candidates:
+        if _outside_the_venv(candidate[0], root):
+            return candidate
+    return None
+
+
+def _maybe_relaunch_outside_venv(
+    argv: Optional[Sequence[str]] = None,
+    *,
+    root: Optional[Path] = None,
+    env: Optional[Mapping[str, str]] = None,
+    find_python: Optional[Callable[..., Optional[List[str]]]] = None,
+    spawn: Optional[Callable[..., int]] = None,
+    stream=None,
+) -> Optional[int]:
+    """O código de saída do filho quando relançou; None para seguir neste
+    processo.
+
+    Chamado do bloco `__main__`, e não de dentro de `run()`, por duas razões:
+    `run()` é quem importa tkinter e abre a janela -- relançar depois disso
+    daria duas janelas --, e a suíte inteira roda de dentro do .venv chamando
+    `run()`/`main()` direto, que passariam a tentar relançar.
+    """
+    env = os.environ if env is None else env
+    # A trava do laço, e é a PRIMEIRA coisa conferida -- antes até da
+    # detecção. Se a detecção estiver errada, o filho também se acharia no
+    # venv e relançaria para sempre; a marca é a rede de segurança dela, então
+    # não pode depender dela para ser consultada.
+    if env.get(RELAUNCH_MARKER):
+        return None
+
+    root = ROOT if root is None else root
+    if not running_inside_venv(root):
+        return None
+
+    find_python = _system_python if find_python is None else find_python
+    prefix = find_python(root)
+    if not prefix:
+        # Sem Python de sistema, o caminho de volta é a recusa de hoje: a tela
+        # de erro na janela, EXIT_REFUSED na CLI. Nunca o silêncio.
+        return None
+
+    argv = list(sys.argv[1:] if argv is None else argv)
+    child_env = dict(env)
+    child_env[RELAUNCH_MARKER] = "1"
+
+    # Mesma razão de run(): a linha abaixo tem acento, e num console cp1252
+    # imprimi-la sem isto levantaria UnicodeEncodeError.
+    ensure_utf8_stdio()
+    stream = sys.stderr if stream is None else stream
+    print(
+        f"aviso: este é o Python do .venv, que não pode apagar a si mesmo; "
+        f"relançando com {prefix[0]}.",
+        file=stream,
+    )
+
+    spawn = subprocess.call if spawn is None else spawn
+    # Espera e propaga, em vez de desanexar: EXIT_OK/EXIT_FAILURES/
+    # EXIT_REFUSED são contrato, e `subprocess.call` herda stdin/stdout, sem o
+    # que o `--cli` interativo e o isatty() de main() deixariam de funcionar
+    # no filho. O caminho é absoluto porque o cwd do filho é o do pai, não o
+    # do script.
+    return spawn(
+        [*prefix, str(Path(__file__).resolve()), *argv],
+        env=child_env,
+        cwd=os.getcwd(),
+    )
+
 
 def ask_yes_no(
     question: str,
@@ -523,4 +668,9 @@ def _ask_optional(plan: UninstallPlan, choices: Choices, ask: Callable[[str], st
 
 
 if __name__ == "__main__":
+    # Antes de run(), que é quem importa tkinter e abre a janela: relançar
+    # depois disso daria duas janelas, uma abrindo enquanto a outra fecha.
+    _relaunched = _maybe_relaunch_outside_venv()
+    if _relaunched is not None:
+        sys.exit(_relaunched)
     sys.exit(run())

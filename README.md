@@ -328,7 +328,7 @@ Contraparte do instalador, num único ponto de entrada:
 [`uninstall.py`](uninstall.py).
 
 ```bash
-py -3 uninstall.py              # (Windows)     abre a janela
+py -3 uninstall.py              # (Windows)     abre a janela -- o -3 importa, ver abaixo
 python3 uninstall.py            # (macOS/Linux) idem
 python3 uninstall.py --dry-run  # lista tudo no terminal, sem apagar nada
 python3 uninstall.py --cli      # modo texto interativo: uma pergunta por item
@@ -340,11 +340,24 @@ qualquer das flags de remoção, ele roda no terminal. As duas formas são casca
 finas sobre [`ethical_agent/uninstall.py`](ethical_agent/uninstall.py) e
 mostram exatamente a mesma lista.
 
-**Rode com o Python do sistema, não com o do `.venv`.** No Windows um
-executável em execução não pode ser apagado, então o `.venv` não consegue
-apagar a si mesmo; é também por isso que isto é um script de raiz e não um
-subcomando `ethical-agent uninstall`, que viveria dentro do venv que ele
-apaga. O programa detecta e recusa, explicando o conserto.
+**O desinstalador precisa do Python do sistema, e ele troca sozinho quando
+não está nele.** No Windows um executável em execução não pode ser apagado,
+então o `.venv` não consegue apagar a si mesmo; é também por isso que isto é
+um script de raiz e não um subcomando `ethical-agent uninstall`, que viveria
+dentro do venv que ele apaga. Ao detectar que está rodando com o Python do
+`.venv`, ele **relança a si mesmo** com o Python do sistema, preservando todos
+os argumentos, e devolve o código de saída do processo filho. Você não precisa
+fazer nada.
+
+O que faz cair no venv **não é o clique** — é a variável `VIRTUAL_ENV` no
+ambiente, ou seja, o venv ativado no shell ou o interpretador do projeto
+selecionado no IDE. O `py` pelado (que é o que a associação de `.py` usa)
+prefere o virtualenv ativo desde o Python 3.11; **`py -3` ignora `VIRTUAL_ENV`
+e é sempre o do sistema**, e é por isso que o `-3` está nos exemplos acima.
+
+Só resta uma tela de erro pedindo `py -3` à mão no caso em que **não há
+Python de sistema para relançar** — sem o launcher `py` e sem o Python que
+criou o venv. Ela diz que a troca foi tentada.
 
 O princípio é que **o desinstalador não pode ser mais confiante do que o
 instalador foi**:

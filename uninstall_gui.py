@@ -75,12 +75,26 @@ WELCOME_TEXT = (
 # comando e o nome do terminal não, e mandar rodar `py -3` no macOS não
 # conserta nada. No Windows é o travamento do
 # executável em uso; fora dele, o venv apagando a si mesmo.
+#
+# Desde que `uninstall.py` troca de interpretador sozinho (ver
+# _maybe_relaunch_outside_venv), estas telas deixaram de ser o caminho comum e
+# passaram a ser o de exceção: chegar aqui significa que a troca automática
+# não pôde acontecer -- nenhum Python de sistema encontrado -- ou não
+# resolveu, com a marca já no ambiente. A primeira frase diz isso, porque
+# repetir a instrução sem dizer que algo foi tentado faz a pessoa achar que o
+# programa nunca tentou.
+_RELAUNCH_FAILED = (
+    "Ele tenta trocar sozinho para o Python do sistema quando encontra um; "
+    "desta vez não deu.\n\n"
+)
+
 VENV_REFUSAL_WINDOWS = (
     "Não é possível continuar por aqui.\n\n"
     "Este desinstalador está rodando com o Python que fica dentro do "
     "ambiente virtual. O Windows não permite apagar um programa em "
     "execução.\n\n"
-    "Feche esta janela e execute, numa nova janela do PowerShell:\n\n"
+    + _RELAUNCH_FAILED
+    + "Feche esta janela e execute, numa nova janela do PowerShell:\n\n"
     "py -3 uninstall.py\n\n"
     "O py -3 usa o Python do sistema, e não o do ambiente virtual."
 )
@@ -89,7 +103,8 @@ VENV_REFUSAL_POSIX = (
     "Não é possível continuar por aqui.\n\n"
     "Este desinstalador está rodando com o Python que fica dentro do "
     "ambiente virtual, que é justamente o que ele vai apagar.\n\n"
-    "Feche esta janela e execute, num novo terminal:\n\n"
+    + _RELAUNCH_FAILED
+    + "Feche esta janela e execute, num novo terminal:\n\n"
     "python3 uninstall.py\n\n"
     "O python3 usa o Python do sistema, e não o do ambiente virtual."
 )
