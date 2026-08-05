@@ -1,32 +1,7 @@
-// Login, e a descrição honesta do que a senha é: a ressalva longa mora aqui
-// como uma string só, idêntica à do README e do AUDIT_GUIDE.
+// Login. A ressalva de que a senha é barreira e não segurança saiu desta tela;
+// segue inteira no README e no AUDIT_GUIDE, que é onde o teste a ancora.
 
 import { postJSON } from "../api.js";
-
-export const SECURITY_CAVEAT = [
-  "Esta é uma barreira, não segurança.",
-  "A senha da tela de auditoria existe para separar dois papéis — quem conversa " +
-    "com o agente e quem audita as decisões — não para resistir a um atacante.",
-  "O servidor roda em 127.0.0.1, sem HTTPS e sem infraestrutura de autenticação: " +
-    "a senha e o código de sessão trafegam em texto claro pelo loopback, o código " +
-    "de sessão vive apenas na memória do processo, e qualquer pessoa com acesso a " +
-    "este computador pode ler logs/audit.jsonl diretamente, sem passar por esta tela.",
-  "O cookie é HttpOnly, o que impede o JavaScript da página de lê-lo; não impede " +
-    "que alguém sentado nesta máquina o veja nas ferramentas do navegador.",
-  "O que a senha garante é que a trilha não abre por acidente, por curiosidade, ou " +
-    "porque alguém digitou /audit na barra de endereços — que, num estudo com papéis " +
-    "separados, é exatamente o que precisa valer.",
-  "Não trate isto como controle de acesso a dado sensível.",
-];
-
-export function renderCaveat(hostEl) {
-  hostEl.innerHTML = "";
-  for (const paragraph of SECURITY_CAVEAT) {
-    const p = document.createElement("p");
-    p.textContent = paragraph;
-    hostEl.appendChild(p);
-  }
-}
 
 export function createLogin(els, onSuccess) {
   let lockoutTimer = null;

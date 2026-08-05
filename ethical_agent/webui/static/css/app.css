@@ -4,39 +4,11 @@
   --ea-fg: #1a1d21;
   --ea-fg-muted: #5b6270;
   --ea-border: #dfe2e7;
-  /* Este azul escureceu DUAS vezes, por motivos diferentes. A segunda continua
-     a primeira -- nao a substitui -- e as duas ficam registradas para que nao
-     se desfaca nenhuma achando que foi arbitraria.
 
-     1. #2f6feb -> #2a66de: corrigir AA. Medido em WCAG 2.1, #2f6feb reprovava
-        em dois lugares reais do app -- 4.23 sobre `--ea-bg-alt` (o "limpar" da
-        barra de filtros da auditoria, o hover da lista lateral) e 4.14 sobre
-        `--ea-info-bg` (o `.ea-info-banner` inteiro, e o sumario da tira de
-        sessao). #2a66de foi o menor escurecimento que passa nos dois (4.79 e
-        4.69). O branco-sobre-acento subiu de quebra, 4.57 -> 5.18, mas nao era
-        o alvo e ficou no fio.
-
-     2. #2a66de -> #1d51b9: a legibilidade daquele branco-sobre-acento, que a
-        primeira nao mirava. 5.18 passa AA e cansa num botao pequeno -- o
-        `.ea-nav__link--active` da topbar, que e como o usuario reportou.
-        #1d51b9 leva o par a 7.17, AAA para texto normal.
-
-     Como `--ea-bg` e `--ea-surface` sao os dois #ffffff, "branco sobre acento"
-     e "acento sobre fundo" sao o MESMO numero: escurecer melhora botao e link
-     juntos, e nao ha meio-termo a escolher entre os dois. Os demais pares
-     sobem junto -- `--ea-bg-alt` 4.79 -> 6.63, `--ea-info-bg` 4.69 -> 6.49.
-     Nenhum par cai.
-
-     Mesma matiz literal nas duas vezes: #2a66de e #1d51b9 sao ambos
-     H=220.0 S=73.2%, so o L baixa de 51.8% para 42.0%. Nao e cor nova, e o
-     mesmo azul legivel. (#1d4ed8 foi considerado e medido: da 6.70, nao
-     alcanca o AAA que o justificava, e desloca a matiz em +4,3 graus.)
-
-     O tema escuro NAO foi tocado em nenhuma das duas. La o acento aparece como
-     TEXTO -- links, `summary`, chips ativos -- e escurece-lo o faria sumir
-     sobre fundo escuro. */
   --ea-accent: #1d51b9;
+  --ea-accent-solid: #1d51b9;
   --ea-accent-fg: #ffffff;
+  --ea-notice-fg: #1a1d21;
   --ea-user-bubble: #eef2ff;
   --ea-assistant-bubble: #f5f6f8;
   --ea-danger: #b91c1c;
@@ -45,34 +17,15 @@
   --ea-warning-bg: #fff6e8;
   --ea-rewrite: #92660a;
   --ea-rewrite-bg: #fff8e6;
-  /* Acompanha `--ea-accent` nas duas vezes, pelo mesmo motivo e pela mesma
-     medida: os dois sempre foram o mesmo azul, e deixa-los divergir criaria
-     dois azuis quase iguais, que e pior que um azul so. */
+
   --ea-info: #1d51b9;
   --ea-info-bg: #eef4ff;
   --ea-radius: 10px;
   --ea-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 
-  /* ---- container de conteudo -------------------------------------------
-     Uma fonte de verdade para largura e goteira, consumida por `.ea-column`.
-     Os dois valores sao os que `.ea-chat-column` ja usava -- derivados, nao
-     escolhidos de novo -- para que as telas que ja alinhavam nao se movam e
-     o diff visual desta leva seja atribuivel so a tela de auditoria, que
-     nunca compartilhou container com o resto do app. */
   --ea-content-max: 820px;
   --ea-gutter: 1.25rem;
 
-  /* ---- escala de espacamento (base 4px) --------------------------------
-     Os valores avulsos (0.35, 0.55, 0.78, 0.9...) foram reescritos contra
-     estes degraus. Duas excecoes deliberadas, porque forcar a escala
-     quebraria layout existente:
-
-     1. `--ea-gutter` fica em 1.25rem/20px. A escala pula de 16 para 24 e
-        20px nao existe nela; arredondar moveria TODAS as telas -- inclusive
-        as quatro que ja estavam certas.
-     2. Ajustes opticos abaixo de 4px (padding do `.ea-audit-badge`, gaps de
-        lista densa) ficam literais. A escala governa espacamento de layout,
-        nao o meio pixel dentro de um badge. */
   --ea-space-1: 4px;
   --ea-space-2: 8px;
   --ea-space-3: 12px;
@@ -82,23 +35,13 @@
   --ea-space-7: 48px;
   --ea-space-8: 64px;
 
-  /* ---- elevacao ---------------------------------------------------------
-     Borda quase invisivel + superficie destacada + sombra suave, no lugar do
-     `1px solid var(--ea-border)` duro. A sombra tem de funcionar nos DOIS
-     temas e ela nao funciona do mesmo jeito nos dois: no claro a elevacao
-     vem da sombra (o fundo ja e branco, nao da para destacar a superficie
-     mais que isso); no escuro vem de `--ea-surface` ser mais CLARA que
-     `--ea-bg`, com a sombra so apoiando. Sombra preta sobre fundo escuro
-     some -- por isso o canal principal troca por tema. */
+
   --ea-surface: #ffffff;
   --ea-border-soft: #eaecf0;
   --ea-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
   --ea-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08);
 
-  /* `--ea-radius` (10px) NAO muda: e compartilhado por botao, chip, badge e
-     input, entao mexer nele move quatro coisas de uma vez. O raio maior
-     entra como token proprio, so para card e bloco grande; o menor apenas
-     nomeia os 6px que ja estavam hardcoded em input e item de lista. */
+
   --ea-radius-sm: 6px;
   --ea-radius-lg: 14px;
 
@@ -114,7 +57,9 @@
     --ea-fg-muted: #9aa1ab;
     --ea-border: #34373d;
     --ea-accent: #6c9bff;
-    --ea-accent-fg: #0d1117;
+    --ea-accent-solid: #1d51b9;
+    --ea-accent-fg: #ffffff;
+    --ea-notice-fg: #bdc4d1;
     --ea-user-bubble: #23283a;
     --ea-assistant-bubble: #24262b;
     --ea-danger: #ff8a8a;
@@ -141,38 +86,17 @@
   box-sizing: border-box;
 }
 
-/* Global safeguard: this bit twice already (config panel, file-browser
-   overlay) -- any element with `display` set on its own class wins over the
-   browser's built-in `[hidden] { display: none }` at equal specificity,
-   since author CSS beats user-agent CSS regardless of source order. Every
-   component-specific `.x[hidden] { display: none }` override above is now
-   redundant with this, kept only as documentation of why; new components
-   don't need to remember to add one.
-*/
 [hidden] {
   display: none !important;
 }
 
-/* ---- foco de teclado -----------------------------------------------------
 
-   Anel visivel em TODO elemento interativo, e nao so uma troca de cor de
-   borda: quem navega por `Tab` precisa enxergar onde esta, e uma borda que
-   muda de tom nao sobrevive a pouca visao nem a monitor ruim. Isso e
-   acessibilidade, nao acabamento.
-
-   `:focus-visible` e nao `:focus` de proposito -- clicar num botao com o
-   mouse nao deve deixar o anel para tras. */
 :focus-visible {
   outline: 2px solid var(--ea-accent);
   outline-offset: 2px;
 }
 
-/* A excecao, e a razao dela: `.ea-audit-row--selected` e
-   `.ea-audit-turn--current` JA usam `outline` para dizer "e este o registro
-   que voce esta lendo". Se o foco de teclado usasse outline tambem, os dois
-   estados ficariam identicos na lista de registros -- que e exatamente a tela
-   onde um auditor percorre item a item. Separados por eixo: selecao para
-   dentro (`outline`, offset negativo), foco para fora (`box-shadow`). */
+
 .ea-audit-row:focus-visible,
 .ea-audit-turn:focus-visible {
   outline: none;
@@ -185,8 +109,7 @@ body {
   margin: 0;
 }
 
-/* Quem pediu menos movimento nao recebe transicao -- inclusive a pulsacao do
-   indicador de progresso, que continua visivel, so para de piscar. */
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -210,9 +133,7 @@ body {
   height: 100%;
 }
 
-/* Check/Demo/Eval have no left sidebar (there's no conversation history
-   concept for them) -- just header/config/banner/main stacked, same as the
-   chat page's own .ea-app-main column, minus the sidebar next to it. */
+
 .ea-page {
   display: flex;
   flex-direction: column;
@@ -290,7 +211,7 @@ body {
   /* :hover alone (class + pseudo-class, specificity 0,2,0) otherwise beats
      a single .ea-sidebar__item--active (0,1,0) and the "you are here"
      highlight disappears under the cursor. */
-  background: var(--ea-accent);
+  background: var(--ea-accent-solid);
   color: var(--ea-accent-fg);
 }
 
@@ -356,8 +277,7 @@ a {
   background: var(--ea-surface);
 }
 
-/* `:active` distinto de `:hover` -- sem isso o botao nao confirma o clique,
-   que e o unico retorno imediato que ele consegue dar. */
+
 .ea-topbar button:active {
   background: var(--ea-border);
 }
@@ -392,12 +312,11 @@ a {
 }
 
 .ea-nav__link--active {
-  background: var(--ea-accent);
+  background: var(--ea-accent-solid);
   color: var(--ea-accent-fg);
 }
 
-/* Disabled nav items must look inert, not merely fail to respond: no
-   pointer cursor affordance, muted, no hover reaction. */
+
 .ea-nav__link--disabled {
   color: var(--ea-fg-muted);
   cursor: not-allowed;
@@ -421,11 +340,7 @@ a {
 
 /* --------------------------------------------------------------- statusbar */
 
-/* Deliberately quiet: no background, no border, small type -- this is
-   ambient information (which engine/model actually answered), not a
-   headline. Sits as a thin line right above the composer, the way a "model
-   in use" footnote would in a chat product, not stacked directly under the
-   config panel where the two competed for attention. */
+
 .ea-statusbar {
   padding: 0.3rem 0 0.4rem;
   font-size: 0.72rem;
@@ -436,11 +351,7 @@ a {
 
 /* ---------------------------------------------------------- config panel */
 
-/* `.hidden` alone loses to the `display` this class sets below (author CSS
-   beats the UA's built-in `[hidden] { display: none }` at equal specificity)
-   -- this combined selector is what actually makes panelEl.hidden = true
-   take effect. The panel starts closed (see config-panel.js) and must stay
-   closed until the toggle button is used. */
+
 .ea-config-panel[hidden] {
   display: none;
 }
@@ -448,11 +359,17 @@ a {
 .ea-config-panel {
   border-bottom: 1px solid var(--ea-border);
   background: var(--ea-bg-alt);
-  padding: 0.85rem 1rem;
+  padding-block: 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  max-width: 620px;
+  width: 100%;
+  max-width: var(--ea-content-max);
+  margin-inline: auto;
+  padding-inline: var(--ea-gutter);
+  max-height: 50vh;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .ea-config-panel__row {
@@ -479,9 +396,6 @@ a {
   transition: border-color var(--ea-transition), box-shadow var(--ea-transition);
 }
 
-/* O anel de foco global (`:focus-visible`, no topo) ja cobre estes campos.
-   A regra que ficava aqui usava `:focus` com offset negativo -- um anel para
-   dentro, mais fraco, e que aparecia tambem no clique de mouse. */
 .ea-config-panel__row input[type="text"]:hover,
 .ea-config-panel__row select:hover {
   border-color: var(--ea-accent);
@@ -528,9 +442,7 @@ a {
 
 /* ------------------------------------------------------------ file browser */
 
-/* Same [hidden]-loses-to-display bug as .ea-config-panel (see its comment
-   above) -- caught this time by actually driving the page instead of just
-   reading the CSS, which is exactly why that verification step exists. */
+
 .ea-filebrowser-overlay[hidden] {
   display: none;
 }
@@ -636,7 +548,7 @@ a {
 }
 
 .ea-filebrowser__select {
-  background: var(--ea-accent);
+  background: var(--ea-accent-solid);
   border-color: var(--ea-accent);
   color: var(--ea-accent-fg);
   font-weight: 600;
@@ -667,8 +579,7 @@ a {
   cursor: pointer;
 }
 
-/* Same shape as an error banner, neutral color -- used for the read-only /
-   reconciliation notices, which aren't errors and shouldn't read as one. */
+
 .ea-info-banner {
   display: flex;
   align-items: center;
@@ -692,17 +603,7 @@ main {
   min-height: 0;
 }
 
-/* O container de conteudo do app, e o unico. Antes cada tela definia o seu:
-   a conversa e as tres ferramentas herdavam de `.ea-chat-column`, mas a
-   auditoria nao herdava de nada -- tinha card proprio no login (44rem, 1rem
-   de goteira) e goteiras proprias no workspace (8-12px). O resultado era que
-   qualquer alinhamento entre a auditoria e o resto era coincidencia, nao
-   consequencia, e voltaria a quebrar na proxima tela.
 
-   Quem precisa da largura de leitura do app usa `.ea-column`; quem precisa
-   so da goteira usa `--ea-gutter` direto (e o caso dos dois paineis da
-   auditoria, que nao podem virar coluna centrada sem deixar de ser dois
-   paineis). */
 .ea-column {
   width: 100%;
   max-width: var(--ea-content-max);
@@ -710,10 +611,7 @@ main {
   padding-inline: var(--ea-gutter);
 }
 
-/* The column that actually reads as "a chat": capped width, centered, with
-   margin on both sides on anything wider than a narrow window -- this is
-   the single change that most makes the page look like a conversation
-   instead of a form that happens to have messages in it. */
+
 .ea-chat-column {
   flex: 1;
   display: flex;
@@ -721,10 +619,6 @@ main {
   min-height: 0;
 }
 
-/* O gap era 1.75rem/28px, equidistante dos degraus 24 e 32 -- o unico
-   arredondamento desta leva que nao se decide sozinho. Vai para 32: e o
-   espaco entre turnos, onde "espacoso" mais aparece, e 4px a mais entre
-   mensagens custa menos que 4px a menos. */
 .ea-transcript {
   flex: 1;
   overflow-y: auto;
@@ -810,10 +704,6 @@ main {
 
 /* ------------------------------------------------------- intervention block */
 
-/* As tres variantes abaixo (`--blocked_*`, `--rewrite`, `--system_error`)
-   sobrescrevem `border-color` e `background` com as cores de gravidade e
-   NAO sao tocadas aqui: e a mesma distincao por canal que o audit.css
-   documenta, e ela vale na conversa pelo mesmo motivo. */
 .ea-intervention {
   border-radius: var(--ea-radius-lg);
   border: 1px solid var(--ea-border-soft);
@@ -971,10 +861,6 @@ details[open] > .ea-intervention__summary::before {
 
 /* --------------------------------------------------------------- copy row */
 
-/* Discreet on purpose: this is a utility for inspecting a turn, not part of
-   the conversation, so it must not compete visually with the message --
-   invisible until the turn is hovered/focused, then a small muted text
-   link, not a bordered button. */
 .ea-turn__actions {
   display: flex;
   gap: 0.5rem;
@@ -1010,9 +896,6 @@ details[open] > .ea-intervention__summary::before {
 
 /* ------------------------------------------------------- fallback notice */
 
-/* Always visible (not a <details>, unlike .ea-intervention) -- this is
-   infrastructure context to read *before* the simulated reply below it,
-   not something worth making someone click to discover. */
 .ea-fallback-notice {
   border: 1px solid var(--ea-warning);
   background: var(--ea-warning-bg);
@@ -1082,12 +965,6 @@ details[open] > .ea-intervention__summary::before {
 
 /* ------------------------------------------------------------- composer */
 
-/* A self-contained rounded input box that lives inside the chat column,
-   rather than a full-bleed top-border strip -- matches the column concept
-   instead of fighting it with a border that stops short of the page edges. */
-/* O raio fica em 16px, fora de `--ea-radius-lg`: e a caixa de escrever, o
-   elemento mais arredondado da tela de proposito, e reduzi-lo para 14 so para
-   caber num token mudaria a silhueta da conversa sem ganho nenhum. */
 .ea-composer {
   border: 1px solid var(--ea-border-soft);
   border-radius: 16px;
@@ -1101,8 +978,7 @@ details[open] > .ea-intervention__summary::before {
   transition: border-color var(--ea-transition), box-shadow var(--ea-transition);
 }
 
-/* A caixa inteira reage ao foco do campo, porque e ela que o usuario ve como
-   "o lugar onde escrevo" -- o `textarea` dentro dela nao tem borda propria. */
+
 .ea-composer:focus-within {
   border-color: var(--ea-accent);
   box-shadow: var(--ea-focus-ring);
@@ -1136,16 +1012,14 @@ details[open] > .ea-intervention__summary::before {
   padding: var(--ea-space-3) var(--ea-space-4);
   border-radius: var(--ea-radius-lg);
   border: none;
-  background: var(--ea-accent);
+  background: var(--ea-accent-solid);
   color: var(--ea-accent-fg);
   cursor: pointer;
   font-weight: 600;
   transition: filter var(--ea-transition);
 }
 
-/* `filter` e nao uma cor nova: escurecer/clarear o proprio acento mantem os
-   tres estados derivados de um unico valor e funciona nos dois temas sem
-   precisar de um token por estado. */
+
 .ea-composer button:hover:not(:disabled) {
   filter: brightness(1.08);
 }
@@ -1169,11 +1043,7 @@ details[open] > .ea-intervention__summary::before {
   font-size: 0.85rem;
 }
 
-/* ------------------------------------------------------- tool pages */
-/* Shared by check.html/demo.html/eval.html -- each explains itself in
-   running text (per spec: "cada uma se explica em texto corrido"), then a
-   small form, then a result area. No sidebar (there's no conversation
-   history concept for these), just the header/config/banner/main stack. */
+
 
 .ea-tool-column {
   padding-top: var(--ea-space-5);
@@ -1242,7 +1112,7 @@ details[open] > .ea-intervention__summary::before {
   padding: var(--ea-space-3) var(--ea-space-5);
   border-radius: var(--ea-radius);
   border: none;
-  background: var(--ea-accent);
+  background: var(--ea-accent-solid);
   color: var(--ea-accent-fg);
   cursor: pointer;
   transition: filter var(--ea-transition);

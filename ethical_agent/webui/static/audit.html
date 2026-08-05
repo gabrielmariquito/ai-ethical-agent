@@ -35,19 +35,14 @@
           <section class="ea-audit-notice ea-audit-notice--recording">
             <h2>Esta sessão será registrada</h2>
             <p>
-              Para a pesquisa, o sistema registra <strong>o que você faz nesta tela</strong>:
-              quais registros você abre, quanto tempo permanece em cada um, quais camadas de
-              detalhe expande e em que ordem, se volta a um registro já visto, e a sequência
-              de navegação.
+              Para a pesquisa, o sistema registra quais registros você abre, quanto tempo
+              permanece em cada um, quais camadas de detalhe expande e em que ordem, se
+              volta a um registro já visto, e a sequência de navegação.
             </p>
             <p>
-              <strong>Não</strong> são coletados nome, e-mail, endereço de rede ou identificação
-              do navegador. O único identificador é um código de sessão anônimo, gerado no
-              momento em que você entra.
-            </p>
-            <p class="ea-audit-notice__file">
-              Arquivo: <code id="ea-audit-login-logpath">logs/auditor_sessions.jsonl</code> —
-              separado da trilha do agente, que este registro nunca toca.
+              <strong>Não são coletados nome, e-mail, endereço de rede ou identificação
+              do navegador.</strong> O único identificador é um código de sessão anônimo,
+              gerado no momento em que você entra.
             </p>
           </section>
 
@@ -63,16 +58,6 @@
           </form>
 
           <p id="ea-audit-login-error" class="ea-audit-login__error" role="alert" hidden></p>
-
-          <p class="ea-audit-caveat__short">
-            Esta senha separa papéis; não é segurança. O servidor é local, sem HTTPS, e quem
-            tem acesso a este computador lê <code>logs/audit.jsonl</code> direto, sem passar
-            por aqui.
-          </p>
-          <details class="ea-audit-caveat">
-            <summary>O que esta senha protege (e o que não protege)</summary>
-            <div class="ea-audit-caveat__body" id="ea-audit-caveat-login"></div>
-          </details>
         </div>
       </main>
 
@@ -90,7 +75,7 @@
           <section class="ea-audit__record-pane" aria-label="Registro selecionado">
             <div id="ea-audit-record" class="ea-audit-record">
               <p class="ea-audit-record__empty">
-                Escolha um registro à esquerda para examiná-lo.
+                Escolha um registro à esquerda para visualizar.
               </p>
             </div>
           </section>

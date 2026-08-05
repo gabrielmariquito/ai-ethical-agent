@@ -28,7 +28,13 @@ function renderResult(data) {
   const summary = document.createElement("p");
   summary.className = "ea-tool-summary";
   const mismatchCount = (data.mismatches || []).length;
-  summary.textContent = `${data.total_cases} casos · ${mismatchCount} divergência${mismatchCount === 1 ? "" : "s"} da decisão esperada`;
+  // Subtraído, não arredondado de `decision_accuracy`: um caso é acerto
+  // exatamente quando não virou divergência, e as duas contagens têm de
+  // fechar com o total na mesma linha em que aparecem juntas.
+  const hitCount = data.total_cases - mismatchCount;
+  summary.textContent =
+    `${data.total_cases} casos · ${hitCount} acerto${hitCount === 1 ? "" : "s"} · ` +
+    `${mismatchCount} divergência${mismatchCount === 1 ? "" : "s"} da decisão esperada`;
   els.result.appendChild(summary);
 
   const report = document.createElement("pre");

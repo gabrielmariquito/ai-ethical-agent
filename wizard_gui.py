@@ -912,8 +912,6 @@ class ProgressPage(_Page):
             self._queue.put(
                 f"\nAuditoria: HABILITADA em http://127.0.0.1:{DEFAULT_WEB_PORT}/audit, "
                 "com a senha que você definiu aqui.\n"
-                "Para trocá-la depois, rode este instalador de novo; o que fica "
-                "gravado é um hash, não a senha. Ver AUDIT_GUIDE.pt-BR.md, Passo 8.\n"
             )
         else:
             self._queue.put(

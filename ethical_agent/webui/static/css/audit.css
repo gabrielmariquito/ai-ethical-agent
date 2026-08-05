@@ -37,6 +37,7 @@
   border: 1px solid var(--ea-border-soft);
   border-left: 4px solid var(--ea-info);
   background: var(--ea-info-bg);
+  color: var(--ea-notice-fg);
   border-radius: var(--ea-radius-lg);
   box-shadow: var(--ea-shadow-sm);
   padding: var(--ea-space-4);
@@ -56,11 +57,6 @@
 
 .ea-audit-notice p:last-child {
   margin-bottom: 0;
-}
-
-.ea-audit-notice__file code {
-  font-family: var(--ea-mono);
-  font-size: 0.85em;
 }
 
 .ea-audit-login__form {
@@ -90,7 +86,7 @@
   padding: var(--ea-space-3) var(--ea-space-5);
   border: none;
   border-radius: var(--ea-radius);
-  background: var(--ea-accent);
+  background: var(--ea-accent-solid);
   color: var(--ea-accent-fg);
   font: inherit;
   font-weight: 600;
@@ -108,34 +104,8 @@
   font-size: 0.9rem;
 }
 
-.ea-audit-caveat__short {
-  margin: var(--ea-space-5) 0 var(--ea-space-1);
-  font-size: 0.85rem;
-  color: var(--ea-fg-muted);
-  line-height: 1.6;
-}
-
-.ea-audit-caveat__short code,
 .ea-audit-session__trail code {
   font-family: var(--ea-mono);
-}
-
-.ea-audit-caveat > summary {
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--ea-accent);
-}
-
-.ea-audit-caveat__body p {
-  margin: var(--ea-space-2) 0;
-  font-size: 0.85rem;
-  line-height: 1.6;
-  color: var(--ea-fg-muted);
-}
-
-.ea-audit-caveat__body p:first-child {
-  font-weight: 600;
-  color: var(--ea-fg);
 }
 
 /* ---- session strip (non-dismissible on purpose) */
@@ -437,6 +407,7 @@
   font-size: 0.85rem;
   line-height: 1.35;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -829,7 +800,7 @@
   padding: var(--ea-space-2) var(--ea-space-4);
   border: none;
   border-radius: var(--ea-radius);
-  background: var(--ea-accent);
+  background: var(--ea-accent-solid);
   color: var(--ea-accent-fg);
   font: inherit;
   font-size: 0.82rem;

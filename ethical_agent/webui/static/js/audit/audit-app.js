@@ -3,7 +3,7 @@
 
 import { getJSON, showErrorBanner } from "../api.js";
 import { renderNav } from "../nav.js";
-import { createLogin, renderCaveat } from "./audit-auth.js";
+import { createLogin } from "./audit-auth.js";
 import { createList } from "./audit-list.js";
 import { createRecordPanel } from "./audit-record.js";
 import { renderSessionBanner } from "./audit-session-banner.js";
@@ -22,8 +22,6 @@ const els = {
   password: document.getElementById("ea-audit-password"),
   submit: document.getElementById("ea-audit-login-submit"),
   error: document.getElementById("ea-audit-login-error"),
-  loginLogPath: document.getElementById("ea-audit-login-logpath"),
-  caveatLogin: document.getElementById("ea-audit-caveat-login"),
   app: document.getElementById("ea-audit-app"),
   sessionBanner: document.getElementById("ea-audit-session-banner"),
   filter: document.getElementById("ea-audit-filter"),
@@ -93,7 +91,6 @@ async function init() {
   // `auditEnabled` é verdadeiro por definição aqui, e `sessionActive` fica
   // deliberadamente sem valor até o login passar.
   renderNav(els.nav, "/audit", { auditEnabled: true });
-  renderCaveat(els.caveatLogin);
   createLogin(
     { form: els.loginForm, password: els.password, submit: els.submit, error: els.error },
     (session) => {
@@ -104,7 +101,6 @@ async function init() {
   // Already logged in (a reload inside a live session) -- skip the form.
   try {
     const session = await getJSON("/api/audit/session");
-    els.loginLogPath.textContent = session.auditor_log_path || "logs/auditor_sessions.jsonl";
     await startSession(session);
   } catch (err) {
     if (err && err.status === 401) {

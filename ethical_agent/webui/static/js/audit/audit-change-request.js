@@ -30,25 +30,26 @@ export function createChangeRequestControl(match, recordEventId) {
   warning.className = "ea-audit-cr__warning";
   warning.textContent =
     "Isto não altera a política. Fica registrado como intenção, ancorado neste " +
-    "registro e nesta norma. A edição efetiva das regras chega na próxima etapa — " +
-    "até lá, o agente continua decidindo pela política atual.";
+    "registro e nesta norma. A edição efetiva das regras deve ser feita manualmente. " +
+    "Até lá, o agente continua decidindo pela política atual.";
   form.appendChild(warning);
 
   const label = document.createElement("label");
   const noteId = `ea-audit-cr-note-${Math.random().toString(36).slice(2, 8)}`;
   label.setAttribute("for", noteId);
-  label.textContent = "Motivo (opcional — pode deixar em branco)";
+  label.textContent = "Motivo (opcional)";
   form.appendChild(label);
 
   const note = document.createElement("textarea");
   note.id = noteId;
   note.rows = 3;
-  note.placeholder = "Se quiser, diga o que está errado. Não é obrigatório.";
+  note.placeholder = "Escreva um comentário sobre a intenção de mudança.";
   form.appendChild(note);
 
   const recorded = document.createElement("p");
   recorded.className = "ea-audit-cr__recorded";
-  recorded.textContent = "Esta marcação também fica registrada na sua sessão de auditoria.";
+  recorded.textContent = "Esta marcação também fica registrada na sua sessão de auditoria." +
+  "Você pode acessar o histórico de intenções de mudança em logs/policy_change_requests.jsonl";
   form.appendChild(recorded);
 
   const actions = document.createElement("div");

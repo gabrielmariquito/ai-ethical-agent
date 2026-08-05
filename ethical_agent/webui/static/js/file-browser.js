@@ -88,15 +88,21 @@ export function createFileBrowser() {
     }
   }
 
+  // The pending resolve has to be read *before* close() clears it, or the
+  // promise `open()` returned never settles and the caller's `await` hangs
+  // forever -- the field keeps its old path and the screen looks inert.
+  function settle(value) {
+    const resolve = resolveFn;
+    close();
+    if (resolve) resolve(value);
+  }
+
   selectBtn.addEventListener("click", () => {
     const name = filenameInput.value.trim();
-    const full = name ? joinPath(currentDir, name) : currentDir;
-    close();
-    if (resolveFn) resolveFn(full);
+    settle(name ? joinPath(currentDir, name) : currentDir);
   });
   cancelBtn.addEventListener("click", () => {
-    close();
-    if (resolveFn) resolveFn(null);
+    settle(null);
   });
   filenameInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
