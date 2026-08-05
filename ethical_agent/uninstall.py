@@ -1045,11 +1045,11 @@ def build_plan(
         # arquivo que só tem OLLAMA_MODEL descreve outro arquivo, e a linha
         # existe justamente para quem não sabe o que tem dentro.
         detail = (
-            "O .env é um arquivo de configuração escrito pelo instalador"
+            "O .env é um arquivo de configuração escrito pelo instalador "
             "que guarda as escolhas da instalação. Serve para que o "
             "projeto reencontre-as a cada execução. "
-            "Removê-lo não apaga nada além dessas escolhas; rodar o "
-            "instalador de novo o recria."
+            "Removê-lo não apaga nada além dessas escolhas. Caso o "
+            "programa seja reinstalado, ele será criado novamente."
         )
         if "OLLAMA_API_KEY" in keys:
             detail += (
