@@ -1,30 +1,6 @@
-# Dependências do ai-ethical-agent, levantadas dos imports reais do repositório
-# (varredura de AST em todos os .py fora de .venv/), e não da memória de quem
-# escreveu o arquivo. Os únicos pacotes de terceiros importados em todo o
-# projeto são `ollama`, `dotenv` e `pytest`. Não há rdflib, requests, flask,
-# numpy nem framework web: o grafo RelAIEO é lido por parser próprio
-# (ethical_agent/relaieo.py) e o servidor é `http.server` da biblioteca padrão.
-#
-# ATENÇÃO -- este arquivo não instala nada sozinho neste projeto. O instalador
-# gráfico roda `pip install -e .[llm,dev]` (wizard_gui.py), então quem manda de
-# verdade é o `pyproject.toml`. Este arquivo existe para quem quer montar o
-# ambiente à mão e para dizer, em um lugar só, o que o programa precisa. Ao
-# mexer num, mexa no outro: nada no repo obriga os dois a concordarem.
-#
-# Python >= 3.10 (pyproject.toml, requires-python).
-
-
-# -- núcleo: NADA ------------------------------------------------------------
-#
-# O motor simbólico (types, conditions, policy, ontology, engine, agent) roda
-# só com a biblioteca padrão, de propósito -- é código auditável sem caixa
-# preta de terceiro. `python -m ethical_agent check` e a interface web
-# funcionam com esta seção vazia.
-
-
 # -- para conversar com um LLM (`ethical-agent process`) ---------------------
 #
-# Só isto é importado em ethical_agent/llm.py. Sem estes dois, todo o resto do
+# Só isto é importado e ethical_agent/llm.py. Sem estes dois, todo o resto do
 # programa continua funcionando; o que falha é a chamada ao modelo.
 ollama>=0.3
 python-dotenv>=1.0
@@ -41,13 +17,3 @@ setuptools>=68
 wheel
 
 
-# -- o que pip NÃO resolve ---------------------------------------------------
-#
-# tkinter -- biblioteca padrão, mas pacote separado do sistema operacional no
-#   Linux (`apt install python3-tk`). É o que desenha o instalador
-#   (wizard_gui.py) e o desinstalador (uninstall_gui.py). No Windows e no macOS
-#   já vem com o Python oficial. Sem ele os dois caem no modo texto (--cli).
-#
-# Ollama -- o servidor e o modelo baixado são programas externos, instalados
-#   pelo próprio instalador ou por https://ollama.com. O pacote pip `ollama`
-#   acima é só o cliente que fala com esse servidor; ele não traz o servidor.

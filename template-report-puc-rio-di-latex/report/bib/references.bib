@@ -1,0 +1,243 @@
+%=============================================================================
+% ARQUIVO DE REFERÊNCIAS BIBLIOGRÁFICAS
+% Template DI PUC-Rio - references.bib
+%
+% INSTRUÇÕES:
+% - Adicione aqui suas referências no formato BibTeX
+% - Use chaves descritivas e consistentes (autor_ano_palavra-chave)
+% - Mantenha a formatação organizada e consistente
+% - Verifique sempre a integridade dos dados bibliográficos
+%=============================================================================
+
+%=============================================================================
+% EXEMPLOS DE TIPOS DE REFERÊNCIAS
+%=============================================================================
+
+% -----------------------------------------------------------------------------
+% ARTIGO EM PERIÓDICO
+% -----------------------------------------------------------------------------
+% @article{silva2024exemplo,
+%     author    = {Silva, João and Santos, Maria},
+%     title     = {Exemplo de Artigo Científico},
+%     journal   = {Revista Brasileira de Informática},
+%     year      = {2024},
+%     volume    = {15},
+%     number    = {2},
+%     pages     = {10--25},
+%     doi       = {10.1000/exemplo},
+%     issn      = {1234-5678}
+% }
+
+% -----------------------------------------------------------------------------
+% LIVRO
+% -----------------------------------------------------------------------------
+% @book{autor2023livro,
+%     author    = {Autor, Nome},
+%     title     = {Título do Livro},
+%     publisher = {Editora},
+%     year      = {2023},
+%     address   = {Cidade},
+%     edition   = {2},
+%     isbn      = {978-85-123-4567-8}
+% }
+
+% -----------------------------------------------------------------------------
+% ARTIGO EM CONFERÊNCIA
+% -----------------------------------------------------------------------------
+% @inproceedings{conference2024,
+%     author    = {Primeiro, Autor and Segundo, Autor},
+%     title     = {Título do Artigo na Conferência},
+%     booktitle = {Proceedings of the Conference Name},
+%     year      = {2024},
+%     pages     = {123--130},
+%     address   = {Local da Conferência},
+%     publisher = {IEEE},
+%     doi       = {10.1109/exemplo.2024}
+% }
+
+% -----------------------------------------------------------------------------
+% CAPÍTULO DE LIVRO
+% -----------------------------------------------------------------------------
+% @incollection{autor2024capitulo,
+%     author    = {Autor, Nome},
+%     title     = {Título do Capítulo},
+%     booktitle = {Título do Livro},
+%     editor    = {Editor, Nome},
+%     publisher = {Editora},
+%     year      = {2024},
+%     pages     = {45--67},
+%     chapter   = {3}
+% }
+
+% -----------------------------------------------------------------------------
+% TESE OU DISSERTAÇÃO
+% -----------------------------------------------------------------------------
+% @phdthesis{silva2023tese,
+%     author  = {Silva, João},
+%     title   = {Título da Tese},
+%     school  = {Pontifícia Universidade Católica do Rio de Janeiro},
+%     year    = {2023},
+%     address = {Rio de Janeiro},
+%     type    = {Tese de Doutorado}
+% }
+
+% @mastersthesis{santos2023dissertacao,
+%     author  = {Santos, Maria},
+%     title   = {Título da Dissertação},
+%     school  = {Pontifícia Universidade Católica do Rio de Janeiro},
+%     year    = {2023},
+%     address = {Rio de Janeiro}
+% }
+
+% -----------------------------------------------------------------------------
+% RECURSO ONLINE / WEBSITE
+% -----------------------------------------------------------------------------
+% @misc{website2024,
+%     author       = {Organização},
+%     title        = {Título da Página Web},
+%     howpublished = {\url{https://exemplo.com}},
+%     year         = {2024},
+%     note         = {Acesso em: 01 jan. 2024}
+% }
+
+% -----------------------------------------------------------------------------
+% MANUAL TÉCNICO
+% -----------------------------------------------------------------------------
+% @manual{manual2024,
+%     title        = {Manual do Usuário},
+%     author       = {Empresa},
+%     organization = {Nome da Organização},
+%     edition      = {v2.1},
+%     year         = {2024},
+%     note         = {Disponível em: \url{https://exemplo.com/manual}}
+% }
+
+%=============================================================================
+% SUAS REFERÊNCIAS COMEÇAM AQUI
+%=============================================================================
+
+% As entradas abaixo são as fontes reais deste relatório, agrupadas por papel.
+% A bibliografia formatada está DESLIGADA no main.tex de propósito: o relatório
+% traz a própria seção de Referências (seção 6), com as fontes anotadas por
+% papel -- ontologia emprestada, algoritmo da camada de frames, corpora,
+% documentação interna. Estas entradas ficam aqui para quem quiser ligar o
+% biblatex e citar com \cite.
+
+%-----------------------------------------------------------------------------
+% A ONTOLOGIA DE TERCEIROS -- vendorizada verbatim, sob GPL v3, não editada
+%-----------------------------------------------------------------------------
+
+@misc{arora_sarkar_relaieo,
+    author       = {Arora, Cheshta and Sarkar, Debarun},
+    title        = {{RelAIEO}: Relational {AI} Ethics Ontology},
+    howpublished = {Audit4SG},
+    url          = {https://ontology.audit4sg.org/},
+    note         = {Arquivo Turtle obtido de https://ontology.audit4sg.org/ontology.ttl;
+                    licença GNU GPL v3. Vendorizada sem modificação em
+                    ontologies/relaieo.ttl; procedência em ontologies/PROVENANCE.md}
+}
+
+%-----------------------------------------------------------------------------
+% O ALGORITMO DA CAMADA DE FRAMES -- publicado e validado, não invenção nossa
+%-----------------------------------------------------------------------------
+
+@inproceedings{chapman2007context,
+    author    = {Chapman, Wendy W. and Chu, David and Dowling, John N.},
+    title     = {{ConText}: An Algorithm for Identifying Contextual Features from Clinical Text},
+    booktitle = {Proceedings of the Workshop on {BioNLP} 2007},
+    year      = {2007},
+    pages     = {81--88}
+}
+
+@article{harkema2009context,
+    author  = {Harkema, Henk and Dowling, John N. and Thornblade, Tyler and Chapman, Wendy W.},
+    title   = {{ConText}: An algorithm for determining negation, experiencer,
+               and temporal status from clinical reports},
+    journal = {Journal of Biomedical Informatics},
+    volume  = {42},
+    number  = {5},
+    pages   = {839--851},
+    year    = {2009}
+}
+
+%-----------------------------------------------------------------------------
+% OS PARADIGMAS DE GUARDRAIL -- o roadmap que o projeto percorre
+%-----------------------------------------------------------------------------
+
+@article{liu2025patterns,
+    author  = {Liu, Qinghua and others},
+    title   = {Agent design pattern catalogue},
+    journal = {Journal of Systems and Software},
+    volume  = {220},
+    pages   = {112278},
+    year    = {2025},
+    doi     = {10.1016/j.jss.2024.112278},
+    note    = {Origem do padrão multimodel guardrails, que a composição por
+               decisão mais restritiva implementa}
+}
+
+@misc{shieldagent2025,
+    title = {{ShieldAgent}: Shielding Agents via Verifiable Safety Policy Reasoning},
+    year  = {2025},
+    url   = {https://arxiv.org/pdf/2503.22738}
+}
+
+@misc{guardagent2024,
+    title = {{GuardAgent}: Safeguard {LLM} Agents by a Guard Agent via
+             Knowledge-Enabled Reasoning},
+    year  = {2024},
+    url   = {https://arxiv.org/pdf/2406.09187}
+}
+
+@misc{grace2026,
+    author = {Jahn, F. and others},
+    title  = {{GRACE}: A Reason-Based Neuro-Symbolic Architecture for Safe and
+              Ethical {AI} Alignment},
+    year   = {2026},
+    url    = {https://hf.co/papers/2601.10520}
+}
+
+@misc{ontologicalcontext,
+    title = {Enabling Ethical {AI}: A case study in using Ontological Context
+             for Justified decisions},
+    url   = {https://arxiv.org/pdf/2512.04822}
+}
+
+%-----------------------------------------------------------------------------
+% OS CORPORA EXTERNOS DE AVALIAÇÃO
+%-----------------------------------------------------------------------------
+
+@misc{deepset_prompt_injections,
+    author       = {{deepset}},
+    title        = {prompt-injections},
+    howpublished = {Hugging Face Datasets},
+    url          = {https://huggingface.co/datasets/deepset/prompt-injections},
+    note         = {Licença Apache 2.0. Fonte de
+                    eval/dataset\_huggingface\_injections.json: os 662 casos do
+                    corpus inteiro, sem amostragem}
+}
+
+@inproceedings{ji2023beavertails,
+    author    = {Ji, Jiaming and others},
+    title     = {{BeaverTails}: Towards Improved Safety Alignment of {LLM} via a
+                 Human-Preference Dataset},
+    booktitle = {{NeurIPS} Datasets and Benchmarks Track},
+    year      = {2023},
+    url       = {https://huggingface.co/datasets/PKU-Alignment/BeaverTails},
+    note      = {Licença CC BY-NC 4.0. Fonte de eval/dataset\_beavertails.json:
+                 220 casos de um split de cerca de 30.000. A procedência da
+                 amostragem nunca foi versionada -- a seleção é verificável,
+                 não reproduzível}
+}
+
+%-----------------------------------------------------------------------------
+% O MODELO DE CENÁRIOS QUE A SEÇÃO "VISÃO DE PROJETO" SEGUE
+%-----------------------------------------------------------------------------
+
+@article{carroll1999scenarios,
+    author  = {Carroll, John M.},
+    title   = {Five reasons for scenario-based design},
+    journal = {Interacting with Computers},
+    year    = {1999},
+    note    = {Base do formato dos quatro cenários da Visão de Projeto}
+}

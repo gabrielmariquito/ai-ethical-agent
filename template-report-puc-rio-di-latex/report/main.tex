@@ -1,0 +1,246 @@
+%=============================================================================
+% Relatório Final do Projeto — Departamento de Informática PUC-Rio
+% Arquivo principal: main.tex
+%
+% O CORPO DESTE RELATÓRIO É GERADO, NÃO ESCRITO AQUI.
+% Os arquivos de `sections/` saem de `md2tex.py`, que converte o relatório em
+% Markdown (`PFP-relatorio-final-2026-08-06.md`) para LaTeX. Editar `sections/`
+% à mão perde o trabalho na próxima geração: edite o Markdown e rode
+%
+%     py -3 md2tex.py
+%
+% Este arquivo guarda o que é do template — capa, cabeçalho, pacotes — e o que
+% é decisão de formatação. Ele é escrito à mão e não é gerado.
+%=============================================================================
+
+\documentclass[10pt]{article}
+\usepackage[portuguese]{babel}
+
+%=============================================================================
+% DADOS DO TRABALHO — preencha os três campos marcados
+%=============================================================================
+
+\newcommand{\disciplina}{PROJETO FINAL DE PROGRAMAÇÃO}
+\newcommand{\codigodisciplina}{INF\rule{1.2em}{0.4pt}} % <<< PREENCHER: código da disciplina
+\newcommand{\tituloRelatorio}{Verificação Simbólica e Auditável de Princípios
+  Éticos em Agentes Baseados em Foundation Models}
+\newcommand{\subtituloRelatorio}{\texttt{ai-ethical-agent} --- um guardrail
+  simbólico cujo objeto de estudo é o registro de decisão que ele produz}
+\newcommand{\autor}{Gabriel Mariquito}
+\newcommand{\emailAutor}{gsousa@inf.puc-rio.br}   % <<< PREENCHER
+\newcommand{\professor}{Greis Silva-Calpa}                   % <<< PREENCHER: nome do(a) professor(a)
+\newcommand{\dataRelatorio}{Agosto de 2026}
+
+%=============================================================================
+% PREÂMBULO - CONFIGURAÇÕES E PACOTES
+%=============================================================================
+
+% --- Codificação e idioma ---
+\usepackage[utf8]{inputenc}     % Codificação UTF-8 para caracteres especiais
+\usepackage{lmodern}            % Latin Modern: Computer Modern em versão ESCALÁVEL.
+                                % Não é preferência tipográfica: sem ela, numa
+                                % instalação com a CM em bitmap, o `microtype`
+                                % aborta com "auto expansion is only possible
+                                % with scalable fonts" e não sai PDF nenhum.
+\usepackage[T1]{fontenc}        % Acentuação correta na saída e hifenização em pt-BR
+
+% Símbolos que o texto usa e que o `inputenc` NÃO conhece por padrão: sem estas
+% declarações o pdflatex **falha** com "Unicode character not set up", em vez de
+% degradar. Letra acentuada não precisa: essa o inputenc+fontenc já resolve.
+% A lista sai de uma varredura do .tex gerado, não de palpite.
+\DeclareUnicodeCharacter{2291}{\ensuremath{\sqsubseteq}}  % ⊑ herança de conceito
+\DeclareUnicodeCharacter{2192}{\ensuremath{\rightarrow}}  % →
+\DeclareUnicodeCharacter{2264}{\ensuremath{\leq}}         % ≤
+\DeclareUnicodeCharacter{2265}{\ensuremath{\geq}}         % ≥
+\DeclareUnicodeCharacter{2713}{\ensuremath{\checkmark}}   % ✓
+
+% --- Pacotes matemáticos ---
+\usepackage{amsmath}            % Comandos adicionais para matemática
+\usepackage{amssymb}            % Símbolos matemáticos
+
+% Do template original, e sem uso neste relatório -- ficam comentados em vez de
+% apagados, para que continuem a um caractere de distância de quem precisar:
+% \usepackage{commath}          % Tipografia matemática adicional
+% \usepackage{cancel}           % Riscar fórmulas
+% \usepackage{subfigure}        % Múltiplas figuras (obsoleto; conflita com caption em algumas versões)
+% \usepackage{sidecap}          % Ambientes SCfigure e SCtable
+%     \sidecaptionvpos{figure}{c}
+
+% --- Pacotes para figuras e tabelas ---
+\usepackage{graphicx}           % Inclusão de imagens
+\usepackage{xcolor}             % Coloração de texto
+\usepackage{float}              % Controle de posicionamento [H] para figuras
+\usepackage{capt-of}            % Comando \captionof para legendas fora de floats
+\usepackage{caption}            % Personalização de legendas
+\usepackage{pdflscape}          % Página em paisagem para o diagrama de classes
+
+% --- Formatação e layout ---
+\usepackage{anysize}            % Configuração de margens do documento
+\marginsize{2cm}{2cm}{2cm}{2cm} % Margens: esquerda, direita, superior, inferior
+\usepackage{appendix}           % Controle adicional de apêndices
+\usepackage{longtable}          % Tabelas que quebram páginas
+\usepackage{booktabs}           % Linhas profissionais em tabelas
+\usepackage{microtype}          % Ajuste fino de espaçamento; ajuda com as tabelas largas
+
+% Último recurso do quebrador de linhas: em vez de deixar a linha estourar a
+% margem, o TeX pode esticar os espaços um pouco mais. Um relatório cheio de
+% identificadores longos (`\texttt{}` não hifeniza) tem dezenas desses casos.
+\setlength{\emergencystretch}{3em}
+
+% --- Hyperlinks e referências ---
+\usepackage[colorlinks=true,plainpages=true,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
+
+%=============================================================================
+% CONFIGURAÇÃO DE CABEÇALHO E RODAPÉ
+%=============================================================================
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize Departamento de Informática}
+\fancyhead[R]{\footnotesize PUC-Rio}
+\fancyfoot[R]{\footnotesize \codigodisciplina}
+\fancyfoot[C]{\thepage}
+\fancyfoot[L]{\footnotesize Pós Graduação - Mestrado em Informática}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancypagestyle{firststyle}{\fancyhf{}}
+
+%=============================================================================
+% CONFIGURAÇÃO PARA CÓDIGO FONTE E SAÍDAS DE TERMINAL
+%
+% Os blocos deste relatório são saída de comando, JSON e trechos de Python, e
+% quase todos têm acentuação. O `literate` abaixo não é decoração: sob
+% `inputenc utf8`, o `listings` NÃO imprime caractere acentuado sem ele --
+% falha na compilação em vez de degradar. A lista cobre exatamente os
+% caracteres que `md2tex.py` reporta ao converter.
+%=============================================================================
+
+\usepackage{listings}
+\definecolor{fundocodigo}{rgb}{0.98,0.98,0.98}
+\definecolor{molduracodigo}{rgb}{0.80,0.80,0.80}
+
+\lstset{
+   basicstyle=\ttfamily\scriptsize,
+   backgroundcolor=\color{fundocodigo},
+   frame=single,
+   rulecolor=\color{molduracodigo},
+   framerule=0.3pt,
+   breaklines=true,
+   breakatwhitespace=false,
+   columns=fullflexible,
+   keepspaces=true,
+   showspaces=false,
+   showstringspaces=false,
+   tabsize=2,
+   xleftmargin=4pt,
+   xrightmargin=4pt,
+   aboveskip=8pt,
+   belowskip=8pt,
+   extendedchars=true,
+   literate=%
+     {á}{{\'a}}1 {à}{{\`a}}1 {ã}{{\~a}}1 {â}{{\^a}}1
+     {é}{{\'e}}1 {ê}{{\^e}}1 {í}{{\'i}}1
+     {ó}{{\'o}}1 {õ}{{\~o}}1 {ô}{{\^o}}1
+     {ú}{{\'u}}1 {ü}{{\"u}}1 {ç}{{\c c}}1
+     {Á}{{\'A}}1 {Ã}{{\~A}}1 {É}{{\'E}}1 {Ô}{{\^O}}1 {Ú}{{\'U}}1 {Ç}{{\c C}}1
+     {–}{{--}}1 {—}{{---}}1 {…}{{\ldots}}1
+     {±}{{$\pm$}}1 {·}{{$\cdot$}}1 {→}{{$\rightarrow$}}1 {⊑}{{$\sqsubseteq$}}1
+}
+
+%=============================================================================
+% CONFIGURAÇÃO DE BIBLIOGRAFIA
+%
+% As entradas estão em `bib/references.bib`. A bibliografia formatada fica
+% DESLIGADA de propósito: o relatório traz a própria seção de Referências
+% (seção 6, gerada do Markdown), com as fontes anotadas por papel -- ontologia
+% emprestada, algoritmo da camada de frames, corpora, documentação interna --,
+% e imprimir as duas listas seria repetir o mesmo conteúdo em dois formatos.
+% Para trocar de regime: descomente as duas linhas abaixo e a chamada de
+% \printbibliography no fim, e acrescente \cite no texto.
+%=============================================================================
+
+% \usepackage[natbib=true,style=numeric,sorting=none]{biblatex}
+% \addbibresource{bib/references.bib}
+
+%=============================================================================
+% FIM DO PREÂMBULO
+%=============================================================================
+
+\begin{document}
+
+%=============================================================================
+% PÁGINA DE TÍTULO
+%=============================================================================
+
+\thispagestyle{firststyle}
+\begin{center}
+  \begin{minipage}{0.48\textwidth} \begin{flushleft}
+    \includegraphics[scale = 0.75]{images/di.png}
+  \end{flushleft}\end{minipage}
+  \begin{minipage}{0.48\textwidth} \begin{flushright}
+    \includegraphics[scale = 0.4]{images/puc.png}
+  \end{flushright}\end{minipage}
+
+  \vspace*{1.5cm}
+
+  \textsc{\LARGE Departamento de Informática}\\[1.0cm]
+  \textsc{\large \codigodisciplina{} --- \disciplina}\\[1.5cm]
+
+  \vspace{0.5cm}
+
+  { \huge \bfseries \tituloRelatorio}\\[0.6cm]
+  { \large \subtituloRelatorio}\\[0.8cm]
+
+  \vspace*{0.6cm}
+  { \large
+    \autor \\ \emailAutor \\[0.4cm]
+
+    \vspace*{0.9cm}
+    \emph{Professor:} \\
+      \professor
+  }
+
+  \vspace{1.4cm}
+
+  \begin{minipage}{0.86\textwidth}
+    \small
+    \textbf{Procedência deste documento.} Tudo o que está descrito aqui foi lido
+    e medido na cópia de trabalho em
+    \path{c:\Users\Gabriel\Downloads\Projeto\ai-ethical-agent}, no
+    commit \texttt{281e7c5}, com a árvore limpa, em 2026-08-06. Onde há número,
+    ele saiu de execução ou de leitura de arquivo nessa cópia; onde um número
+    veio de uma sessão anterior, a data dessa sessão vem dita ao lado dele.
+    Nenhuma afirmação deste documento foi obtida por estimativa.
+  \end{minipage}
+
+  \vspace{1.2cm}
+  {Rio de Janeiro \\ \dataRelatorio}
+
+\end{center}
+
+\newpage
+
+%=============================================================================
+% SUMÁRIO
+%=============================================================================
+
+\tableofcontents
+\newpage
+
+%=============================================================================
+% CORPO DO RELATÓRIO — gerado por md2tex.py, não editar em sections/
+%=============================================================================
+
+% `sections/00-procedencia.tex` é gerado mas NÃO entra aqui: o que ele traz
+% está na capa, e incluí-lo repetiria a procedência na primeira página do corpo.
+\input{sections/01-breve-descricao}
+\input{sections/02-visao-de-projeto}
+\input{sections/03-documentacao-tecnica-do-projeto}
+\input{sections/04-manual-de-utilizacao-para-usuarios-con}
+\input{sections/05-indice-de-figuras}
+\input{sections/06-referencias}
+\input{sections/07-apendice-como-reconferir-os-numeros-de}
+
+% \printbibliography   % ver a nota sobre bibliografia no preâmbulo
+
+\end{document}

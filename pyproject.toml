@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=68"]
+# >=77, e não >=68: a declaração de licença abaixo usa a forma SPDX da PEP 639,
+# que setuptools só entende a partir da 77. Construir com uma anterior falharia
+# na leitura de `license`, e falharia dizendo outra coisa.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +11,14 @@ version = "0.3.0"
 description = "Neuro-symbolic ethical guardrails for Foundation-Model-based agents: a rule-based + constraint engine and a RelAIEO knowledge-graph engine."
 readme = "README.md"
 requires-python = ">=3.10"
+# GPL v3 ou posterior, e a razão é de distribuição, não de preferência:
+# `ontologies/relaieo.ttl` é o RelAIEO de terceiros, sob GPL v3, e viaja dentro
+# deste pacote (ver `[tool.setuptools] packages`), carregado em tempo de
+# execução pelo motor de grafo. Adotar a mesma licença para o conjunto é o que
+# torna a distribuição inequívoca. Procedência do arquivo emprestado, e a
+# fronteira com o que é autoral, em `ontologies/PROVENANCE.md`.
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 keywords = ["ai-safety", "guardrails", "ai-ethics", "llm", "ontology", "neuro-symbolic"]
 classifiers = [
     "Programming Language :: Python :: 3",

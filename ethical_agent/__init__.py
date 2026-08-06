@@ -1,3 +1,26 @@
+# ai-ethical-agent -- guardrail simbólico e auditável para agentes baseados em
+# modelos de linguagem.
+# Copyright (C) 2026  Gabriel Mariquito
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# O aviso fica aqui e em `__main__.py`, os dois pontos de entrada, e **não** nos
+# arquivos de configuração: o sha256 de cada um deles é a identidade que entra
+# no `config_id` da trilha, e um byte a mais tornaria todo registro já gravado
+# não comparável com os novos. Procedência do que é emprestado e do que é
+# autoral em `ontologies/PROVENANCE.md`.
+
 from .agent import AgentResult, GuardedAgent
 from .audit import AuditLogger, build_check_audit_record
 from .conditions import (
