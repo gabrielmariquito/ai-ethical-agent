@@ -8,11 +8,24 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 from .engine import PolicyEngine
+from .policy import default_policy_path
 from .types import ActionContext, Decision, Stage
 
 INTERVENING = {Decision.DENY, Decision.REWRITE}
 
 METADES = ("tune", "holdout", "full")
+
+# O papel de cada metade, ao lado da partição que a produz e não num rótulo de
+# tela. `metade_do_caso` é simétrica — par vira `tune`, ímpar vira `holdout` —,
+# então sem isto a assimetria entre calibrar e reportar não existe em lugar
+# nenhum do código e vira convenção oral. Não é enforcement: nada aqui impede
+# ninguém de calibrar contra o holdout. O que isto garante é que nenhum número
+# de holdout chega sem o papel colado, inclusive no texto copiado da tela.
+PAPEIS_DAS_METADES = {
+    "tune": "ajuste — instrumento de trabalho, não resultado publicável",
+    "holdout": "reporte — ficou fora do ajuste; olhar para ajustar gasta a garantia",
+    "full": "conjunto inteiro — não separa ajuste de reporte",
+}
 
 
 # A divisão tune/holdout, receita `divisao/v1` escrita por extenso: só o id do
@@ -31,6 +44,39 @@ LIMITE_COMPARABILIDADE = 0.02
 # is four times the between-engine spread in every README table: past that the
 # two halves are no longer two views of the same corpus.
 LIMITE_DURO = 0.10
+
+
+def eval_dir() -> Path:
+    """O diretório dos datasets, resolvido pelo pacote e não por nome de arquivo.
+
+    Vive aqui, e não em `__main__` nem no handler, porque os dois precisavam do
+    mesmo caminho e o computavam por rotas diferentes.
+    """
+    return (default_policy_path().parents[1] / "eval").resolve()
+
+
+def dataset_curado() -> Path:
+    """O conjunto curado in-distribution, que nunca é dividido."""
+    return eval_dir() / "dataset.json"
+
+
+def recusa_de_divisao(nome: str) -> str:
+    """A frase que a CLI imprime e a tela mostra, escrita uma vez.
+
+    Uma tela que dividisse o que a linha de comando recusa produziria um número
+    rotulado `holdout` que não é um — e o teste que registra a recusa passaria a
+    valer em só um dos dois caminhos. Isso não é lacuna, é garantia falsa, e
+    garantia falsa ninguém questiona.
+
+    O compartilhado é o **motivo**. O remédio é específico da interface por
+    natureza (`--half full` na CLI, o seletor na tela) e cada caminho acrescenta
+    o seu, que é o que mantém o stderr da CLI byte a byte igual ao de sempre.
+    """
+    return (
+        f"{nome} não é dividido -- é o conjunto curado in-distribution, escrito "
+        "pelo autor das próprias regras. Ele é reportado inteiro e separado, "
+        "nunca somado nem promediado com os datasets externos."
+    )
 
 
 def metade_do_caso(case_id: str) -> str:

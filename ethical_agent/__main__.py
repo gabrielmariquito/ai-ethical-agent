@@ -36,12 +36,15 @@ from .demo import DEMO_CASES, demo_scripted
 from .engine import CompositeEngine, PolicyEngine, RuleBasedEngine
 from .evaluate import (
     METADES,
+    dataset_curado,
     evaluate_engine,
     format_report,
     load_dataset,
+    recusa_de_divisao,
     resumo_da_divisao,
     selecionar_metade,
 )
+from .gui_choices import engine_values
 from .frames import FramesRecusa, default_frames_path, register_refusal_condition
 from .kg_engine import KnowledgeGraphEngine
 from .llm import LLMClient, MockLLM, describe_llm_provenance, resolve_llm
@@ -138,22 +141,16 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 2 if verdict.intervened else 0
 
 
-def dataset_curado() -> Path:
-    """O conjunto curado in-distribution, que nunca é dividido, resolvido pelo
-    pacote e não por nome de arquivo.
-    """
-    return (default_policy_path().parents[1] / "eval" / "dataset.json").resolve()
-
-
 def cmd_eval(args: argparse.Namespace) -> int:
     # Deliberadamente nunca auditado: são centenas de casos sintéticos direto no
     # motor, e registrá-los afogaria a trilha de uso real.
     if args.half != "full" and Path(args.dataset).resolve() == dataset_curado():
+        # O motivo vem de `evaluate.recusa_de_divisao`, lido também pela tela; o
+        # remédio abaixo é da CLI e nomeia a flag, por isso não entra na fonte
+        # compartilhada.
         print(
-            f"erro: {args.dataset} não é dividido -- é o conjunto curado "
-            "in-distribution, escrito pelo autor das próprias regras. Ele é "
-            "reportado inteiro e separado, nunca somado nem promediado com os "
-            "datasets externos. Use --half full (ou omita) para este dataset.",
+            f"erro: {recusa_de_divisao(args.dataset)} Use --half full (ou omita) "
+            "para este dataset.",
             file=sys.stderr,
         )
         return 2
@@ -420,7 +417,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument(
         "--engine",
-        choices=["rule", "kg", "hybrid"],
+        choices=list(engine_values()),
         default="hybrid",
         help="engine to use (default: hybrid = rule-based + knowledge graph)",
     )

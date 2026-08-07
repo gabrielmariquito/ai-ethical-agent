@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ethical_agent import default_policy_path
 from ethical_agent.evaluate import (
+    dataset_curado,
     evaluate_engine,
     format_report,
     load_dataset,
     resumo_da_divisao,
 )
+from ethical_agent.evaluate import eval_dir as _eval_dir
 
 from . import routing
 from .engine_factory import build_engine
@@ -16,11 +17,14 @@ from .errors import bad_request
 
 
 def eval_dir() -> Path:
-    return (default_policy_path().parents[1] / "eval").resolve()
+    # Delega: até aqui esta função e `__main__.dataset_curado` computavam o
+    # mesmo caminho por rotas diferentes. O nome fica porque os testes o
+    # importam, mas a definição é uma só.
+    return _eval_dir()
 
 
 def default_dataset_path() -> str:
-    return str(eval_dir() / "dataset.json")
+    return str(dataset_curado())
 
 
 def _resolve_dataset(raw) -> str:
