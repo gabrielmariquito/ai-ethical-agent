@@ -39,11 +39,9 @@ reference its concept IDs:
 
   **Deliberate departure from RelAIEO's own stance:** RelAIEO was designed
   for reflective *human* auditing, not automated allow/deny decisions (see
-  above). An earlier version of this norms layer honored that by using an
-  `ESCALATE` effect (withhold + route to human review) instead of a hard
-  block. That effect was removed from the system in favor of a simpler
-  ALLOW/FLAG/REWRITE/DENY lattice, so these norms now act unilaterally
-  (`DENY`) instead of deferring to a human reviewer. This is documented here
+  above). This system uses a simple ALLOW/FLAG/REWRITE/DENY lattice with no
+  route to human review, so these norms act unilaterally (`DENY`) instead of
+  deferring to a human reviewer. This is documented here
   as an explicit, known trade-off, not as fidelity to RelAIEO's reflective
   philosophy — the `rdfs:provocation` still reaches the end user, but as
   refusal text, not as a review prompt for an auditor.

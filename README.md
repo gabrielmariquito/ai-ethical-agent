@@ -192,9 +192,9 @@ upstream:
   > **reflexiva e não-punitiva** — feita para *auditoria humana*, não para
   > bloquear automaticamente (ver [PROVENANCE.md](ontologies/PROVENANCE.md)).
   > Este guardrail diverge disso deliberadamente: em vez de encaminhar esses
-  > casos para revisão humana (o que a arquitetura anterior fazia via
-  > `ESCALATE`), ele age unilateralmente e bloqueia. Isso simplifica o
-  > reticulado de decisões e evita que conteúdo problemático fique retido
+  > casos para revisão humana, ele age unilateralmente e bloqueia. Isso
+  > simplifica o reticulado de decisões e evita que conteúdo problemático fique
+  > retido
   > "em limbo" sem um fluxo de revisão humana real por trás — mas é uma opção
   > de produto, não uma decorrência da ontologia em si, e vale registrar o
   > trade-off: a `rdfs:provocation` chega ao usuário como texto de recusa, não
@@ -243,7 +243,7 @@ A mais restritiva vence quando várias regras/normas disparam:
 | `ALLOW` | passa sem alteração |
 | `FLAG` | passa, anotado para revisão |
 | `REWRITE` | conteúdo transformado (template) ou PII redigida (spans) |
-| `DENY` | bloqueado, com motivos por regra/norma (inclui os casos que antes eram `ESCALATE` — ver nota de design na seção da camada #2) |
+| `DENY` | bloqueado, com motivos por regra/norma (inclui os casos que iriam para revisão humana — ver nota de design na seção da camada #2) |
 
 ## Instalação
 
