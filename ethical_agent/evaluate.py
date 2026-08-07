@@ -22,9 +22,9 @@ METADES = ("tune", "holdout", "full")
 # ninguém de calibrar contra o holdout. O que isto garante é que nenhum número
 # de holdout chega sem o papel colado, inclusive no texto copiado da tela.
 PAPEIS_DAS_METADES = {
-    "tune": "ajuste — instrumento de trabalho, não resultado publicável",
-    "holdout": "reporte — ficou fora do ajuste; olhar para ajustar gasta a garantia",
-    "full": "conjunto inteiro — não separa ajuste de reporte",
+    "tune": "Ajuste. É aqui que se leem os erros do sistema para corrigir regras e léxicos",
+    "holdout": "Reporte. É o desempenho verdadeiro do sistema",
+    "full": "Conjunto inteiro dos dados. Inclui dados de ajuste e de reporte juntos",
 }
 
 
