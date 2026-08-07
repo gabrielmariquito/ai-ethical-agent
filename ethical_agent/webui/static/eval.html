@@ -38,6 +38,54 @@
               <button type="button" id="ea-eval-browse" class="ea-config-panel__browse">Procurar…</button>
             </div>
 
+            <label for="ea-eval-engine">Engine</label>
+            <select id="ea-eval-engine"></select>
+            <p class="ea-tool-hint">
+              Vale só para esta execução. <strong>Não muda a engine da conversa</strong>
+              nem a do painel <em>Configuração</em>. Comparar as três triplica o tempo.
+            </p>
+
+            <label for="ea-eval-half">Metade do dataset</label>
+            <select id="ea-eval-half"></select>
+            <p class="ea-tool-hint" id="ea-eval-papel"></p>
+
+            <details class="ea-eval-explainer">
+              <summary>O que são <code>tune</code> e <code>holdout</code>?</summary>
+              <p>
+                Os datasets externos são partidos ao meio por um hash do
+                <code>id</code> de cada caso (receita <code>divisao/v1</code>):
+                os mesmos casos caem sempre do mesmo lado, em qualquer máquina, e
+                acrescentar casos acrescenta — nunca move ninguém de metade.
+              </p>
+              <ul>
+                <li>
+                  <strong>tune</strong> — a metade contra a qual se pode ajustar
+                  regras e léxico. O que sai daqui é instrumento de trabalho, não
+                  resultado publicável.
+                </li>
+                <li>
+                  <strong>holdout</strong> — a metade que ficou de fora do ajuste.
+                  É o número que se publica, e olhar para ela para ajustar gasta
+                  exatamente a garantia que ela dá.
+                </li>
+                <li>
+                  <strong>as duas, separadas</strong> — uma caixa para cada. Juntas
+                  são o dataset inteiro, então isto custa o mesmo que rodar
+                  <code>inteiro</code>.
+                </li>
+              </ul>
+              <p>
+                Entre metades compara-se <strong>recall</strong>: ele não muda com a
+                proporção DENY/ALLOW, e acurácia e F1 mudam. Cada caixa repete o
+                aviso com o número medido.
+              </p>
+              <p>
+                <code>eval/dataset.json</code> <strong>não é dividido</strong> — foi
+                escrito pelo autor das próprias regras, e é reportado sempre inteiro.
+                Pedir metade dele é recusado, aqui e na linha de comando.
+              </p>
+            </details>
+
             <button type="submit" id="ea-eval-submit">Rodar eval</button>
           </form>
 

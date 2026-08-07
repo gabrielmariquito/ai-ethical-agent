@@ -201,6 +201,53 @@ def load_dataset(path: Union[str, Path]) -> List[dict]:
     return cases
 
 
+def _camadas_de(engine: PolicyEngine) -> list:
+    """As camadas de um motor composto, lidas do PRÓPRIO motor.
+
+    `CompositeEngine.engines` já é atributo público — `describe_config` e
+    `config_artifacts` leem dele. Ler daqui em vez de reconstruir os motores dá
+    três coisas: nenhuma recarga de ontologia, as instâncias são literalmente as
+    que a composta consulta, e a atribuição não pode nomear camada que a
+    composta não tem.
+
+    `getattr` e não `isinstance`: o que importa é o motor expor as filhas que
+    ele consulta, não a classe dele. Motor de camada única devolve lista vazia,
+    e aí o relatório não afirma camada nenhuma — inventar uma camada única seria
+    dizer algo que a composição não disse.
+    """
+    return list(getattr(engine, "engines", ()) or ())
+
+
+def _quem_decidiu(camadas: list, action: ActionContext, decisao_final: Decision):
+    """(vencedoras, houve_indisponivel) para um caso.
+
+    Vencedora é a camada que decidiu **igual** à composta. A decisão final é a
+    mais restritiva, então "quem decidiu" é quem produziu o veredito vencedor —
+    e quando duas decidiram igual, as duas decidiram. Isso é informação, não
+    empate a desfazer.
+
+    O critério não é re-derivado: compara-se contra `decisao_final`, que a
+    composta já computou. Esta função nunca chama `most_restrictive` nem olha o
+    ranking de restritividade, e por isso não pode discordar da decisão que
+    descreve.
+
+    Camada que levanta entra como indisponível, **não** como DENY. A composta
+    falha fechada e está certa; espelhar essa regra aqui seria reescrever lógica
+    de composição fora do motor, e a atribuição passaria a descrever um sistema
+    que ninguém roda. O caso vai para um balde nomeado em vez de sumir.
+    """
+    decisoes = []
+    for camada in camadas:
+        try:
+            decisoes.append((camada.name, camada.evaluate(action).decision))
+        except Exception:  # noqa: BLE001 -- indisponível é um estado, não um palpite
+            decisoes.append((camada.name, None))
+    vencedoras = tuple(
+        nome for nome, d in decisoes if d is not None and d is decisao_final
+    )
+    return vencedoras, any(d is None for _, d in decisoes)
+
+
 def evaluate_engine(engine: PolicyEngine, cases: List[dict],
                     divisao: Optional[dict] = None) -> dict:
     tp = fp = fn = tn = 0
@@ -208,11 +255,22 @@ def evaluate_engine(engine: PolicyEngine, cases: List[dict],
     per_principle = defaultdict(lambda: {"total": 0, "correct": 0})
     mismatches = []
 
+    camadas = _camadas_de(engine)
+    combinacoes: dict = defaultdict(int)
+    indisponiveis = 0
+
     for case in cases:
         stage = Stage(case.get("stage", "input"))
         expected = Decision(case["expected_decision"])
-        verdict = engine.evaluate(ActionContext(content=case["content"], stage=stage))
+        action = ActionContext(content=case["content"], stage=stage)
+        verdict = engine.evaluate(action)
         predicted = verdict.decision
+
+        vencedoras = ()
+        if camadas:
+            vencedoras, faltou = _quem_decidiu(camadas, action, predicted)
+            combinacoes[vencedoras] += 1
+            indisponiveis += 1 if faltou else 0
 
         expected_intervene = expected in INTERVENING
         predicted_intervene = predicted in INTERVENING
@@ -231,17 +289,20 @@ def evaluate_engine(engine: PolicyEngine, cases: List[dict],
             exact += 1
             per_principle[principle]["correct"] += 1
         else:
-            mismatches.append(
-                {
-                    "id": case.get("id"),
-                    "content": case["content"],
-                    "stage": stage.value,
-                    "expected": expected.value,
-                    "predicted": predicted.value,
-                    "matched_rules": [m.rule_id for m in verdict.matches],
-                    "reason": verdict.reason,
-                }
-            )
+            divergencia = {
+                "id": case.get("id"),
+                "content": case["content"],
+                "stage": stage.value,
+                "expected": expected.value,
+                "predicted": predicted.value,
+                "matched_rules": [m.rule_id for m in verdict.matches],
+                "reason": verdict.reason,
+            }
+            if camadas:
+                # É o dado que hoje exige investigação manual: ao olhar um caso
+                # errado, saber qual das duas camadas errou.
+                divergencia["camada"] = list(vencedoras)
+            mismatches.append(divergencia)
 
     total = len(cases)
     precision = tp / (tp + fp) if (tp + fp) else 0.0
@@ -276,6 +337,24 @@ def evaluate_engine(engine: PolicyEngine, cases: List[dict],
     }
     if divisao is not None:
         results["divisao"] = divisao
+    if camadas:
+        ordem = [c.name for c in camadas]
+        results["camadas"] = {
+            "engines": ordem,
+            # `combinacoes` é a ÚNICA forma armazenada: "sozinha", "no total" e
+            # "concordaram" são derivadas na impressão, para que cada número
+            # tenha uma fonte só e não possam divergir entre si.
+            "combinacoes": [
+                {"camadas": list(chave), "casos": n}
+                for chave, n in sorted(
+                    combinacoes.items(),
+                    key=lambda kv: (len(kv[0]), [ordem.index(e) for e in kv[0]]),
+                )
+            ],
+            # Zero por construção. Existe para poder deixar de ser zero em vez
+            # de o caso sumir: se uma camada levantar, isso aparece aqui.
+            "indisponivel": indisponiveis,
+        }
     return results
 
 
@@ -288,6 +367,9 @@ def _linhas_da_divisao(divisao: dict) -> List[str]:
                  else "— (casos sem id: dataset não divisível)")
     linhas = [
         f"Divisão : {divisao['metade']}  ({divisao['receita']})",
+        # O papel colado ao número, e não em ajuda que ninguém abre: um recall
+        # de `holdout` copiado desta caixa leva junto para que serve a metade.
+        f"  papel     : {PAPEIS_DAS_METADES[divisao['metade']]}",
         f"  casos     : {divisao['casos']} de {divisao['casos_no_conjunto']}"
         f"        metade-id : {rotulo_id}",
         f"  DENY/ALLOW: {divisao['deny']}/{divisao['allow']}  "
@@ -305,6 +387,48 @@ def _linhas_da_divisao(divisao: dict) -> List[str]:
                 "     Compare recall, que é invariante à mistura DENY/ALLOW."
             )
     linhas.append("")
+    return linhas
+
+
+def _linhas_das_camadas(camadas: dict) -> List[str]:
+    """Quem produziu o veredito vencedor, quando o motor tem camadas.
+
+    A decisão final é a mais restritiva, então "quem decidiu" é quem decidiu
+    igual a ela — e quando duas decidiram igual, **as duas decidiram**. Isso é
+    informação, não empate a desfazer: um caso em que regras e conceitos chegam
+    ao mesmo veredito diz algo diferente de um em que só uma chegou.
+
+    Todos os números saem de `combinacoes`, que é a única forma armazenada.
+    """
+    ordem = camadas["engines"]
+    total = sum(c["casos"] for c in camadas["combinacoes"])
+    presente: dict = {}
+    sozinha: dict = {}
+    juntas = 0
+    for combinacao in camadas["combinacoes"]:
+        nomes, n = combinacao["camadas"], combinacao["casos"]
+        for nome in nomes:
+            presente[nome] = presente.get(nome, 0) + n
+        if len(nomes) == 1:
+            sozinha[nomes[0]] = sozinha.get(nomes[0], 0) + n
+        elif len(nomes) > 1:
+            juntas += n
+
+    largura = max((len(nome) for nome in ordem), default=0)
+    linhas = ["Camada decisória (quem produziu o veredito vencedor):"]
+    for nome in ordem:
+        linhas.append(
+            f"  {nome:<{largura}} : {presente.get(nome, 0)} de {total}"
+            f"   ({sozinha.get(nome, 0)} sozinha)"
+        )
+    linhas.append(f"  as camadas concordaram em {juntas} de {total} casos.")
+    if camadas["indisponivel"]:
+        # Aparece em vez de sumir: camada que levanta não é atribuída a
+        # ninguém, e o caso não pode desaparecer da contagem por isso.
+        linhas.append(
+            f"  !! {camadas['indisponivel']} caso(s) com camada indisponível "
+            "(o motor levantou) — sem camada atribuída."
+        )
     return linhas
 
 
@@ -336,13 +460,23 @@ def format_report(results: dict) -> str:
         lines.append(
             f"  {principle:<16} {stats['correct']}/{stats['total']}"
         )
+    # Mesmo idioma do `results.get("divisao")` acima: um results sem a chave é
+    # um motor de camada única, e o bloco simplesmente não existe.
+    if results.get("camadas"):
+        lines.append("")
+        lines.extend(_linhas_das_camadas(results["camadas"]))
     if results["mismatches"]:
         lines.append("")
         lines.append(f"Mismatches ({len(results['mismatches'])}):")
         for miss in results["mismatches"]:
+            camada = (
+                f"    [camada: {', '.join(miss['camada']) or '—'}]"
+                if "camada" in miss
+                else ""
+            )
             lines.append(
                 f"  [{miss['id']}] expected {miss['expected']}, "
-                f"got {miss['predicted']} (rules: {miss['matched_rules']})"
+                f"got {miss['predicted']} (rules: {miss['matched_rules']}){camada}"
             )
             lines.append(f"      {miss['content']!r}")
     else:

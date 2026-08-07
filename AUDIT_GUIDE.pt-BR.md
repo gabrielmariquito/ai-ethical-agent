@@ -908,13 +908,24 @@ python -m ethical_agent eval --dataset eval/dataset_huggingface_injections.json
 python -m ethical_agent eval --dataset eval/dataset_beavertails.json
 ```
 
-Resultados da engine `hybrid` (medidos em 2026-08-01):
+A mesma coisa é alcançável pela tela `/eval`, sem linha de comando — ver o
+Passo 8. Lá dá para escolher o motor, pedir `tune` e `holdout` separados, e
+comparar as três engines lado a lado sobre o mesmo conjunto de casos.
 
-| | interno (47) | HF injections (662) | BeaverTails (220) |
+Resultados da engine `hybrid` (medidos em 2026-08-07, `5f9a91d`):
+
+| | interno (72) | HF injections (662) | BeaverTails (220) |
 |---|---|---|---|
-| Precisão | 1.000 | 1.000 | 0.778 |
-| Recall | 1.000 | 0.038 | 0.058 |
-| TP/FP/FN/TN | 31/0/0/16 | 10/0/253/399 | 7/2/113/98 |
+| Precisão | 0.980 | 1.000 | 0.873 |
+| Recall | 0.980 | 0.038 | 0.458 |
+| TP/FP/FN/TN | 48/1/1/22 | 10/0/253/399 | 55/8/65/92 |
+
+> [!NOTE]
+> **Os números acima corrigem uma tabela que estava velha**, e a correção é
+> anterior a qualquer mudança de comportamento: ela dizia "interno (47)" e
+> `31/0/0/16`, medidos em 2026-08-01, antes de o conjunto curado crescer para 72
+> casos e antes da taxonomia de dano. Nenhum veredito se moveu para produzir
+> estes; o que se moveu foi a data da medição.
 
 | Métrica | Pergunta que responde |
 |---------|-----------------------|
@@ -924,14 +935,54 @@ Resultados da engine `hybrid` (medidos em 2026-08-01):
 | **FN** | Deixou passar algo nocivo — o erro perigoso, e o mais comum aqui |
 
 > [!IMPORTANT]
-> **O dataset interno dá 1.000 em tudo, e isso não é boa notícia.** Ele foi
+> **O dataset interno dá quase 1.000 em tudo, e isso não é boa notícia.** Ele foi
 > escrito pela mesma pessoa e no mesmo momento que as regras: mede consistência
 > interna, não capacidade de generalizar. Uma auditoria honesta usa os dois
-> externos, onde o recall cai para 0.038 e 0.058 — e onde aparecem os primeiros
-> falsos positivos medidos do projeto.
+> externos, onde o recall cai para 0.038 e 0.458 — e onde aparecem os falsos
+> positivos medidos do projeto. É por isso que `eval/dataset.json` **nunca é
+> dividido** em `tune`/`holdout`: "metade reservada" de um conjunto que o autor
+> das regras escreveu inteiro não está reservada de nada. Pedir metade dele é
+> recusado, na linha de comando e na tela, com a mesma frase.
 
 A saída lista os casos errados em `Mismatches`, com ID, esperado, obtido e
 texto. É por ali que se investiga um erro específico.
+
+### Qual camada decidiu
+
+Sob `--engine hybrid` — o padrão — o veredito sai de duas camadas: as regras
+escritas à mão e as normas da ontologia. A pergunta que a composição levanta e
+que este guia não respondia é **qual das duas decidiu**, e ela agora vem no
+relatório:
+
+```
+Camada decisória (quem produziu o veredito vencedor):
+  rule-based      : 58 de 72   (35 sozinha)
+  knowledge-graph : 37 de 72   (14 sozinha)
+  as camadas concordaram em 23 de 72 casos.
+```
+
+E, em cada linha de `Mismatches`, a camada daquele caso:
+
+```
+  [FAIR-F-001] expected ALLOW, got DENY (rules: ['N-REL-005'])    [camada: knowledge-graph]
+  [PRIV-016] expected REWRITE, got ALLOW (rules: [])    [camada: rule-based, knowledge-graph]
+```
+
+Os dois erros acima parecem o mesmo tipo de problema sem esta linha, e não são.
+No primeiro, a camada de conceitos bloqueou sozinha algo que devia passar — é
+falso positivo com dono. No segundo, **as duas concordaram em errar**: não é uma
+camada falhando, é lacuna das duas, e consertar uma não resolve.
+
+> [!NOTE]
+> **"As duas decidiram" é resposta, não ausência de resposta.** O veredito final
+> é o mais restritivo, então quem decidiu é quem produziu o veredito vencedor —
+> e quando as duas produzem o mesmo, as duas decidiram. Isso é informação sobre
+> onde a cobertura se sobrepõe, não um empate a desfazer.
+>
+> Esta atribuição é **diagnóstico de avaliação e não entra na trilha de
+> auditoria**. Qual norma decidiu e por qual princípio já está em cada registro;
+> se veio de uma camada ou de outra é informação sobre a arquitetura do sistema,
+> não sobre o julgamento daquele caso.
 
 ---
 
@@ -1137,6 +1188,27 @@ com versionamento e histórico, é a mudança seguinte. A tela diz isso no
 formulário e na confirmação, porque um auditor que acredita ter corrigido uma
 regra passaria a julgar os registros seguintes contra uma política que não se
 moveu.
+
+### A tela `/eval` — o Passo 7 sem linha de comando
+
+A mesma senha abre `/eval`, que roda os datasets do Passo 7 e mostra as mesmas
+métricas, com a mesma procedência (`Divisão`, receita, `metade-id`, proporção
+DENY/ALLOW e o erro-padrão ao lado do recall). O que ela acrescenta:
+
+- **Escolher o motor**, ou pedir **Comparar as três**. A comparação roda sobre
+  o mesmo conjunto de casos e as três caixas trazem o mesmo `metade-id`, que é
+  como se confere que a comparação é legítima. Não é o padrão: triplica o tempo.
+- **`tune` e `holdout` separados**, uma caixa para cada. A tela explica o que
+  as duas metades são; a regra curta é que `tune` é instrumento de trabalho e
+  `holdout` é o número que se publica. Cada caixa de `holdout` vem marcada como
+  leitura de reporte, e a marcação vai junto no texto copiado.
+- **Uma caixa por avaliação**, cada uma nomeando dataset, motor e metade — uma
+  captura de tela de uma caixa se explica sozinha.
+
+Duas coisas que ela **não** faz, e as duas são deliberadas. Não grava na trilha
+de auditoria: são centenas de casos sintéticos direto no motor, e registrá-los
+afogaria o uso real. E o motor escolhido aqui **não muda o da tela de conversa** —
+a escolha é local a esta execução.
 
 ---
 

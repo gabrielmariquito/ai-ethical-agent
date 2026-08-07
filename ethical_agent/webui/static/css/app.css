@@ -1176,6 +1176,43 @@ details[open] > .ea-intervention__summary::before {
   font-style: italic;
 }
 
+/* Uma caixa por avaliação: mesmo estilo da caixa única de antes, repetida e
+   titulada, para que cada uma possa ser lida, copiada ou capturada sozinha. */
+.ea-eval-box {
+  margin-bottom: var(--ea-space-6);
+}
+
+.ea-eval-box__title {
+  font-family: var(--ea-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ea-fg-muted);
+  margin: 0 0 0.35rem;
+}
+
+/* A marcação do papel da metade fica na própria caixa, não em ajuda. */
+.ea-eval-box__papel {
+  font-size: 0.78rem;
+  color: var(--ea-fg-muted);
+  margin: 0 0 0.5rem;
+}
+
+.ea-tool-hint {
+  font-size: 0.78rem;
+  color: var(--ea-fg-muted);
+  margin: 0.25rem 0 0;
+}
+
+.ea-eval-explainer {
+  font-size: 0.82rem;
+  color: var(--ea-fg-muted);
+  margin-top: 0.6rem;
+}
+
+.ea-eval-explainer summary {
+  cursor: pointer;
+}
+
 .ea-eval-report {
   font-family: var(--ea-mono);
   font-size: 0.82rem;
