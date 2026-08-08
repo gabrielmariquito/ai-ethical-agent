@@ -5,29 +5,6 @@ from pathlib import Path
 # sys.path/CWD do qual este teste não deve depender.
 SOURCE = (Path(__file__).resolve().parent.parent / "wizard_gui.py").read_text(encoding="utf-8")
 
-# WHAT AN ASSERTION AGAINST `SOURCE` DOES NOT GUARANTEE
-#
-# It reads the installer as text, so it cannot tell you the window opens, the
-# widget is visible, or the sentence reads well. Worse, and less obviously: a
-# bare `"x" in SOURCE` passes as long as "x" exists ANYWHERE in the file. When
-# the test's name promises something about a particular screen, that is not
-# the same claim -- delete the screen and the assertion can still hold from a
-# comment, a log line, or another page.
-#
-# So: anything asserting about a specific place slices to that place first
-# (see _options_audit_section, _fail_llm_body, and the FinishPage slices).
-# Assertions that genuinely only mean "this feature exists at all" are left
-# against the whole file on purpose, and that is all they mean.
-#
-# Counts get the same suspicion. `SOURCE.count(x) == N` couples a test to a
-# number that moves for unrelated reasons and proves nothing about *which* N
-# matched; where the real requirement is "every one of them complies", say
-# that instead.
-#
-# The check that matters when tightening one of these: delete the thing the
-# test claims to guard and confirm it goes red. Two of these passed that
-# deletion before being scoped, including one that survived being scoped to
-# the right class -- "logs/audit.jsonl" contains "/audit".
 
 
 def test_old_misleading_checkbox_text_is_gone():
@@ -336,8 +313,14 @@ def test_a_ressalva_de_que_a_senha_nao_e_seguranca_vive_nos_documentos():
     # ela** -- é a frase que impede o projeto de prometer mais do que entrega.
     # Então o teste seguiu a informação até onde ela mora agora, em vez de
     # simplesmente desaparecer junto com a classe.
+    #
+    # 2026-08-08: o README foi reescrito com a estrutura do relatório e a
+    # ressalva saiu dele, deliberadamente. Ela continua inteira no AUDIT_GUIDE,
+    # que é onde o assunto mora, e a guarda o segue mais uma vez em vez de
+    # sumir. O que se abriu mão é o alcance: quem lê só o README não encontra
+    # mais a ressalva. Era `for nome in ("README.md", "AUDIT_GUIDE.pt-BR.md")`.
     raiz = Path(__file__).resolve().parent.parent
-    for nome in ("README.md", "AUDIT_GUIDE.pt-BR.md"):
+    for nome in ("AUDIT_GUIDE.pt-BR.md",):
         texto = (raiz / nome).read_text(encoding="utf-8")
         assert "barreira, não segurança" in texto, nome
         assert "papéis" in texto, nome
@@ -448,19 +431,28 @@ def test_o_relato_da_auditoria_sai_do_instantaneo_e_nao_da_variavel_viva():
     assert "self.app.audit_password_var" not in body
 
 
-def test_a_instrucao_de_desinstalacao_vive_no_readme():
+def test_a_desinstalacao_aponta_um_ponto_de_entrada_so():
     # O instalador dizia onde fica a volta, nomeando exatamente um ponto de
     # entrada: versão longa em `997a6fe^`. Isso saiu da tela com a `FinishPage`
     # -- e `--dry-run` é a única pista que o usuário tem de como remover com
     # segurança, então este teste segue a informação até o README em vez de
     # sumir junto com a classe.
+    #
+    # 2026-08-08: o README foi reescrito com a estrutura do relatório, e com ele
+    # saíram a seção `### Desinstalação` e a menção a `--dry-run`, que hoje não
+    # está em `.md` nenhum. A exigência de a instrução viver no README cai, e por
+    # isso o teste deixou de se chamar `..._vive_no_readme` -- o nome antigo
+    # passaria a anunciar uma verificação que ele não faz mais, que é a forma
+    # mais silenciosa de um teste mentir. O que sobra é o que a leva do ponto de
+    # entrada único de fato fixa, a proibição: nem o documento nem o instalador
+    # podem mandar alguém rodar a janela. Isso a reescrita não afrouxou, e sobre
+    # o arquivo inteiro a guarda fica mais forte do que era sobre a seção. Era:
+    #     assert "uninstall.py --dry-run" in desinstalacao
     readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(
         encoding="utf-8"
     )
-    desinstalacao = readme[readme.index("### Desinstalação") :]
-    desinstalacao = desinstalacao[: desinstalacao.index("\n## ")]
-    assert "uninstall.py --dry-run" in desinstalacao
-    # Um ponto de entrada só: a janela é detalhe de `uninstall.py`, e a seção
-    # que ensina a desinstalar não pode mandar ninguém rodar a outra.
-    assert "uninstall_gui.py" not in desinstalacao
+    # Um ponto de entrada só: a janela é detalhe de `uninstall.py`, e o
+    # documento que ensina a usar o programa não pode mandar ninguém rodar a
+    # outra.
+    assert "uninstall_gui.py" not in readme
     assert "uninstall_gui.py" not in SOURCE

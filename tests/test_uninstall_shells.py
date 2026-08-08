@@ -1012,11 +1012,14 @@ def test_the_single_entry_point_decision_is_still_guarded_elsewhere():
     # Esta leva reafirma a decisão que test_wizard_gui.py já fixa; se alguém
     # transformar a janela em entrada documentada, os dois têm de falhar.
     wizard_tests = (REPO_ROOT / "tests" / "test_wizard_gui.py").read_text(encoding="utf-8")
-    assert 'assert "uninstall_gui.py" not in desinstalacao' in wizard_tests
+    assert 'assert "uninstall_gui.py" not in readme' in wizard_tests
+    # 2026-08-08: o README foi reescrito com a estrutura do relatório e a seção
+    # `### Desinstalação` deixou de existir. A guarda não sai com ela -- passa a
+    # valer sobre o arquivo inteiro, o que é exigência MAIOR que a anterior:
+    # antes a janela podia ser citada em qualquer outra seção sem que ninguém
+    # reclamasse, agora não pode em nenhuma.
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    secao = readme[readme.index("### Desinstalação") :]
-    secao = secao[: secao.index("\n## ")]
-    assert "uninstall_gui.py" not in secao, "a seção de desinstalação voltou a apontar para a janela"
+    assert "uninstall_gui.py" not in readme, "o README voltou a apontar para a janela"
 
 
 def test_the_readme_does_not_claim_what_opens_a_py_file():
@@ -1024,11 +1027,20 @@ def test_the_readme_does_not_claim_what_opens_a_py_file():
     # apesar de `ftype` dizer `py.exe`. Qual programa abre um `.py` varia por
     # instalação e não é o mecanismo -- o mecanismo é qual interpretador acaba
     # rodando o script, que é o que a detecção olha.
+    #
+    # 2026-08-08: o README foi reescrito e a seção `### Desinstalação` saiu com
+    # ele. A metade NEGATIVA desta guarda sobrevive inteira, e mais forte, agora
+    # sobre o arquivo todo. A metade POSITIVA -- "o mecanismo real tem de estar
+    # dito" -- não sobrevive: `VIRTUAL_ENV` deixou de aparecer em qualquer `.md`
+    # do repositório, e a remoção foi deliberada. Ela segue até onde o mecanismo
+    # ainda é afirmável, que é a fonte que o implementa. Fica registrado que o
+    # que se perdeu é a exigência de o usuário ler isso na documentação, e não a
+    # de o programa fazer isso. Era:
+    #     assert "VIRTUAL_ENV" in secao, "o mecanismo real tem de estar dito"
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    secao = readme[readme.index("### Desinstalação") :]
-    secao = secao[: secao.index("\n## ")]
-    assert "a associação de `.py` usa" not in secao
-    assert "VIRTUAL_ENV" in secao, "o mecanismo real tem de estar dito"
+    assert "a associação de `.py` usa" not in readme
+    fonte = (REPO_ROOT / "uninstall.py").read_text(encoding="utf-8")
+    assert "VIRTUAL_ENV" in fonte, "a detecção deixou de olhar o mecanismo real"
 
 
 @needs_venv
