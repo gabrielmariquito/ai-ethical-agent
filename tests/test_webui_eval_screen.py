@@ -90,7 +90,14 @@ def test_o_seletor_de_motor_nao_tem_listener_que_grave(js):
 
 def test_a_tela_diz_que_a_escolha_e_local(html):
     # Escrito na tela, não em documentação que ninguém abre.
-    assert "Não muda a engine da conversa" in html
+    #
+    # 2026-08-07: `414799d` encurtou a frase e a guarda passa a exigir a que
+    # ficou. A troca perde texto: "não muda a engine da conversa nem a do painel
+    # Configuração" era explícito sobre o vazamento, e "vale só para esta
+    # execução" afirma menos. Aceito como deliberado. O mecanismo continua nas
+    # três guardas acima -- o que deixou de ser exigido é o aviso na tela. Era:
+    #     assert "Não muda a engine da conversa" in html
+    assert "Vale só para esta execução" in html
 
 
 # ---------------------------------------- 2. uma caixa por avaliação, nomeada
@@ -168,5 +175,11 @@ def test_nenhum_valor_canonico_e_literal_no_js(js, literal):
 def test_a_tela_explica_tune_e_holdout(html):
     for termo in ("tune", "holdout", "divisao/v1", "recall"):
         assert termo in html, termo
-    # E diz por que o curado não é dividido, antes de alguém tentar.
-    assert "não é dividido" in html
+    # A guarda de que a tela diz por que o curado não é dividido saiu em
+    # 2026-08-07: `414799d` apagou o parágrafo do `eval/dataset.json` sem citar a
+    # remoção na mensagem, e ela foi aceita como deliberada. A tela não anuncia
+    # mais isso *antes* de alguém tentar; a recusa depois continua chegando, e
+    # continua coberta em runtime por `test_divisao.py` e
+    # `test_recusa_unificada.py`, contra a fonte única
+    # `evaluate.recusa_de_divisao`. O que se abriu mão é o cerco preventivo. Era:
+    #     assert "não é dividido" in html

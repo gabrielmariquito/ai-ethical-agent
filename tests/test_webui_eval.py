@@ -14,6 +14,7 @@ def server(tmp_path):
     running.close()
 
 
+from ethical_agent.evaluate import PAPEIS_DAS_METADES
 from ethical_agent.webui.handlers_eval import default_dataset_path, eval_dir
 
 # Os identificadores dourados vêm de `test_divisao.py`, não de uma segunda
@@ -229,8 +230,8 @@ def test_a_caixa_de_holdout_vem_marcada_como_reporte(server):
     assert status == 200, body
     avaliacao = _uma(body)
 
-    assert "reporte" in avaliacao["papel"]
-    assert "reporte" in avaliacao["report_text"]
+    assert avaliacao["papel"] == PAPEIS_DAS_METADES["holdout"]
+    assert PAPEIS_DAS_METADES["holdout"] in avaliacao["report_text"]
 
 
 def test_a_caixa_de_tune_se_diz_instrumento_de_trabalho(server):
@@ -238,7 +239,7 @@ def test_a_caixa_de_tune_se_diz_instrumento_de_trabalho(server):
         "/api/eval", {"dataset": EXTERNO, "engine": "rule", "half": "tune"}
     )
     assert status == 200, body
-    assert "ajuste" in _uma(body)["papel"]
+    assert _uma(body)["papel"] == PAPEIS_DAS_METADES["tune"]
 
 
 # --------------------------------------------- uma caixa por avaliação, nomeada
