@@ -1,9 +1,9 @@
-# ai-ethical-agent
+# ai-ethical-guardrail
 
 **Verificação simbólica e auditável de princípios éticos em Foundation Models**
 
 Projeto Final de Programação (INF2102), Departamento de Informática, PUC-Rio
-Autor Gabriel Mariquito. Orientação de Greis e Kali
+Autor Gabriel Mariquito
 
 ---
 
